@@ -1,4 +1,4 @@
-"""Tab 4 — Summarization: per-part summaries plus optional consolidated session doc."""
+"""Summarization: per-part summaries plus optional consolidated session doc."""
 
 from __future__ import annotations
 

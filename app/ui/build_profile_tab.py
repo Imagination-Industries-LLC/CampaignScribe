@@ -1,4 +1,4 @@
-"""Tab 2 — Speaker Profile Builder: name speakers and save speakers.json."""
+"""Speaker Profile Builder: name speakers and save speakers.json."""
 
 from __future__ import annotations
 
@@ -153,7 +153,7 @@ class BuildProfileTab(ttk.Frame):
         ttk.Button(btn_row, text="Save speakers.json", command=self._save).pack(side="left", padx=4)
         ttk.Button(
             btn_row,
-            text="→ Save & Use in Transcribe (Tab 3)",
+            text="→ Save & Use in Transcribe",
             command=self._save_and_use_in_transcribe,
         ).pack(side="left", padx=4)
 
@@ -346,7 +346,7 @@ class BuildProfileTab(ttk.Frame):
         if not self._save(show_success=False):
             return
         out_path = self.out_var.get().strip()
-        tab5 = self.app.tab5
-        tab5.speakers_var.set(out_path)
-        tab5.speakers_path = out_path
+        transcribe_tab = self.app.transcribe_tab
+        transcribe_tab.speakers_var.set(out_path)
+        transcribe_tab.speakers_path = out_path
         self.app.jump_to_tab(2)

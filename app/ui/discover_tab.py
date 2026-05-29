@@ -1,4 +1,4 @@
-"""Tab 1 — Speaker Discovery: process a sample, infer speaker profiles, save to DB."""
+"""Speaker Discovery: process a sample, infer speaker profiles, save to DB."""
 
 from __future__ import annotations
 
@@ -105,7 +105,7 @@ class DiscoverTab(ttk.Frame):
 
         self.proceed_btn = ttk.Button(
             self,
-            text="Proceed to Build Profile (Tab 2)",
+            text="Proceed to Build Profile",
             command=lambda: self.app.jump_to_tab(1),
             state="disabled",
         )
@@ -259,7 +259,7 @@ class DiscoverTab(ttk.Frame):
         except InterruptedError:
             self._set_status("Cancelled.", 0.0)
         except Exception as e:
-            log_path = config.log_exception("Tab1.onboard", e)
+            log_path = config.log_exception("discover_tab.onboard", e)
             self._set_status(f"Error: {e}", 0.0)
             msg = f"{e}\n\nFull traceback written to:\n{log_path}"
             self.after(0, lambda m=msg: messagebox.showerror("CampaignScribe", m))
@@ -288,7 +288,7 @@ class DiscoverTab(ttk.Frame):
             if p.get("notes"):
                 text.append(f"    {p['notes']}")
         text.append("")
-        text.append("Open Tab 2 to name speakers and save speakers.json.")
+        text.append("Open the Build Profile tab to name speakers and save speakers.json.")
 
         def apply():
             self.result.delete("1.0", "end")

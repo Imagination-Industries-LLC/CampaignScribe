@@ -1,4 +1,4 @@
-"""Tab 5 — Speaker Refinement: improve an existing speakers.json from new audio."""
+"""Speaker Refinement: improve an existing speakers.json from new audio."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Tab 3 — Transcription: WhisperX + diarization + Claude speaker ID."""
+"""Transcription: WhisperX + diarization + Claude speaker ID."""
 
 from __future__ import annotations
 
@@ -142,9 +142,9 @@ class TranscribeTab(ttk.Frame):
             text="Open Folder",
             command=lambda: open_path_native(self.output_dir or self.out_var.get()),
         ).pack(side="left", padx=4)
-        ttk.Button(out_label, text="→ Send improvements to Tab 5", command=self._send_to_tab2).pack(
-            side="left", padx=4
-        )
+        ttk.Button(
+            out_label, text="→ Send improvements to Refine tab", command=self._send_to_refine
+        ).pack(side="left", padx=4)
 
         self.columnconfigure(1, weight=1)
         self.columnconfigure(2, weight=1)
@@ -440,7 +440,7 @@ class TranscribeTab(ttk.Frame):
             except InterruptedError:
                 self._set_row(ap, "failed", "cancelled")
             except Exception as e:
-                config.log_exception(f"Tab5.transcribe[{os.path.basename(ap)}]", e)
+                config.log_exception(f"transcribe_tab[{os.path.basename(ap)}]", e)
                 self._set_row(ap, "failed", str(e)[:100])
             finally:
                 if wav and os.path.exists(wav):
@@ -461,7 +461,7 @@ class TranscribeTab(ttk.Frame):
                 self._add_output(imp_path)
                 self._set_status(
                     "Done. Speaker-improvement suggestions saved — open the Refine tab "
-                    "(Tab 5) to review them and fold them into your profile before your "
+                    "to review them and fold them into your profile before your "
                     "next session."
                 )
             except Exception as e:
@@ -520,7 +520,7 @@ class TranscribeTab(ttk.Frame):
             return
         reveal_in_folder(self.out_box.get(sel[0]))
 
-    def _send_to_tab2(self):
+    def _send_to_refine(self):
         # Find the most recent speakers_improvements_*.json in results
         target = next(
             (
@@ -539,16 +539,16 @@ class TranscribeTab(ttk.Frame):
         except Exception as e:
             messagebox.showerror("CampaignScribe", str(e))
             return
-        # Push into Tab 2
-        tab2 = self.app.tab2
-        if not tab2.speakers_doc:
+        # Push into Refine tab
+        refine_tab = self.app.refine_tab
+        if not refine_tab.speakers_doc:
             try:
-                tab2.speakers_doc = speakers_io.load_speakers_json(self.speakers_path)
-                tab2.speakers_path = self.speakers_path
-                tab2.speakers_var.set(self.speakers_path)
+                refine_tab.speakers_doc = speakers_io.load_speakers_json(self.speakers_path)
+                refine_tab.speakers_path = self.speakers_path
+                refine_tab.speakers_var.set(self.speakers_path)
             except Exception as e:
                 messagebox.showerror("CampaignScribe", str(e))
                 return
-        tab2.suggestions = doc
-        tab2._render_suggestions()
+        refine_tab.suggestions = doc
+        refine_tab._render_suggestions()
         self.app.jump_to_tab(4)
