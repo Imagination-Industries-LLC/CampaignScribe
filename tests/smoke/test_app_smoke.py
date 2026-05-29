@@ -46,8 +46,10 @@ def app(monkeypatch):
         pytest.skip(f"No display available for Tk: {e}")
     win.withdraw()
     win.update_idletasks()
-    yield win
-    win.destroy()
+    try:
+        yield win
+    finally:
+        win.destroy()
 
 
 def test_app_window_constructs_with_six_tabs(app):

@@ -55,4 +55,6 @@ def test_summarize_then_consolidate(fake_claude):
 
     result = summarizer.consolidate_summaries([part], SPEAKERS_REF, api_key="sk-x")
     assert result["session_name"] == "The Crypt"
-    assert len(client.calls) == 2
+    assert len(client.calls) == 2, (
+        f"Expected 2 API calls (summarize_part + consolidate_summaries), got {len(client.calls)}"
+    )
