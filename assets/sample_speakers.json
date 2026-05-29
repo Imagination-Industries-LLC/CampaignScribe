@@ -1,0 +1,122 @@
+{
+  "campaign": "Monster Hunter D&D Campaign",
+  "context": "A D&D 5e campaign heavily integrated with Monster Hunter mechanics. Players hunt monsters, collect parts, craft and upgrade weapons and armor using a custom Monster Hunter loot system tracked in Discord and D&D Beyond. The group is organized as a licensed hunter guild group that sometimes goes by the name Happy Birthday PakuPaku! Sessions mix in-character roleplay and combat with significant out-of-character discussion about rules, monster parts, crafting, and game mechanics. The group is close-knit, jokes frequently, and often tangents into real-life conversation mid-session.",
+  "known_non_players": [
+    {
+      "name": "Mike's Wife",
+      "role": "Non-player household interrupter",
+      "notes": "Mike's wife occasionally enters the session to talk to Mike or other players. She is not a D&D player. She does not discuss game mechanics, monster parts, or rules. Her speech will be domestic, conversational, and completely unrelated to the game. She may address children, ask about logistics, or briefly speak to players socially before leaving. If a speaker sounds like a non-participant woman briefly interrupting with household or family conversation, label her as 'Mike's Wife (non-player)' rather than attributing the lines to a player.",
+      "speech_patterns": [
+        "Short domestic exchanges unrelated to D&D or game mechanics",
+        "May address children or family matters",
+        "Does not reference monster parts, spells, dice rolls, or campaign content",
+        "Typically very brief before exiting the conversation"
+      ]
+    }
+  ],
+  "fallback_policy": {
+    "unknown_speaker_label": "Unknown/Guest",
+    "instructions": "If a speaker cannot be confidently matched to any known player or non-player based on their speech content, assign them the label 'Unknown/Guest' rather than guessing. This applies to: occasional guest players filling in for a session, voices that appear only once or twice with no identifying speech patterns, or segments where audio quality makes speaker identification unreliable. Do not force a match if confidence is low — an 'Unknown/Guest' label is always preferable to a wrong attribution."
+  },
+  "players": [
+    {
+      "player_name": "Josh",
+      "role": "Dungeon Master",
+      "character_name": "Also plays Welbrix/Mimeslayer as a PC in sessions where someone else DMs",
+      "notes": "Josh runs the game and also plays a PC in a separate Friday group. As DM he narrates scenes, delivers NPC dialogue, adjudicates rules, assigns gold/loot values, and manages the Monster Hunter crafting system. He also sometimes speaks as his own player-character Welbrix/Mimeslayer in sessions where he is a player rather than DM — in those moments his tone shifts from authoritative narrator to collaborative player. Watch for him referencing 'my character' or 'Mimeslayer' as a signal he's in player mode.",
+      "speech_patterns": [
+        "Delivers NPC dialogue in third person then quotes: 'She'll just kind of say...', 'He'll go...', 'She goes...'",
+        "Uses 'y'all' frequently when addressing the group",
+        "Gives loot readouts in list format: 'Two tendons, two marrows, and one pelt'",
+        "Calls for rolls with: 'Roll me a...', 'Give me a perception', 'Roll me a check'",
+        "Assigns gold values directly: '450 gold', '1,800 gold', '4,000'",
+        "Says 'Let's see' when looking something up mid-session",
+        "References 'the Google Doc' or 'the Discord' for homebrew content",
+        "Describes monster abilities and item properties in rules language",
+        "Asks wrap-up questions: 'Is there anything else we need to do before we move on?'",
+        "When playing Welbrix/Mimeslayer: speaks in first person, references mind flayer encounters, says 'I need to learn to use silent image'"
+      ]
+    },
+    {
+      "player_name": "Mike",
+      "character_name": "Wellbrix",
+      "character_class": "Warlock (Great Old One), Rogue (Soulknife), Artificer (Armorer) - references guidance, stealth, picking locks, searching for traps, force and psychic weapons, his familiar an imp named Puckle)",
+      "notes": "Mike is a knowledgeable, engaged player who frequently references rules details, item interactions, and game mechanics. He owns real-world bladed weapons — conversations about Cold Steel brand, jade knives from Ryokos, or a sword with his initials are almost certainly him. He uses a familiar/summoned creature he calls 'my amp'. He plays a support-heavy bard. He tends to think out loud and reason through rules interactions step by step. He is the 'other Mike' referenced in Walter's stories about a previous campaign.",
+      "speech_patterns": [
+        "Thinks through rules interactions verbally: 'Well, I thought there were two different types, right?'",
+        "Qualifies statements: 'if I remember right', 'I think', 'I'm pretty sure'",
+        "References his familiar as 'my amp': 'Can my amp wear Gauntlets of Overpower?'",
+        "Collector tangents about real weapons: Cold Steel, jade knives, swords with his initials",
+        "Says 'Hey, sometimes that's all you need'",
+        "Uses 'I like high power, though'",
+        "Often defers to the DM: 'I guess I should probably check that with the DM'",
+        "Short affirmations: 'Works for me', 'Okay', 'Pretty sure'"
+      ]
+    },
+    {
+      "player_name": "Dustin",
+      "character_name": "Phil",
+      "character_class": "Bard (College of Creation)",
+      "notes": "Dustin plays Phil, a barbarian who also has a skeleton/bone-themed summon named Tibia and a familiar named Humorous. He is laid back and casual. He stays in character as Phil during tense roleplay moments and is immediately hostile in-character when poaching is mentioned.",
+      "speech_patterns": [
+        "Character voices in-scene: 'I'm immediately hostile. I'm just not going to act on it.'",
+        "Names his skeleton summon parts thematically: 'Phalange Tibia Humorous'",
+        "Arcade tangents: Round 1 Greensboro, claw machines, prize redemption strategies",
+        "Casual short responses: 'Yeah, me too. Let's go.', 'I've been lied to.'",
+        "Reports dice rolls simply: '13. 19. Nat 20.'",
+        "Self-aware about bad rolls: 'The dice support my stupidity'",
+        "Says 'Doesn't that mean my business is concluded?' — looks for clean scene exits",
+        "Sometimes narrates his character's actions in third person: 'He puts the raggedy-ass horn'"
+      ]
+    },
+    {
+      "player_name": "Chris",
+      "character_name": "Aripnip",
+      "character_class": "Wizard (Abjuration) (references contingency spell, dimension door, detecting magic, crafting)",
+      "notes": "Chris is the most rules-precise player at the table. He reads rules text aloud verbatim, corrects misunderstandings, and tracks party inventory and loot more than anyone else. He is warm but direct.",
+      "speech_patterns": [
+        "Reads rules text verbatim from source material",
+        "Corrects and clarifies mechanics precisely: 'Got it, got it, got it. Sorry, I thought you were saying...'",
+        "Pushes to resolve loot before moving on: 'I think in the future when we get parts, use them or sell them. I'll make a list.'",
+        "References contingency spell: 'My contingency will be Dimension Door again'",
+        "Tracks inventory obsessively: 'Did we use all the Inignami parts?', 'Six parts? Seven parts? No, six parts.'",
+        "Blunt observations: 'You ask very strange questions sometimes'",
+        "Talks about his kids and Girl Scout cookies mid-session",
+        "Offers to make infographics or lists: 'I made an infographic out of your document'",
+        "Confirms with short repeats: 'Got it. Got it, got it, got it.'"
+      ]
+    },
+    {
+      "player_name": "Walter",
+      "character_name": "PakuPaku",
+      "character_class": "Barbarian (maul, bommerang, hammer, spears, bamboo eruption ability)",
+      "notes": "Walter plays PakuPaku, a character with a distinctive name he sometimes voices in an exaggerated cadence. He is knowledgeable about real weapons — gives detailed advice about hammer hafts, tangs, and grip texture. He is pragmatic, blunt, sardonic, and does not suffer fools. He often cuts through debate with direct action.",
+      "speech_patterns": [
+        "Voices PakuPaku in slightly exaggerated cadence: 'PakuPaku sell to rich fools too'",
+        "Gives detailed real-world weapon construction advice: tang length, grip texture, haft material",
+        "Direct action narration: 'I'm going to pull out a Racky D and put it on the counter'",
+        "Dramatic character moments: 'I'm going to tilt up my mask just a little bit and spit on his desk'",
+        "Dry humor: 'Shit happens. Arms come and go.'",
+        "Tells long anecdotes: the stealth-over-42 story, the Kodachi birthday gift story",
+        "Evaluates things pragmatically: 'That would ruin your day, not Parker's day'"
+      ]
+    },
+    {
+      "player_name": "Ken",
+      "character_name": "Noctis",
+      "character_class": "Cleric (Twilight Domain)/dual wielder (longsword and war hammer paired set representing his parents, smite mechanics, plate armor, mithril)",
+      "notes": "Ken plays Noctis with strong personal investment in the character's backstory — the longsword and war hammer represent his character's deceased parents. He is emotionally expressive about his character's future. He is familiar with Monster Hunter Wilds specifically. He has good game knowledge and thinks creatively about builds. He is referenced as having unusually good luck ('you don't have Noctis' luck').",
+      "speech_patterns": [
+        "Emotionally invests in character lore: 'if one represents my dad and the other my mom...'",
+        "Asks speculative build questions: 'Can I put them together and then it becomes a two-handed weapon?'",
+        "References Monster Hunter Wilds mechanics: Insect Glaive, remote hunting, Insect Life update, paint-balling",
+        "Discusses 2024 vs 2014 D&D rules differences",
+        "Uses 'gross' to describe powerful/broken mechanics: 'barbarian also crit, which is also gross'",
+        "Generous with gold: 'We'll just give him 500'",
+        "Tries creative in-character solutions: tapping ring finger to communicate, writing notes with quill",
+        "References Malfestio webbing weakness exploit frequently",
+        "Asks permission before acting: 'Are you going to have us do anything illegal?'"
+      ]
+    }
+  ]
+}

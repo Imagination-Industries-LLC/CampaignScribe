@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 200">
+  <defs>
+    
+    <radialGradient id="wm-fill-h" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#7d5bff" stop-opacity="0.35"></stop>
+      <stop offset="60%" stop-color="#1e0e52" stop-opacity="0.6"></stop>
+      <stop offset="100%" stop-color="#07080d"></stop>
+    </radialGradient>
+  </defs>
+  <rect width="900" height="200" fill="#0d1018"></rect>
+  <g transform="translate(20 0) scale(0.95)">
+    <polygon points="100,12 178,55 178,145 100,188 22,145 22,55" stroke="#4de3ff" stroke-width="2" fill="none" opacity="0.85"></polygon>
+    <polygon points="100,22 168,60 168,140 100,178 32,140 32,60" stroke="#4de3ff" stroke-width="0.8" fill="none" opacity="0.35"></polygon>
+    <circle cx="100" cy="100" r="64" stroke="#a98bff" stroke-width="1.5" fill="url(#wm-fill-h)" opacity="0.9"></circle>
+    <circle cx="100" cy="100" r="58" stroke="#7d5bff" stroke-width="0.8" fill="none" opacity="0.55"></circle>
+    <circle cx="100" cy="100" r="46" stroke="#4de3ff" stroke-width="1" fill="none" opacity="0.7"></circle>
+    <line x1="100.00" y1="38.00" x2="100.00" y2="42.00" stroke="#4de3ff" stroke-width="1.2" opacity="0.85"></line>
+    <line x1="131.00" y1="46.31" x2="129.00" y2="49.77" stroke="#4de3ff" stroke-width="1.2" opacity="0.5"></line>
+    <line x1="153.69" y1="69.00" x2="150.23" y2="71.00" stroke="#4de3ff" stroke-width="1.2" opacity="0.5"></line>
+    <line x1="162.00" y1="100.00" x2="158.00" y2="100.00" stroke="#4de3ff" stroke-width="1.2" opacity="0.85"></line>
+    <line x1="153.69" y1="131.00" x2="150.23" y2="129.00" stroke="#4de3ff" stroke-width="1.2" opacity="0.5"></line>
+    <line x1="131.00" y1="153.69" x2="129.00" y2="150.23" stroke="#4de3ff" stroke-width="1.2" opacity="0.5"></line>
+    <line x1="100.00" y1="162.00" x2="100.00" y2="158.00" stroke="#4de3ff" stroke-width="1.2" opacity="0.85"></line>
+    <line x1="69.00" y1="153.69" x2="71.00" y2="150.23" stroke="#4de3ff" stroke-width="1.2" opacity="0.5"></line>
+    <line x1="46.31" y1="131.00" x2="49.77" y2="129.00" stroke="#4de3ff" stroke-width="1.2" opacity="0.5"></line>
+    <line x1="38.00" y1="100.00" x2="42.00" y2="100.00" stroke="#4de3ff" stroke-width="1.2" opacity="0.85"></line>
+    <line x1="46.31" y1="69.00" x2="49.77" y2="71.00" stroke="#4de3ff" stroke-width="1.2" opacity="0.5"></line>
+    <line x1="69.00" y1="46.31" x2="71.00" y2="49.77" stroke="#4de3ff" stroke-width="1.2" opacity="0.5"></line>
+    <g transform="translate(100 100) rotate(48) scale(1.8) translate(-55 -3.5)" opacity="0.2">
+      <path d="M 30 0 L 60 -3 L 90 1 L 92 4 L 60 7 L 30 4 Z" fill="#0d1018" stroke="#4de3ff" stroke-width="1.2" opacity="0.92"></path>
+      <path d="M 60 -3 L 60 7" stroke="#4de3ff" stroke-width="0.6" opacity="0.6"></path>
+      <path d="M 30 0 L 30 4 L 22 8 L 18 4 Z" fill="#4de3ff" opacity="0.95"></path>
+      <line x1="22" y1="6" x2="20" y2="10" stroke="#a98bff" stroke-width="0.8"></line>
+    </g>
+    <text x="100" y="116" text-anchor="middle" fill="#d6fbff" font-family="Cinzel, Georgia, &#39;Times New Roman&#39;, serif" font-weight="700" font-size="46" letter-spacing="1.84">CS</text>
+  </g>
+  <text x="540" y="108" text-anchor="middle" font-family="Cinzel, Georgia, serif" font-weight="600" font-size="44" letter-spacing="2" fill="#dfe4f2">Campaign<tspan fill="#1dc8e6">Scribe</tspan></text>
+  <text x="540" y="140" text-anchor="middle" font-family="Cinzel, Georgia, serif" font-weight="600" font-size="12" letter-spacing="3.8" fill="#a98bff">◈ RECORDED · RECAPPED · RECALLED ◈</text>
+</svg>

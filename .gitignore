@@ -1,0 +1,52 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# PyInstaller / build outputs
+build/
+dist/
+dist*/
+build_workspace/
+
+# Packaging metadata
+*.egg-info/
+*.egg
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+htmlcov/
+
+# IDE / editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local agent/editor config (machine-local)
+.claude/
+
+# OS / cloud sync cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+*Name clash*
+
+# Build-time bundled binaries (fetched by build.bat, not tracked)
+ffmpeg/
+
+# Runtime artifacts
+*.log
+errors.log
+*.db
+*.sqlite
+*.sqlite3

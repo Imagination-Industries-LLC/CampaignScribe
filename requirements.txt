@@ -1,0 +1,32 @@
+# NOTE: do NOT run `pip install -r requirements.txt` directly.
+# Use `setup_venv.bat` instead.
+#
+# Two workarounds are needed that pip can't express:
+#  1. whisperx 3.8.5 declares `torch~=2.8.0` which blocks our `torch==2.11.0+cu128`
+#     pin even though the combination works at runtime. setup_venv.bat installs
+#     the app deps first (letting torch 2.8 land), then force-reinstalls
+#     torch+torchaudio from the cu128 index.
+#  2. whisperx 3.8.5 also declares `torchvision~=0.23.0`, which gets installed
+#     but is never used by the app. Leaving it installed makes torchmetrics
+#     attempt to load it, and its C extension (built for torch 2.8) crashes
+#     under torch 2.11. setup_venv.bat uninstalls torchvision before the torch
+#     force-reinstall.
+#
+# This file is kept as the canonical pin spec.
+
+--extra-index-url https://download.pytorch.org/whl/cu128
+
+anthropic
+keyring
+ffmpeg-python
+python-docx
+pyinstaller
+torch==2.11.0+cu128
+torchaudio==2.11.0+cu128
+whisperx==3.8.5
+pyannote.audio==4.0.4
+transformers==4.57.6
+huggingface_hub==0.36.2
+lightning==2.6.1
+pytorch-lightning==2.6.1
+faster-whisper
