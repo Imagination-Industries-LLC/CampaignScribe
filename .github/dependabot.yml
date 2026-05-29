@@ -5,6 +5,26 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # The hand-pinned ML stack in requirements.txt is fragile and is NOT
+    # installed/validated by CI (CI uses requirements-dev.txt only). A green
+    # check on a bump to these would be misleading, so Dependabot must not
+    # propose them — they are bumped manually and re-verified via setup_venv.bat
+    # (see the backlog item for periodic ML-stack evaluation). Only deps that
+    # live exclusively in requirements.txt are ignored here; shared light deps
+    # (anthropic, keyring, python-docx) stay watched because requirements-dev.txt
+    # pins them and CI validates them.
+    ignore:
+      - dependency-name: "torch"
+      - dependency-name: "torchaudio"
+      - dependency-name: "whisperx"
+      - dependency-name: "pyannote.audio"
+      - dependency-name: "transformers"
+      - dependency-name: "huggingface_hub"
+      - dependency-name: "lightning"
+      - dependency-name: "pytorch-lightning"
+      - dependency-name: "faster-whisper"
+      - dependency-name: "pyinstaller"
+      - dependency-name: "ffmpeg-python"
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
