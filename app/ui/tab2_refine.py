@@ -6,13 +6,12 @@ import json
 import os
 import threading
 import tkinter as tk
-from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app import config
 from app.core import audio, speaker_id, speakers_io, transcriber
-from app.ui.common import ScrollableFrame, open_path_native, short_path
+from app.ui.common import ScrollableFrame
 from app.ui.theme import BTN_ACCENT, LBL_DIM, LBL_EYEBROW, LBL_HEADER
 
 
@@ -20,10 +19,10 @@ class Tab2Refine(ttk.Frame):
     def __init__(self, master, app_window):
         super().__init__(master)
         self.app = app_window
-        self.audio_files: List[str] = []
-        self.speakers_path: Optional[str] = None
-        self.speakers_doc: Optional[Dict[str, Any]] = None
-        self.suggestions: Optional[Dict[str, Any]] = None
+        self.audio_files: list[str] = []
+        self.speakers_path: str | None = None
+        self.speakers_doc: dict[str, Any] | None = None
+        self.suggestions: dict[str, Any] | None = None
         self._busy = False
         self._cancel = threading.Event()
 
@@ -33,10 +32,14 @@ class Tab2Refine(ttk.Frame):
         ttk.Label(header_box, text="Speaker Refinement", style=LBL_HEADER).pack(anchor="w")
         ttk.Label(
             header_box,
-            text=("Feedback loop — analyzes new audio to improve your speakers.json. "
-                  "Run it whenever you have fresh sessions, then re-Transcribe with the "
-                  "better profile. It's not a post-Summarize step."),
-            style=LBL_DIM, wraplength=820, justify="left",
+            text=(
+                "Feedback loop — analyzes new audio to improve your speakers.json. "
+                "Run it whenever you have fresh sessions, then re-Transcribe with the "
+                "better profile. It's not a post-Summarize step."
+            ),
+            style=LBL_DIM,
+            wraplength=820,
+            justify="left",
         ).pack(anchor="w", pady=(2, 0))
 
         ttk.Label(self, text="speakers.json:").grid(row=1, column=0, sticky="w", **pad)
@@ -54,18 +57,22 @@ class Tab2Refine(ttk.Frame):
         btn_col = ttk.Frame(self)
         btn_col.grid(row=2, column=3, sticky="nw", **pad)
         ttk.Button(btn_col, text="Add Files…", command=self._add_files).pack(fill="x", pady=2)
-        ttk.Button(btn_col, text="Remove Selected", command=self._remove_selected).pack(fill="x", pady=2)
+        ttk.Button(btn_col, text="Remove Selected", command=self._remove_selected).pack(
+            fill="x", pady=2
+        )
         ttk.Button(btn_col, text="Clear All", command=self._clear_files).pack(fill="x", pady=2)
-        ttk.Button(btn_col, text="Load suggestions JSON…",
-                   command=self._load_suggestions_file).pack(fill="x", pady=8)
+        ttk.Button(
+            btn_col, text="Load suggestions JSON…", command=self._load_suggestions_file
+        ).pack(fill="x", pady=8)
 
         self.go_btn = ttk.Button(
-            self, text="Analyze & Generate Suggestions",
-            style=BTN_ACCENT, command=self._start
+            self, text="Analyze & Generate Suggestions", style=BTN_ACCENT, command=self._start
         )
         self.go_btn.grid(row=3, column=0, columnspan=4, sticky="ew", **pad)
 
-        self.cancel_btn = ttk.Button(self, text="Cancel", command=self._cancel_run, state="disabled")
+        self.cancel_btn = ttk.Button(
+            self, text="Cancel", command=self._cancel_run, state="disabled"
+        )
         self.cancel_btn.grid(row=4, column=0, sticky="w", **pad)
         self.progress = ttk.Progressbar(self, mode="determinate", maximum=100)
         self.progress.grid(row=4, column=1, columnspan=3, sticky="ew", **pad)
@@ -80,8 +87,11 @@ class Tab2Refine(ttk.Frame):
         self.scroll.grid(row=6, column=0, columnspan=4, sticky="nsew", **pad)
 
         self.save_btn = ttk.Button(
-            self, text="Save Accepted Changes to speakers.json",
-            style=BTN_ACCENT, command=self._save_changes, state="disabled",
+            self,
+            text="Save Accepted Changes to speakers.json",
+            style=BTN_ACCENT,
+            command=self._save_changes,
+            state="disabled",
         )
         self.save_btn.grid(row=7, column=0, columnspan=4, sticky="e", **pad)
 
@@ -90,7 +100,7 @@ class Tab2Refine(ttk.Frame):
         self.rowconfigure(6, weight=1)
 
         # Per-suggestion accepted state, keyed by index/type
-        self._accept_vars: Dict[str, tk.BooleanVar] = {}
+        self._accept_vars: dict[str, tk.BooleanVar] = {}
 
     def on_settings_changed(self):
         pass
@@ -163,6 +173,7 @@ class Tab2Refine(ttk.Frame):
             self.status_var.set(msg)
             if pct >= 0:
                 self.progress["value"] = max(0, min(100, pct * 100))
+
         self.after(0, apply)
 
     def _cancel_run(self):
@@ -190,8 +201,8 @@ class Tab2Refine(ttk.Frame):
     def _worker(self):
         api_key = config.get_anthropic_key()
         hf = config.get_huggingface_token()
-        all_segments: List[Dict[str, Any]] = []
-        wavs: List[str] = []
+        all_segments: list[dict[str, Any]] = []
+        wavs: list[str] = []
         pipeline = None
         try:
             cfg = config.load_config()
@@ -211,24 +222,22 @@ class Tab2Refine(ttk.Frame):
                 segments = pipeline.transcribe_file(
                     wav,
                     num_speakers=int(cfg.get("default_num_speakers", 5)),
-                    progress=lambda s, p: self._set_status(
-                        f"[{i}/{len(self.audio_files)}] {s}",
-                        (i - 1 + p) / max(1, len(self.audio_files)),
+                    progress=lambda s, p, _i=i: self._set_status(
+                        f"[{_i}/{len(self.audio_files)}] {s}",
+                        (_i - 1 + p) / max(1, len(self.audio_files)),
                     ),
                 )
                 all_segments.extend(segments)
 
             self._set_status("Asking Claude for refinement suggestions…", 0.95)
-            self.suggestions = speaker_id.refine_speakers(
-                all_segments, self.speakers_doc, api_key
-            )
+            self.suggestions = speaker_id.refine_speakers(all_segments, self.speakers_doc, api_key)
             self._set_status("Done. Review suggestions below.", 1.0)
             self.after(0, self._render_suggestions)
         except InterruptedError:
             self._set_status("Cancelled.", 0.0)
         except Exception as e:
             self._set_status(f"Error: {e}", 0.0)
-            self.after(0, lambda: messagebox.showerror("CampaignScribe", str(e)))
+            self.after(0, lambda _e=e: messagebox.showerror("CampaignScribe", str(_e)))
         finally:
             if pipeline is not None:
                 try:
@@ -256,7 +265,7 @@ class Tab2Refine(ttk.Frame):
             messagebox.showerror("CampaignScribe", "Pick a speakers.json first.")
             return
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 self.suggestions = json.load(f)
             self._render_suggestions()
         except Exception as e:
@@ -291,8 +300,8 @@ class Tab2Refine(ttk.Frame):
                 box = ttk.LabelFrame(
                     self.scroll.inner,
                     text=f"{imp.get('existing_player_name', '?')}  "
-                         f"({imp.get('source_speaker_id', '?')}, "
-                         f"confidence={imp.get('confidence', '?')})",
+                    f"({imp.get('source_speaker_id', '?')}, "
+                    f"confidence={imp.get('confidence', '?')})",
                 )
                 box.pack(fill="x", padx=4, pady=4)
                 for pat in imp.get("new_speech_patterns", []):
@@ -314,18 +323,20 @@ class Tab2Refine(ttk.Frame):
                 box = ttk.LabelFrame(
                     self.scroll.inner,
                     text=f"{ns.get('source_speaker_id', '?')}  "
-                         f"(role={ns.get('inferred_role', '?')}, "
-                         f"confidence={ns.get('confidence', '?')})",
+                    f"(role={ns.get('inferred_role', '?')}, "
+                    f"confidence={ns.get('confidence', '?')})",
                 )
                 box.pack(fill="x", padx=4, pady=4)
-                ttk.Label(box, text=f"Suggested name: {ns.get('suggested_display_name', '?')}").pack(
-                    anchor="w", padx=8
-                )
+                ttk.Label(
+                    box, text=f"Suggested name: {ns.get('suggested_display_name', '?')}"
+                ).pack(anchor="w", padx=8)
                 ttk.Label(box, text=f"Notes: {ns.get('notes', '')}", wraplength=720).pack(
                     anchor="w", padx=8
                 )
                 for pat in ns.get("speech_patterns", []):
-                    ttk.Label(box, text=f"+ pattern: {pat}", wraplength=720).pack(anchor="w", padx=8)
+                    ttk.Label(box, text=f"+ pattern: {pat}", wraplength=720).pack(
+                        anchor="w", padx=8
+                    )
                 for q in ns.get("sample_quotes", []):
                     ttk.Label(box, text=f"+ quote:   {q}", wraplength=720).pack(anchor="w", padx=8)
                 ttk.Checkbutton(box, text="Add to players", variable=v).pack(
@@ -347,8 +358,9 @@ class Tab2Refine(ttk.Frame):
                     ttk.Label(box, text=f"Sample: {ig.get('sample_quote')}", wraplength=720).pack(
                         anchor="w", padx=8
                     )
-                ttk.Checkbutton(box, text="Mark as ignored (add to known_non_players)",
-                                variable=v).pack(anchor="w", padx=8, pady=2)
+                ttk.Checkbutton(
+                    box, text="Mark as ignored (add to known_non_players)", variable=v
+                ).pack(anchor="w", padx=8, pady=2)
 
         self.save_btn.config(state="normal")
 
@@ -382,33 +394,35 @@ class Tab2Refine(ttk.Frame):
         for idx, ns in enumerate(s.get("new_speakers", [])):
             if not self._accept_vars.get(f"new_{idx}", tk.BooleanVar(value=False)).get():
                 continue
-            doc.setdefault("players", []).append({
-                "player_name": ns.get("suggested_display_name") or ns.get("source_speaker_id"),
-                "role": ns.get("inferred_role", "Player"),
-                "character_name": "",
-                "character_class": "",
-                "notes": ns.get("notes", ""),
-                "speech_patterns": ns.get("speech_patterns", []),
-                "sample_quotes": ns.get("sample_quotes", []),
-                "source_speaker_id": ns.get("source_speaker_id", ""),
-            })
+            doc.setdefault("players", []).append(
+                {
+                    "player_name": ns.get("suggested_display_name") or ns.get("source_speaker_id"),
+                    "role": ns.get("inferred_role", "Player"),
+                    "character_name": "",
+                    "character_class": "",
+                    "notes": ns.get("notes", ""),
+                    "speech_patterns": ns.get("speech_patterns", []),
+                    "sample_quotes": ns.get("sample_quotes", []),
+                    "source_speaker_id": ns.get("source_speaker_id", ""),
+                }
+            )
 
         # Ignored speakers
         for idx, ig in enumerate(s.get("suggested_ignores", [])):
             if not self._accept_vars.get(f"ig_{idx}", tk.BooleanVar(value=False)).get():
                 continue
-            doc.setdefault("known_non_players", []).append({
-                "name": ig.get("source_speaker_id"),
-                "role": "ignore",
-                "notes": ig.get("reason", ""),
-                "speech_patterns": [ig.get("sample_quote")] if ig.get("sample_quote") else [],
-                "source_speaker_id": ig.get("source_speaker_id", ""),
-            })
+            doc.setdefault("known_non_players", []).append(
+                {
+                    "name": ig.get("source_speaker_id"),
+                    "role": "ignore",
+                    "notes": ig.get("reason", ""),
+                    "speech_patterns": [ig.get("sample_quote")] if ig.get("sample_quote") else [],
+                    "source_speaker_id": ig.get("source_speaker_id", ""),
+                }
+            )
 
         try:
             speakers_io.save_speakers_json(self.speakers_path, doc)
-            messagebox.showinfo(
-                "CampaignScribe", f"Updated {self.speakers_path}"
-            )
+            messagebox.showinfo("CampaignScribe", f"Updated {self.speakers_path}")
         except Exception as e:
             messagebox.showerror("CampaignScribe", f"Save failed:\n{e}")

@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import keyring
 
 SERVICE_NAME = "CampaignScribe"
 
-DEFAULT_CONFIG: Dict[str, Any] = {
+DEFAULT_CONFIG: dict[str, Any] = {
     "default_output_folder": "",
     "default_whisper_model": "large-v3",
     "default_num_speakers": 5,
@@ -46,13 +46,13 @@ def get_prompts_dir() -> Path:
     return path
 
 
-def load_config() -> Dict[str, Any]:
+def load_config() -> dict[str, Any]:
     p = get_config_path()
     if not p.exists():
         save_config(DEFAULT_CONFIG)
         return dict(DEFAULT_CONFIG)
     try:
-        with open(p, "r", encoding="utf-8") as f:
+        with open(p, encoding="utf-8") as f:
             data = json.load(f)
         merged = dict(DEFAULT_CONFIG)
         merged.update({k: v for k, v in data.items() if k in DEFAULT_CONFIG})
@@ -62,7 +62,7 @@ def load_config() -> Dict[str, Any]:
         return dict(DEFAULT_CONFIG)
 
 
-def save_config(cfg: Dict[str, Any]) -> None:
+def save_config(cfg: dict[str, Any]) -> None:
     p = get_config_path()
     safe = {k: cfg.get(k, DEFAULT_CONFIG[k]) for k in DEFAULT_CONFIG}
     # Atomic write so a crash mid-save can't leave a truncated config.json.
@@ -116,11 +116,11 @@ def log_exception(context: str, exc: BaseException) -> str:
     """Append a formatted traceback to errors.log. Returns the log path."""
     import traceback
     from datetime import datetime
+
     log_path = get_error_log_path()
     text = traceback.format_exception(type(exc), exc, exc.__traceback__)
-    block = (
-        f"\n===== {datetime.now().isoformat(timespec='seconds')} | {context} =====\n"
-        + "".join(text)
+    block = f"\n===== {datetime.now().isoformat(timespec='seconds')} | {context} =====\n" + "".join(
+        text
     )
     try:
         with open(log_path, "a", encoding="utf-8") as f:

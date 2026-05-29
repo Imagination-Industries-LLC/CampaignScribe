@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import json
-import os
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app import config
 from app.core import speakers_io
@@ -15,14 +13,13 @@ from app.data import db
 from app.ui.common import ScrollableFrame
 from app.ui.theme import LBL_HEADER
 
-
 ROLE_OPTIONS = ["Dungeon Master", "Player", "Non-Player", "Unknown"]
 
 
 class SpeakerEditor(ttk.LabelFrame):
     """Editable form block for a single speaker."""
 
-    def __init__(self, master, profile: Dict[str, Any]):
+    def __init__(self, master, profile: dict[str, Any]):
         sid = profile.get("source_speaker_id", "?")
         title = f"{sid}"
         super().__init__(master, text=title)
@@ -43,14 +40,21 @@ class SpeakerEditor(ttk.LabelFrame):
             row=0, column=1, sticky="w", **pad
         )
         ttk.Label(self, text="Display name:").grid(row=1, column=0, sticky="w", **pad)
-        ttk.Entry(self, textvariable=self.name_var, width=28).grid(row=1, column=1, sticky="w", **pad)
+        ttk.Entry(self, textvariable=self.name_var, width=28).grid(
+            row=1, column=1, sticky="w", **pad
+        )
         ttk.Label(self, text="Role:").grid(row=1, column=2, sticky="w", **pad)
-        ttk.Combobox(self, textvariable=self.role_var, state="readonly",
-                     values=ROLE_OPTIONS, width=18).grid(row=1, column=3, sticky="w", **pad)
+        ttk.Combobox(
+            self, textvariable=self.role_var, state="readonly", values=ROLE_OPTIONS, width=18
+        ).grid(row=1, column=3, sticky="w", **pad)
         ttk.Label(self, text="Character name:").grid(row=2, column=0, sticky="w", **pad)
-        ttk.Entry(self, textvariable=self.char_var, width=28).grid(row=2, column=1, sticky="w", **pad)
+        ttk.Entry(self, textvariable=self.char_var, width=28).grid(
+            row=2, column=1, sticky="w", **pad
+        )
         ttk.Label(self, text="Character class:").grid(row=2, column=2, sticky="w", **pad)
-        ttk.Entry(self, textvariable=self.class_var, width=20).grid(row=2, column=3, sticky="w", **pad)
+        ttk.Entry(self, textvariable=self.class_var, width=20).grid(
+            row=2, column=3, sticky="w", **pad
+        )
 
         ttk.Label(self, text="Notes:").grid(row=3, column=0, sticky="nw", **pad)
         self.notes_box = tk.Text(self, height=2, width=70, wrap="word")
@@ -70,13 +74,11 @@ class SpeakerEditor(ttk.LabelFrame):
         for col in (1, 3):
             self.columnconfigure(col, weight=1)
 
-    def collect(self) -> Dict[str, Any]:
+    def collect(self) -> dict[str, Any]:
         patterns = [
             ln.strip() for ln in self.patterns_box.get("1.0", "end").splitlines() if ln.strip()
         ]
-        quotes = [
-            ln.strip() for ln in self.quotes_box.get("1.0", "end").splitlines() if ln.strip()
-        ]
+        quotes = [ln.strip() for ln in self.quotes_box.get("1.0", "end").splitlines() if ln.strip()]
         notes = self.notes_box.get("1.0", "end").strip()
         return {
             "source_speaker_id": self.profile.get("source_speaker_id", ""),
@@ -96,14 +98,15 @@ class Tab3Manage(ttk.Frame):
     def __init__(self, master, app_window):
         super().__init__(master)
         self.app = app_window
-        self.session_id: Optional[int] = None
-        self.editors: List[SpeakerEditor] = []
-        self.loaded_doc: Optional[Dict[str, Any]] = None
-        self.loaded_path: Optional[str] = None
+        self.session_id: int | None = None
+        self.editors: list[SpeakerEditor] = []
+        self.loaded_doc: dict[str, Any] | None = None
+        self.loaded_path: str | None = None
 
         pad = {"padx": 10, "pady": 4}
-        ttk.Label(self, text="Speaker Profile Builder",
-                  style=LBL_HEADER).grid(row=0, column=0, columnspan=4, sticky="w", **pad)
+        ttk.Label(self, text="Speaker Profile Builder", style=LBL_HEADER).grid(
+            row=0, column=0, columnspan=4, sticky="w", **pad
+        )
 
         ttk.Label(self, text="Session:").grid(row=1, column=0, sticky="w", **pad)
         self.session_combo = ttk.Combobox(self, state="readonly", width=60)
@@ -147,11 +150,10 @@ class Tab3Manage(ttk.Frame):
 
         btn_row = ttk.Frame(self)
         btn_row.grid(row=7, column=0, columnspan=4, sticky="e", **pad)
-        ttk.Button(btn_row, text="Save speakers.json", command=self._save).pack(
-            side="left", padx=4
-        )
+        ttk.Button(btn_row, text="Save speakers.json", command=self._save).pack(side="left", padx=4)
         ttk.Button(
-            btn_row, text="→ Save & Use in Transcribe (Tab 3)",
+            btn_row,
+            text="→ Save & Use in Transcribe (Tab 3)",
             command=self._save_and_use_in_transcribe,
         ).pack(side="left", padx=4)
 
@@ -170,7 +172,7 @@ class Tab3Manage(ttk.Frame):
     def refresh_sessions(self):
         sessions = db.list_sessions()
         items = []
-        self._session_index: List[int] = []
+        self._session_index: list[int] = []
         for s in sessions:
             items.append(
                 f"#{s['id']} — {s['display_name']} ({s.get('campaign_name') or 'no campaign'}) "
@@ -216,36 +218,40 @@ class Tab3Manage(ttk.Frame):
         self.campaign_var.set(doc.get("campaign", "") or "")
         self.context_box.delete("1.0", "end")
         self.context_box.insert("1.0", doc.get("context", "") or "")
-        speakers: List[Dict[str, Any]] = []
+        speakers: list[dict[str, Any]] = []
         for p in doc.get("players", []):
-            speakers.append({
-                "source_speaker_id": p.get("source_speaker_id", ""),
-                "display_name": p.get("player_name", ""),
-                "character_name": p.get("character_name", ""),
-                "character_class": p.get("character_class", ""),
-                "role": p.get("role", "Player"),
-                "include_in_tracking": 1,
-                "notes": p.get("notes", ""),
-                "speech_patterns": p.get("speech_patterns", []),
-                "sample_quotes": p.get("sample_quotes", []),
-                "confidence": "high",
-            })
+            speakers.append(
+                {
+                    "source_speaker_id": p.get("source_speaker_id", ""),
+                    "display_name": p.get("player_name", ""),
+                    "character_name": p.get("character_name", ""),
+                    "character_class": p.get("character_class", ""),
+                    "role": p.get("role", "Player"),
+                    "include_in_tracking": 1,
+                    "notes": p.get("notes", ""),
+                    "speech_patterns": p.get("speech_patterns", []),
+                    "sample_quotes": p.get("sample_quotes", []),
+                    "confidence": "high",
+                }
+            )
         for n in doc.get("known_non_players", []):
-            speakers.append({
-                "source_speaker_id": n.get("source_speaker_id", ""),
-                "display_name": n.get("name", ""),
-                "character_name": "",
-                "character_class": "",
-                "role": "Non-Player",
-                "include_in_tracking": 0,
-                "notes": n.get("notes", ""),
-                "speech_patterns": n.get("speech_patterns", []),
-                "sample_quotes": [],
-                "confidence": "high",
-            })
+            speakers.append(
+                {
+                    "source_speaker_id": n.get("source_speaker_id", ""),
+                    "display_name": n.get("name", ""),
+                    "character_name": "",
+                    "character_class": "",
+                    "role": "Non-Player",
+                    "include_in_tracking": 0,
+                    "notes": n.get("notes", ""),
+                    "speech_patterns": n.get("speech_patterns", []),
+                    "sample_quotes": [],
+                    "confidence": "high",
+                }
+            )
         self._render(speakers)
 
-    def _render(self, speakers: List[Dict[str, Any]]):
+    def _render(self, speakers: list[dict[str, Any]]):
         for w in list(self.scroll.inner.winfo_children()):
             w.destroy()
         self.editors.clear()
@@ -273,7 +279,9 @@ class Tab3Manage(ttk.Frame):
 
     def _save(self, show_success: bool = True) -> bool:
         if not self.editors:
-            messagebox.showerror("CampaignScribe", "Nothing to save — load a session or speakers.json.")
+            messagebox.showerror(
+                "CampaignScribe", "Nothing to save — load a session or speakers.json."
+            )
             return False
         out_path = self.out_var.get().strip()
         if not out_path:

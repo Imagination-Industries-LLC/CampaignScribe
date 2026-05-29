@@ -6,19 +6,20 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 CLAUDE_MODEL = "claude-sonnet-4-20250514"
 
 
 def _client(api_key: str):
     from app.core.claude_api import make_client
+
     return make_client(api_key)
 
 
 def summarize_part(
     transcript_text: str,
-    speakers_reference: Dict[str, Any],
+    speakers_reference: dict[str, Any],
     summary_prompt: str,
     api_key: str,
     part_number: int = 1,
@@ -56,10 +57,10 @@ def summarize_part(
 
 
 def consolidate_summaries(
-    part_summaries: List[str],
-    speakers_reference: Dict[str, Any],
+    part_summaries: list[str],
+    speakers_reference: dict[str, Any],
     api_key: str,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Consolidate per-part summaries into a unified session summary."""
     client = _client(api_key)
     parts_block = "\n\n".join(
@@ -95,7 +96,7 @@ def consolidate_summaries(
     text = resp.content[0].text
     name_match = re.search(r"^\s*SESSION NAME:\s*(.+)$", text, flags=re.MULTILINE)
     session_name = name_match.group(1).strip() if name_match else "Session Summary"
-    body = text[name_match.end():].lstrip() if name_match else text
+    body = text[name_match.end() :].lstrip() if name_match else text
     return {"session_name": session_name, "body": body, "raw": text}
 
 
@@ -110,7 +111,7 @@ def write_docx(
     output_path: str,
     session_name: str,
     consolidated_body: str,
-    part_summaries: List[str],
+    part_summaries: list[str],
     campaign_name: str = "",
     model_used: str = CLAUDE_MODEL,
 ) -> None:
@@ -159,8 +160,9 @@ def _render_summary_body(doc, body: str) -> None:
         elif stripped.startswith("### "):
             doc.add_heading(stripped[4:].strip(), level=3)
         # ALL CAPS section headers (e.g. KEY STORY DEVELOPMENTS)
-        elif (re.match(r"^[A-Z][A-Z &/'\-,()0-9]{4,}$", stripped)
-              and not stripped.startswith(("- ", "* ", "•"))):
+        elif re.match(r"^[A-Z][A-Z &/'\-,()0-9]{4,}$", stripped) and not stripped.startswith(
+            ("- ", "* ", "•")
+        ):
             doc.add_heading(stripped, level=2)
         # Bullet point
         elif stripped.startswith(("- ", "* ", "• ")):
@@ -172,6 +174,6 @@ def _render_summary_body(doc, body: str) -> None:
             doc.add_paragraph(stripped)
 
 
-def parse_session_name_from_text(text: str) -> Optional[str]:
+def parse_session_name_from_text(text: str) -> str | None:
     m = re.search(r"^\s*SESSION NAME:\s*(.+)$", text, flags=re.MULTILINE)
     return m.group(1).strip() if m else None

@@ -19,18 +19,17 @@ from app.ui.tab4_history import Tab4History
 from app.ui.tab5_transcribe import Tab5Transcribe
 from app.ui.tab6_summarize import Tab6Summarize
 from app.ui.theme import (
+    BTN_GHOST,
+    LBL_EYEBROW,
+    LBL_STATUS_INFO,
+    LBL_STATUS_WARN,
+    LBL_TITLE,
+    S_2,
+    S_3,
+    S_4,
+    StatusLevel,
     apply_theme,
     color,
-    BTN_GHOST,
-    LBL_TITLE,
-    LBL_EYEBROW,
-    LBL_STATUS_OK,
-    LBL_STATUS_WARN,
-    LBL_STATUS_ERR,
-    LBL_STATUS_INFO,
-    PAD_BUTTON,
-    S_2, S_3, S_4,
-    StatusLevel,
 )
 
 
@@ -79,9 +78,9 @@ class AppWindow(tk.Tk):
             background=color("BG_CHROME"),
         ).pack(anchor="w")
 
-        ttk.Button(
-            topbar, text="⚙ Settings", style=BTN_GHOST, command=self.open_settings
-        ).pack(side="right", padx=S_4, pady=S_3)
+        ttk.Button(topbar, text="⚙ Settings", style=BTN_GHOST, command=self.open_settings).pack(
+            side="right", padx=S_4, pady=S_3
+        )
 
         # ---- API key banner (shown only when missing) --------------------
         # Using a plain tk.Frame because we want a one-off warm tint that
@@ -147,7 +146,8 @@ class AppWindow(tk.Tk):
 
         self._status_dot = tk.Canvas(
             status_bar,
-            width=14, height=14,
+            width=14,
+            height=14,
             background=color("BG_CHROME"),
             highlightthickness=0,
         )
@@ -176,7 +176,12 @@ class AppWindow(tk.Tk):
         """Redraw the status dot with the given fill."""
         self._status_dot.delete("all")
         self._status_dot.create_oval(
-            2, 2, 12, 12, fill=color_hex, outline=color_hex,
+            2,
+            2,
+            12,
+            12,
+            fill=color_hex,
+            outline=color_hex,
         )
 
     def _set_status(self, level: tuple, message: str) -> None:
@@ -197,22 +202,27 @@ class AppWindow(tk.Tk):
         cuda_v = gpu.get("torch_cuda_version") or "none"
 
         if rec == "cuda":
-            msg = (f"GPU: {gpu['device_name']} ({gpu['vram_gb']} GB VRAM) — "
-                   f"torch {torch_v} (cuda {cuda_v}) — Transcription ready")
+            msg = (
+                f"GPU: {gpu['device_name']} ({gpu['vram_gb']} GB VRAM) — "
+                f"torch {torch_v} (cuda {cuda_v}) — Transcription ready"
+            )
             self._set_status(StatusLevel.OK, msg)
         elif rec == "cpu_no_cuda":
-            msg = (f"GPU detected ({gpu.get('smi_gpu_name', 'NVIDIA')}) but PyTorch "
-                   f"can't use it — falling back to CPU. "
-                   f"torch {torch_v} (built for cuda {cuda_v}). "
-                   f"Update NVIDIA driver/CUDA at nvidia.com/Download")
+            msg = (
+                f"GPU detected ({gpu.get('smi_gpu_name', 'NVIDIA')}) but PyTorch "
+                f"can't use it — falling back to CPU. "
+                f"torch {torch_v} (built for cuda {cuda_v}). "
+                f"Update NVIDIA driver/CUDA at nvidia.com/Download"
+            )
             self._set_status(StatusLevel.WARN, msg)
         elif rec == "cpu_unavailable":
-            msg = (f"PyTorch not available ({gpu.get('error', 'unknown error')}) "
-                   f"— transcription disabled")
+            msg = (
+                f"PyTorch not available ({gpu.get('error', 'unknown error')}) "
+                f"— transcription disabled"
+            )
             self._set_status(StatusLevel.ERR, msg)
         else:
-            msg = (f"No NVIDIA GPU detected — CPU mode (very slow for long files). "
-                   f"torch {torch_v}")
+            msg = f"No NVIDIA GPU detected — CPU mode (very slow for long files). torch {torch_v}"
             self._set_status(StatusLevel.WARN, msg)
 
     # ----------------------------------------------------------------------
@@ -222,13 +232,12 @@ class AppWindow(tk.Tk):
     def _set_icon(self):
         import os
         import sys
+
         try:
             if getattr(sys, "frozen", False):
                 base = sys._MEIPASS  # type: ignore[attr-defined]
             else:
-                base = os.path.dirname(
-                    os.path.abspath(os.path.join(__file__, "..", ".."))
-                )
+                base = os.path.dirname(os.path.abspath(os.path.join(__file__, "..", "..")))
             ico = os.path.join(base, "assets", "icon.ico")
             if os.path.exists(ico):
                 self.iconbitmap(ico)
@@ -265,10 +274,10 @@ class AppWindow(tk.Tk):
         menubar = tk.Menu(self)
 
         filemenu = tk.Menu(menubar, tearoff=0)
-        filemenu.add_command(label="Open Audio…", accelerator="Ctrl+O",
-                             command=self._menu_open_audio)
-        filemenu.add_command(label="Settings…", accelerator="Ctrl+,",
-                             command=self.open_settings)
+        filemenu.add_command(
+            label="Open Audio…", accelerator="Ctrl+O", command=self._menu_open_audio
+        )
+        filemenu.add_command(label="Settings…", accelerator="Ctrl+,", command=self.open_settings)
         filemenu.add_separator()
         filemenu.add_command(label="Exit", command=self._on_close)
         menubar.add_cascade(label="File", menu=filemenu)
@@ -334,6 +343,7 @@ class AppWindow(tk.Tk):
 
     def _show_getting_started(self):
         from tkinter import messagebox
+
         messagebox.showinfo(
             "Getting Started",
             "CampaignScribe needs two free credentials (Settings ⚙):\n\n"
@@ -351,6 +361,7 @@ class AppWindow(tk.Tk):
     def _asset_dir(self):
         import os
         import sys
+
         if getattr(sys, "frozen", False):
             base = sys._MEIPASS  # type: ignore[attr-defined]
         else:
@@ -361,6 +372,7 @@ class AppWindow(tk.Tk):
         """Load a 16px tab icon as a PhotoImage, or None if unavailable.
         References are held in self._tab_icons so Tk doesn't GC them."""
         import os
+
         try:
             p = os.path.join(self._asset_dir(), "tab-icons", f"{name}-{state}-16.png")
             if os.path.exists(p):
@@ -417,6 +429,7 @@ class AboutDialog(tk.Toplevel):
         self._logo = None
         try:
             import os
+
             p = os.path.join(master._asset_dir(), "icon-128.png")
             if os.path.exists(p):
                 self._logo = tk.PhotoImage(file=p)
@@ -427,14 +440,19 @@ class AboutDialog(tk.Toplevel):
         ttk.Label(self, text="CampaignScribe", style=LBL_TITLE).pack()
         ttk.Label(self, text=f"Version {__version__}", style=LBL_EYEBROW).pack(pady=(2, 10))
         ttk.Label(
-            self, text="Transcribe and summarize tabletop RPG sessions.",
-            wraplength=420, justify="center",
+            self,
+            text="Transcribe and summarize tabletop RPG sessions.",
+            wraplength=420,
+            justify="center",
         ).pack(padx=24)
         ttk.Label(
             self,
-            text=("Built on WhisperX, pyannote.audio, and the Anthropic Claude API.\n"
-                  "github.com/MikeRompel/CampaignScribe"),
-            wraplength=420, justify="center",
+            text=(
+                "Built on WhisperX, pyannote.audio, and the Anthropic Claude API.\n"
+                "github.com/MikeRompel/CampaignScribe"
+            ),
+            wraplength=420,
+            justify="center",
         ).pack(padx=24, pady=(8, 4))
         ttk.Button(self, text="Close", command=self.destroy).pack(pady=12)
 

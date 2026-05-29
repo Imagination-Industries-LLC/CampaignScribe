@@ -9,14 +9,13 @@ import tkinter as tk
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app import config
 from app.core import audio, speaker_id, speakers_io, transcriber
 from app.data import db
-from app.ui.common import open_path_native, open_transcript_editor, reveal_in_folder, short_path
+from app.ui.common import open_path_native, open_transcript_editor, reveal_in_folder
 from app.ui.theme import BTN_ACCENT, LBL_DIM, LBL_HEADER
-
 
 STATE_ICONS = {
     "queued": "⏳",
@@ -32,35 +31,39 @@ class Tab5Transcribe(ttk.Frame):
     def __init__(self, master, app_window):
         super().__init__(master)
         self.app = app_window
-        self.audio_files: List[str] = []
-        self.speakers_path: Optional[str] = None
-        self.output_dir: Optional[str] = None
-        self.session_id: Optional[int] = None
-        self.row_items: Dict[str, str] = {}  # path -> tree iid
-        self.results: List[Dict[str, str]] = []  # output files
+        self.audio_files: list[str] = []
+        self.speakers_path: str | None = None
+        self.output_dir: str | None = None
+        self.session_id: int | None = None
+        self.row_items: dict[str, str] = {}  # path -> tree iid
+        self.results: list[dict[str, str]] = []  # output files
         self._busy = False
         self._cancel = threading.Event()
 
         cfg = config.load_config()
         pad = {"padx": 10, "pady": 4}
-        ttk.Label(self, text="Transcription",
-                  style=LBL_HEADER).grid(row=0, column=0, columnspan=4, sticky="w", **pad)
+        ttk.Label(self, text="Transcription", style=LBL_HEADER).grid(
+            row=0, column=0, columnspan=4, sticky="w", **pad
+        )
 
         ttk.Label(self, text="speakers.json:").grid(row=1, column=0, sticky="w", **pad)
         self.speakers_var = tk.StringVar(value=cfg.get("last_speakers_json", ""))
         if self.speakers_var.get():
             self.speakers_path = self.speakers_var.get()
         ttk.Entry(self, textvariable=self.speakers_var, width=60, state="readonly").grid(
-            row=1, column=1, columnspan=2, sticky="ew", **pad)
+            row=1, column=1, columnspan=2, sticky="ew", **pad
+        )
         ttk.Button(self, text="Browse…", command=self._browse_speakers).grid(
-            row=1, column=3, sticky="w", **pad)
+            row=1, column=3, sticky="w", **pad
+        )
 
         ttk.Label(self, text="Session (optional):").grid(row=2, column=0, sticky="w", **pad)
         self.session_combo = ttk.Combobox(self, state="readonly", width=60)
         self.session_combo.grid(row=2, column=1, columnspan=2, sticky="ew", **pad)
         self.session_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_session_selected())
         ttk.Button(self, text="Refresh", command=self.refresh_sessions).grid(
-            row=2, column=3, sticky="w", **pad)
+            row=2, column=3, sticky="w", **pad
+        )
 
         ttk.Label(self, text="Audio files:").grid(row=3, column=0, sticky="nw", **pad)
         self.files_box = tk.Listbox(self, height=4, selectmode="extended")
@@ -73,30 +76,42 @@ class Tab5Transcribe(ttk.Frame):
 
         ttk.Label(self, text="Whisper model:").grid(row=4, column=0, sticky="w", **pad)
         self.model_var = tk.StringVar(value=cfg.get("default_whisper_model", "large-v3"))
-        ttk.Combobox(self, textvariable=self.model_var, state="readonly", width=12,
-                     values=["tiny", "base", "small", "medium", "large-v3"]
-                     ).grid(row=4, column=1, sticky="w", **pad)
+        ttk.Combobox(
+            self,
+            textvariable=self.model_var,
+            state="readonly",
+            width=12,
+            values=["tiny", "base", "small", "medium", "large-v3"],
+        ).grid(row=4, column=1, sticky="w", **pad)
 
         ttk.Label(self, text="# speakers:").grid(row=4, column=2, sticky="e", **pad)
         self.spk_var = tk.IntVar(value=int(cfg.get("default_num_speakers", 5)))
-        ttk.Spinbox(self, from_=1, to=20, textvariable=self.spk_var, width=8
-                    ).grid(row=4, column=3, sticky="w", **pad)
+        ttk.Spinbox(self, from_=1, to=20, textvariable=self.spk_var, width=8).grid(
+            row=4, column=3, sticky="w", **pad
+        )
 
         ttk.Label(self, text="Output folder:").grid(row=5, column=0, sticky="w", **pad)
         self.out_var = tk.StringVar(value=cfg.get("last_output_folder", ""))
         ttk.Entry(self, textvariable=self.out_var, width=60).grid(
-            row=5, column=1, columnspan=2, sticky="ew", **pad)
+            row=5, column=1, columnspan=2, sticky="ew", **pad
+        )
         ttk.Button(self, text="Browse…", command=self._browse_out).grid(
-            row=5, column=3, sticky="w", **pad)
+            row=5, column=3, sticky="w", **pad
+        )
 
-        self.go_btn = ttk.Button(self, text="Start Transcription", style=BTN_ACCENT, command=self._start)
+        self.go_btn = ttk.Button(
+            self, text="Start Transcription", style=BTN_ACCENT, command=self._start
+        )
         self.go_btn.grid(row=6, column=0, columnspan=4, sticky="ew", **pad)
 
-        self.cancel_btn = ttk.Button(self, text="Cancel", command=self._cancel_run, state="disabled")
+        self.cancel_btn = ttk.Button(
+            self, text="Cancel", command=self._cancel_run, state="disabled"
+        )
         self.cancel_btn.grid(row=7, column=0, sticky="w", **pad)
         self.status_var = tk.StringVar(value="")
         ttk.Label(self, textvariable=self.status_var, style=LBL_DIM).grid(
-            row=7, column=1, columnspan=3, sticky="w", **pad)
+            row=7, column=1, columnspan=3, sticky="w", **pad
+        )
 
         cols = ("file", "state", "detail")
         self.tree = ttk.Treeview(self, columns=cols, show="headings", height=8)
@@ -113,17 +128,23 @@ class Tab5Transcribe(ttk.Frame):
         self.out_box = tk.Listbox(out_label, height=4)
         self.out_box.pack(side="left", fill="both", expand=True, padx=4, pady=4)
         self.out_box.bind("<Double-Button-1>", lambda _e: self._reveal_selected_output())
-        ttk.Button(out_label, text="Open Selected",
-                   command=self._open_selected_output).pack(side="left", padx=4)
-        ttk.Button(out_label, text="Copy Path",
-                   command=self._copy_selected_output).pack(side="left", padx=4)
-        ttk.Button(out_label, text="Edit Transcript",
-                   command=self._edit_selected_output).pack(side="left", padx=4)
-        ttk.Button(out_label, text="Open Folder",
-                   command=lambda: open_path_native(self.output_dir or self.out_var.get())
-                   ).pack(side="left", padx=4)
-        ttk.Button(out_label, text="→ Send improvements to Tab 5",
-                   command=self._send_to_tab2).pack(side="left", padx=4)
+        ttk.Button(out_label, text="Open Selected", command=self._open_selected_output).pack(
+            side="left", padx=4
+        )
+        ttk.Button(out_label, text="Copy Path", command=self._copy_selected_output).pack(
+            side="left", padx=4
+        )
+        ttk.Button(out_label, text="Edit Transcript", command=self._edit_selected_output).pack(
+            side="left", padx=4
+        )
+        ttk.Button(
+            out_label,
+            text="Open Folder",
+            command=lambda: open_path_native(self.output_dir or self.out_var.get()),
+        ).pack(side="left", padx=4)
+        ttk.Button(out_label, text="→ Send improvements to Tab 5", command=self._send_to_tab2).pack(
+            side="left", padx=4
+        )
 
         self.columnconfigure(1, weight=1)
         self.columnconfigure(2, weight=1)
@@ -142,7 +163,7 @@ class Tab5Transcribe(ttk.Frame):
     def refresh_sessions(self):
         sessions = db.list_sessions()
         items = ["(no session — just produce files)"]
-        self._session_index: List[Optional[int]] = [None]
+        self._session_index: list[int | None] = [None]
         for s in sessions:
             items.append(f"#{s['id']} — {s['display_name']}")
             self._session_index.append(s["id"])
@@ -176,7 +197,7 @@ class Tab5Transcribe(ttk.Frame):
             self.speakers_var.set(spk)
         self.session_id = sid
 
-    def _set_audio_files(self, files: List[str]) -> None:
+    def _set_audio_files(self, files: list[str]) -> None:
         self.audio_files = []
         self.files_box.delete(0, "end")
         missing = []
@@ -273,13 +294,26 @@ class Tab5Transcribe(ttk.Frame):
         def apply():
             nonlocal iid
             if iid is None:
-                iid = self.tree.insert("", "end",
-                                       values=(os.path.basename(path),
-                                               f"{STATE_ICONS.get(state, '')} {state}", detail))
+                iid = self.tree.insert(
+                    "",
+                    "end",
+                    values=(
+                        os.path.basename(path),
+                        f"{STATE_ICONS.get(state, '')} {state}",
+                        detail,
+                    ),
+                )
                 self.row_items[path] = iid
             else:
-                self.tree.item(iid, values=(os.path.basename(path),
-                                            f"{STATE_ICONS.get(state, '')} {state}", detail))
+                self.tree.item(
+                    iid,
+                    values=(
+                        os.path.basename(path),
+                        f"{STATE_ICONS.get(state, '')} {state}",
+                        detail,
+                    ),
+                )
+
         self.after(0, apply)
 
     def _add_output(self, path: str):
@@ -360,7 +394,7 @@ class Tab5Transcribe(ttk.Frame):
             hf_token=hf,
         )
 
-        all_segments: List[Dict[str, Any]] = []
+        all_segments: list[dict[str, Any]] = []
         run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         for i, ap in enumerate(self.audio_files, start=1):
@@ -368,17 +402,17 @@ class Tab5Transcribe(ttk.Frame):
                 self._set_row(ap, "failed", "cancelled")
                 continue
             self._set_status(f"[{i}/{len(self.audio_files)}] {os.path.basename(ap)}")
-            wav: Optional[str] = None
+            wav: str | None = None
             try:
                 self._set_row(ap, "converting")
                 wav = audio.convert_to_wav(ap)
 
                 self._set_row(ap, "transcribing", "WhisperX + diarization")
 
-                def progress_cb(stage: str, _pct: float):
+                def progress_cb(stage: str, _pct: float, _ap: str = ap):
                     if self._cancel.is_set():
                         raise InterruptedError("Cancelled")
-                    self._set_row(ap, "transcribing", stage)
+                    self._set_row(_ap, "transcribing", stage)
 
                 segments = pipeline.transcribe_file(
                     wav, num_speakers=int(self.spk_var.get()), progress=progress_cb
@@ -421,9 +455,7 @@ class Tab5Transcribe(ttk.Frame):
                 self._set_status("Generating speaker improvement suggestions…")
                 imp = speaker_id.refine_speakers(all_segments, speakers_doc, api_key)
                 ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-                imp_path = os.path.join(
-                    self.output_dir, f"speakers_improvements_{ts}.json"
-                )
+                imp_path = os.path.join(self.output_dir, f"speakers_improvements_{ts}.json")
                 with open(imp_path, "w", encoding="utf-8") as f:
                     json.dump(imp, f, indent=2, ensure_ascii=False)
                 self._add_output(imp_path)
@@ -491,15 +523,18 @@ class Tab5Transcribe(ttk.Frame):
     def _send_to_tab2(self):
         # Find the most recent speakers_improvements_*.json in results
         target = next(
-            (r["path"] for r in reversed(self.results)
-             if os.path.basename(r["path"]).startswith("speakers_improvements_")),
+            (
+                r["path"]
+                for r in reversed(self.results)
+                if os.path.basename(r["path"]).startswith("speakers_improvements_")
+            ),
             None,
         )
         if not target:
             messagebox.showinfo("CampaignScribe", "No improvements file produced yet.")
             return
         try:
-            with open(target, "r", encoding="utf-8") as f:
+            with open(target, encoding="utf-8") as f:
                 doc = json.load(f)
         except Exception as e:
             messagebox.showerror("CampaignScribe", str(e))

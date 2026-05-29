@@ -6,8 +6,8 @@ import os
 import subprocess
 import sys
 import tkinter as tk
+from collections.abc import Callable
 from tkinter import messagebox, ttk
-from typing import Callable, Optional
 
 
 def open_path_native(path: str) -> None:
@@ -50,16 +50,28 @@ def make_readonly(text: tk.Text) -> None:
     """Make a tk.Text widget read-only but still selectable/copyable.
     Keeps state='normal' (so selection works) and blocks edit keystrokes while
     allowing copy (Ctrl+C), select-all (Ctrl+A), and navigation."""
+
     def _block(event):
         ctrl = bool(event.state & 0x4)
         if ctrl and event.keysym.lower() in ("c", "a"):
             return None
         if event.keysym in (
-            "Left", "Right", "Up", "Down", "Home", "End", "Prior", "Next",
-            "Shift_L", "Shift_R", "Control_L", "Control_R",
+            "Left",
+            "Right",
+            "Up",
+            "Down",
+            "Home",
+            "End",
+            "Prior",
+            "Next",
+            "Shift_L",
+            "Shift_R",
+            "Control_L",
+            "Control_R",
         ):
             return None
         return "break"
+
     text.bind("<Key>", _block)
 
 
@@ -95,8 +107,14 @@ class ScrollableFrame(ttk.Frame):
 
 
 class LabeledEntry(ttk.Frame):
-    def __init__(self, master, label: str, value: str = "", width: int = 30,
-                 on_change: Optional[Callable[[str], None]] = None):
+    def __init__(
+        self,
+        master,
+        label: str,
+        value: str = "",
+        width: int = 30,
+        on_change: Callable[[str], None] | None = None,
+    ):
         super().__init__(master)
         ttk.Label(self, text=label).pack(side="left")
         self.var = tk.StringVar(value=value)
@@ -114,7 +132,7 @@ class LabeledEntry(ttk.Frame):
 def short_path(p: str, max_len: int = 60) -> str:
     if len(p) <= max_len:
         return p
-    return "…" + p[-(max_len - 1):]
+    return "…" + p[-(max_len - 1) :]
 
 
 class TranscriptEditorDialog(tk.Toplevel):
@@ -142,7 +160,7 @@ class TranscriptEditorDialog(tk.Toplevel):
         self.text.pack(side="left", fill="both", expand=True)
 
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 self.text.insert("1.0", f.read())
         except Exception as e:
             messagebox.showerror("CampaignScribe", f"Could not open transcript:\n{e}", parent=self)

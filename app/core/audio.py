@@ -35,8 +35,7 @@ def convert_to_wav(input_path: str, target_sr: int = 16000) -> str:
     os.close(fd)
     try:
         (
-            ffmpeg
-            .input(in_path)
+            ffmpeg.input(in_path)
             .output(temp_wav, ar=target_sr, ac=1, format="wav", loglevel="error")
             .overwrite_output()
             .run(quiet=True, cmd=get_ffmpeg_path())

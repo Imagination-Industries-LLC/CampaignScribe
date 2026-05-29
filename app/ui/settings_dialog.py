@@ -27,7 +27,9 @@ class SettingsDialog(tk.Toplevel):
         self.api_entry.grid(row=row, column=1, **pad)
         self.api_show_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(
-            self, text="Show", variable=self.api_show_var,
+            self,
+            text="Show",
+            variable=self.api_show_var,
             command=self._toggle_api_visibility,
         ).grid(row=row, column=2, sticky="w", **pad)
         row += 1
@@ -38,7 +40,9 @@ class SettingsDialog(tk.Toplevel):
         self.hf_entry.grid(row=row, column=1, **pad)
         self.hf_show_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(
-            self, text="Show", variable=self.hf_show_var,
+            self,
+            text="Show",
+            variable=self.hf_show_var,
             command=self._toggle_hf_visibility,
         ).grid(row=row, column=2, sticky="w", **pad)
         row += 1
@@ -52,7 +56,10 @@ class SettingsDialog(tk.Toplevel):
         ttk.Label(self, text="Default Whisper model:").grid(row=row, column=0, sticky="w", **pad)
         self.model_var = tk.StringVar(value=cfg.get("default_whisper_model", "large-v3"))
         ttk.Combobox(
-            self, textvariable=self.model_var, state="readonly", width=20,
+            self,
+            textvariable=self.model_var,
+            state="readonly",
+            width=20,
             values=["tiny", "base", "small", "medium", "large-v3"],
         ).grid(row=row, column=1, sticky="w", **pad)
         row += 1
@@ -60,7 +67,11 @@ class SettingsDialog(tk.Toplevel):
         ttk.Label(self, text="Default # speakers:").grid(row=row, column=0, sticky="w", **pad)
         self.spk_var = tk.IntVar(value=int(cfg.get("default_num_speakers", 5)))
         ttk.Spinbox(
-            self, from_=1, to=20, textvariable=self.spk_var, width=8,
+            self,
+            from_=1,
+            to=20,
+            textvariable=self.spk_var,
+            width=8,
         ).grid(row=row, column=1, sticky="w", **pad)
         row += 1
 

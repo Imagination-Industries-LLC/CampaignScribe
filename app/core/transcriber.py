@@ -6,15 +6,15 @@ Adapted from the reference transcribe.py in CampaignScribe reference docs.
 from __future__ import annotations
 
 import json
-import os
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 
-def _detect_nvidia_gpu_via_smi() -> Optional[str]:
+def _detect_nvidia_gpu_via_smi() -> str | None:
     """Use nvidia-smi to detect a physical NVIDIA GPU even when CUDA torch isn't loaded."""
     import shutil
     import subprocess
+
     smi = shutil.which("nvidia-smi")
     if not smi:
         return None
@@ -32,7 +32,7 @@ def _detect_nvidia_gpu_via_smi() -> Optional[str]:
     return None
 
 
-def check_gpu() -> Dict[str, Any]:
+def check_gpu() -> dict[str, Any]:
     """Probe for CUDA availability and return a status dict.
 
     Recommendation values:
@@ -45,6 +45,7 @@ def check_gpu() -> Dict[str, Any]:
     smi_name = _detect_nvidia_gpu_via_smi()
     try:
         import torch
+
         torch_version = torch.__version__
         cuda_built = bool(getattr(torch.version, "cuda", None))
         if torch.cuda.is_available():
@@ -72,7 +73,7 @@ def check_gpu() -> Dict[str, Any]:
                     "An NVIDIA GPU is present but PyTorch cannot use it. "
                     "Either the bundled torch is CPU-only (rebuild from source with the "
                     "CUDA wheel) OR your NVIDIA driver does not support the CUDA version "
-                    "torch was built against ({0}). "
+                    "torch was built against ({}). "
                     "Update the NVIDIA driver from https://www.nvidia.com/Download/index.aspx "
                     "or install the CUDA toolkit from "
                     "https://developer.nvidia.com/cuda-downloads"
@@ -87,8 +88,8 @@ def check_gpu() -> Dict[str, Any]:
             "torch_cuda_version": torch.version.cuda if cuda_built else None,
             "smi_gpu_name": None,
             "hint": "No NVIDIA GPU detected. Transcription will run on CPU (very slow for "
-                    "long files). For GPU acceleration, install an NVIDIA GPU and the "
-                    "CUDA driver from https://www.nvidia.com/Download/index.aspx.",
+            "long files). For GPU acceleration, install an NVIDIA GPU and the "
+            "CUDA driver from https://www.nvidia.com/Download/index.aspx.",
         }
     except Exception as e:
         return {
@@ -105,14 +106,13 @@ def check_gpu() -> Dict[str, Any]:
 class TranscriptionPipeline:
     """Holds long-lived WhisperX models so they are loaded once per run."""
 
-    def __init__(self, model_size: str = "large-v3", hf_token: str = "",
-                 force_cpu: bool = False):
+    def __init__(self, model_size: str = "large-v3", hf_token: str = "", force_cpu: bool = False):
         self.model_size = model_size
         self.hf_token = hf_token or ""
         self.force_cpu = force_cpu
         self._model = None
         self._diarize = None
-        self._align_cache: Dict[str, Any] = {}
+        self._align_cache: dict[str, Any] = {}
 
         gpu = check_gpu()
         if force_cpu or not gpu.get("cuda_available", False):
@@ -125,24 +125,24 @@ class TranscriptionPipeline:
     def _load_models(self) -> None:
         if self._model is None:
             import whisperx
+
             # whisperx defaults vad_method='pyannote' which needs an HF token.
             # If no token is set, fall back to silero VAD which is bundled.
-            load_kwargs: Dict[str, Any] = {
+            load_kwargs: dict[str, Any] = {
                 "compute_type": self.compute_type,
             }
             if self.hf_token:
                 load_kwargs["use_auth_token"] = self.hf_token
             else:
                 load_kwargs["vad_method"] = "silero"
-            self._model = whisperx.load_model(
-                self.model_size, self.device, **load_kwargs
-            )
+            self._model = whisperx.load_model(self.model_size, self.device, **load_kwargs)
         if self._diarize is None:
             from whisperx.diarize import DiarizationPipeline
+
             # whisperx 3.8+ uses `token=`, not `use_auth_token=`. Default model is
             # `pyannote/speaker-diarization-community-1`, which needs a HuggingFace
             # token AND license acceptance on huggingface.co.
-            kwargs: Dict[str, Any] = {"device": self.device}
+            kwargs: dict[str, Any] = {"device": self.device}
             if self.hf_token:
                 kwargs["token"] = self.hf_token
             self._diarize = DiarizationPipeline(**kwargs)
@@ -150,9 +150,9 @@ class TranscriptionPipeline:
     def transcribe_file(
         self,
         wav_path: str,
-        num_speakers: Optional[int] = None,
-        progress: Optional[Callable[[str, float], None]] = None,
-    ) -> List[Dict[str, Any]]:
+        num_speakers: int | None = None,
+        progress: Callable[[str, float], None] | None = None,
+    ) -> list[dict[str, Any]]:
         """Run the full transcribe + align + diarize pipeline. Returns segment list."""
         import whisperx
 
@@ -173,13 +173,11 @@ class TranscriptionPipeline:
             )
             self._align_cache[language] = (model_a, metadata)
         model_a, metadata = self._align_cache[language]
-        result = whisperx.align(
-            result["segments"], model_a, metadata, wav_path, self.device
-        )
+        result = whisperx.align(result["segments"], model_a, metadata, wav_path, self.device)
 
         if progress:
             progress("Diarizing speakers", 0.75)
-        kwargs: Dict[str, Any] = {}
+        kwargs: dict[str, Any] = {}
         if num_speakers and num_speakers > 0:
             kwargs["min_speakers"] = num_speakers
             kwargs["max_speakers"] = num_speakers
@@ -189,14 +187,16 @@ class TranscriptionPipeline:
         if progress:
             progress("Done", 1.0)
         segments = result.get("segments", [])
-        normalized: List[Dict[str, Any]] = []
+        normalized: list[dict[str, Any]] = []
         for seg in segments:
-            normalized.append({
-                "start": seg.get("start"),
-                "end": seg.get("end"),
-                "text": (seg.get("text") or "").strip(),
-                "speaker": seg.get("speaker") or "UNKNOWN",
-            })
+            normalized.append(
+                {
+                    "start": seg.get("start"),
+                    "end": seg.get("end"),
+                    "text": (seg.get("text") or "").strip(),
+                    "speaker": seg.get("speaker") or "UNKNOWN",
+                }
+            )
         return normalized
 
     def close(self) -> None:
@@ -205,25 +205,27 @@ class TranscriptionPipeline:
         self._diarize = None
         self._align_cache.clear()
         import gc
+
         gc.collect()
         try:
             import torch
+
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
         except Exception:
             pass
 
 
-def save_segments_json(segments: List[Dict[str, Any]], path: str) -> None:
+def save_segments_json(segments: list[dict[str, Any]], path: str) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(segments, f, indent=2, ensure_ascii=False)
 
 
 def collect_speaker_samples(
-    segments: List[Dict[str, Any]], max_lines: int = 15
-) -> Dict[str, List[str]]:
+    segments: list[dict[str, Any]], max_lines: int = 15
+) -> dict[str, list[str]]:
     """Group sample lines per speaker id."""
-    samples: Dict[str, List[str]] = {}
+    samples: dict[str, list[str]] = {}
     for seg in segments:
         sid = seg.get("speaker") or "UNKNOWN"
         text = (seg.get("text") or "").strip()

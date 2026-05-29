@@ -22,6 +22,7 @@ def make_client(api_key: str):
         raise RuntimeError("Anthropic API key not set. Open Settings (gear) to add it.")
     import anthropic
     import httpx
+
     return anthropic.Anthropic(
         api_key=api_key,
         timeout=httpx.Timeout(_TIMEOUT_TOTAL, connect=_TIMEOUT_CONNECT),

@@ -26,6 +26,7 @@ def _install_optional_dep_stubs() -> None:
     return a spec instead of raising.
     """
     import importlib.machinery
+
     if "k2" not in sys.modules:
         mod = types.ModuleType("k2")
         mod.__spec__ = importlib.machinery.ModuleSpec("k2", loader=None)
@@ -33,7 +34,7 @@ def _install_optional_dep_stubs() -> None:
 
 
 def _patch_speechbrain_lazymodule() -> None:
-    """Patch speechbrain's LazyModule so a failed lazy import raises
+    r"""Patch speechbrain's LazyModule so a failed lazy import raises
     AttributeError (what `hasattr` expects) instead of ImportError.
 
     Workaround #2: speechbrain has a guard against being woken up by
@@ -58,7 +59,7 @@ def _patch_speechbrain_lazymodule() -> None:
         try:
             return orig_getattr(self, attr)
         except ImportError:
-            raise AttributeError(attr)
+            raise AttributeError(attr) from None
 
     siu.LazyModule.__getattr__ = patched_getattr
 
@@ -70,10 +71,13 @@ _patch_speechbrain_lazymodule()
 def main() -> int:
     try:
         from app.config import get_app_data_dir
+
         get_app_data_dir()  # ensure %APPDATA%\CampaignScribe exists
         from app.data import db as _db
+
         _db.init_db()
         from app.ui.app_window import AppWindow
+
         win = AppWindow()
         win.mainloop()
         return 0
@@ -82,6 +86,7 @@ def main() -> int:
         try:
             import tkinter as tk
             from tkinter import messagebox
+
             root = tk.Tk()
             root.withdraw()
             messagebox.showerror(

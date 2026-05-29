@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
-import sys
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any
 
 from app.config import get_db_path
 
@@ -61,19 +60,32 @@ SCHEMA_BASELINE = 1
 # databases whose PRAGMA user_version is below the target. Example:
 #   def _m2(conn): conn.execute("ALTER TABLE sessions ADD COLUMN language TEXT")
 #   _MIGRATIONS = [(2, _m2)]
-_MIGRATIONS: List = []
+_MIGRATIONS: list = []
 
 # Columns callers may update via **fields. Guards the dynamic UPDATE builders
 # below against unexpected/untrusted column names (the values are already
 # parameterised; the column names are not).
 _SESSION_COLUMNS = {
-    "display_name", "campaign_name", "updated_at", "source_audio_files",
-    "num_speakers_detected", "speakers_json_path", "transcripts_folder",
-    "summary_path", "status",
+    "display_name",
+    "campaign_name",
+    "updated_at",
+    "source_audio_files",
+    "num_speakers_detected",
+    "speakers_json_path",
+    "transcripts_folder",
+    "summary_path",
+    "status",
 }
 _SPEAKER_COLUMNS = {
-    "source_speaker_id", "display_name", "character_name", "character_class",
-    "role", "include_in_tracking", "notes", "speech_patterns", "sample_quotes",
+    "source_speaker_id",
+    "display_name",
+    "character_name",
+    "character_class",
+    "role",
+    "include_in_tracking",
+    "notes",
+    "speech_patterns",
+    "sample_quotes",
     "confidence",
 }
 
@@ -114,14 +126,19 @@ def get_conn() -> Iterator[sqlite3.Connection]:
 
 # ---------- sessions ----------
 
-def create_session(display_name: str, campaign_name: str = "",
-                   source_audio_files: Optional[List[str]] = None) -> int:
+
+def create_session(
+    display_name: str, campaign_name: str = "", source_audio_files: list[str] | None = None
+) -> int:
     with get_conn() as c:
         cur = c.execute(
             "INSERT INTO sessions(display_name, campaign_name, source_audio_files) "
             "VALUES (?, ?, ?)",
-            (display_name or "Untitled Session", campaign_name or "",
-             json.dumps(source_audio_files or [])),
+            (
+                display_name or "Untitled Session",
+                campaign_name or "",
+                json.dumps(source_audio_files or []),
+            ),
         )
         return int(cur.lastrowid)
 
@@ -139,13 +156,13 @@ def update_session(session_id: int, **fields) -> None:
         c.execute(f"UPDATE sessions SET {cols} WHERE id = ?", vals)
 
 
-def get_session(session_id: int) -> Optional[Dict[str, Any]]:
+def get_session(session_id: int) -> dict[str, Any] | None:
     with get_conn() as c:
         row = c.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
     return dict(row) if row else None
 
 
-def list_sessions(search: str = "") -> List[Dict[str, Any]]:
+def list_sessions(search: str = "") -> list[dict[str, Any]]:
     with get_conn() as c:
         if search:
             rows = c.execute(
@@ -167,7 +184,8 @@ def delete_session(session_id: int) -> None:
 
 # ---------- speaker profiles ----------
 
-def add_speaker_profile(session_id: int, profile: Dict[str, Any]) -> int:
+
+def add_speaker_profile(session_id: int, profile: dict[str, Any]) -> int:
     with get_conn() as c:
         cur = c.execute(
             "INSERT INTO speaker_profiles(session_id, source_speaker_id, display_name, "
@@ -191,7 +209,7 @@ def add_speaker_profile(session_id: int, profile: Dict[str, Any]) -> int:
         return int(cur.lastrowid)
 
 
-def get_speakers_for_session(session_id: int) -> List[Dict[str, Any]]:
+def get_speakers_for_session(session_id: int) -> list[dict[str, Any]]:
     with get_conn() as c:
         rows = c.execute(
             "SELECT * FROM speaker_profiles WHERE session_id = ? ORDER BY source_speaker_id",
@@ -235,11 +253,10 @@ def delete_speakers_for_session(session_id: int) -> None:
 
 # ---------- prompts ----------
 
-def list_user_prompts() -> List[Dict[str, Any]]:
+
+def list_user_prompts() -> list[dict[str, Any]]:
     with get_conn() as c:
-        rows = c.execute(
-            "SELECT * FROM user_prompts WHERE is_default = 0 ORDER BY name"
-        ).fetchall()
+        rows = c.execute("SELECT * FROM user_prompts WHERE is_default = 0 ORDER BY name").fetchall()
     return [dict(r) for r in rows]
 
 

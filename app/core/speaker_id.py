@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, List
+from typing import Any
 
 from app.core import transcriber as _transcriber
 
@@ -16,6 +16,7 @@ CLAUDE_MODEL = "claude-sonnet-4-20250514"
 
 def _client(api_key: str):
     from app.core.claude_api import make_client
+
     return make_client(api_key)
 
 
@@ -99,7 +100,7 @@ SPEAKER SAMPLES:
 """
 
 
-def discover_speakers(segments: List[Dict[str, Any]], api_key: str) -> Dict[str, Any]:
+def discover_speakers(segments: list[dict[str, Any]], api_key: str) -> dict[str, Any]:
     samples = _transcriber.collect_speaker_samples(segments, max_lines=30)
     samples_text = "\n\n".join(
         f"{sid}:\n" + "\n".join(f"  - {line}" for line in lines)
@@ -142,10 +143,10 @@ Return only the JSON object, no explanation, no markdown fences."""
 
 
 def identify_speakers(
-    segments: List[Dict[str, Any]],
-    speakers_reference: Dict[str, Any],
+    segments: list[dict[str, Any]],
+    speakers_reference: dict[str, Any],
     api_key: str,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     samples = _transcriber.collect_speaker_samples(segments, max_lines=15)
     if not samples:
         return {}
@@ -168,15 +169,15 @@ def identify_speakers(
 
 
 def format_segments_to_text(
-    segments: List[Dict[str, Any]],
-    speaker_mapping: Dict[str, str],
-    skip_speakers: List[str] = None,
+    segments: list[dict[str, Any]],
+    speaker_mapping: dict[str, str],
+    skip_speakers: list[str] = None,
 ) -> str:
     """Collapse consecutive segments by the same speaker, optionally skipping ignored ones."""
     skip_speakers = set(skip_speakers or [])
-    lines: List[str] = []
+    lines: list[str] = []
     current_speaker: str = ""
-    current_text: List[str] = []
+    current_text: list[str] = []
 
     def flush():
         if current_text:
@@ -256,10 +257,10 @@ Return ONLY valid JSON, no markdown fences:
 
 
 def refine_speakers(
-    segments: List[Dict[str, Any]],
-    speakers_reference: Dict[str, Any],
+    segments: list[dict[str, Any]],
+    speakers_reference: dict[str, Any],
     api_key: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     samples = _transcriber.collect_speaker_samples(segments, max_lines=20)
     samples_text = "\n\n".join(
         f"{sid}:\n" + "\n".join(f"  - {line}" for line in lines)

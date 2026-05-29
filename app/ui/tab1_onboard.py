@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-import json
 import os
 import threading
 import tkinter as tk
-from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
-from typing import Optional
 
 from app import config
 from app.core import audio, speaker_id, transcriber
 from app.data import db
-from app.ui.common import make_readonly, open_path_native, short_path
+from app.ui.common import make_readonly, short_path
 from app.ui.theme import BTN_ACCENT, LBL_DIM, LBL_HEADER, color
 
 
@@ -21,8 +18,8 @@ class Tab1Onboard(ttk.Frame):
     def __init__(self, master, app_window):
         super().__init__(master)
         self.app = app_window
-        self.selected_file: Optional[str] = None
-        self.session_id: Optional[int] = None
+        self.selected_file: str | None = None
+        self.session_id: int | None = None
         self._cancel = threading.Event()
         self._busy = False
 
@@ -47,9 +44,16 @@ class Tab1Onboard(ttk.Frame):
 
         # Drop zone
         self.drop = tk.Label(
-            self, text="(no file selected)\nClick Browse to choose a sample audio file\n(.wav .mp3 .m4a .flac .ogg .mp4 .webm)",
-            relief="ridge", borderwidth=2, padx=20, pady=24, justify="center",
-            background=color("BG_INPUT"), foreground=color("FG_MUTED"), anchor="center",
+            self,
+            text="(no file selected)\nClick Browse to choose a sample audio file\n(.wav .mp3 .m4a .flac .ogg .mp4 .webm)",
+            relief="ridge",
+            borderwidth=2,
+            padx=20,
+            pady=24,
+            justify="center",
+            background=color("BG_INPUT"),
+            foreground=color("FG_MUTED"),
+            anchor="center",
         )
         self.drop.grid(row=3, column=0, columnspan=4, sticky="ew", **pad)
         self.drop.bind("<Button-1>", lambda _e: self._browse_audio())
@@ -69,17 +73,21 @@ class Tab1Onboard(ttk.Frame):
         ttk.Label(self, text="Whisper model:").grid(row=5, column=2, sticky="w", **pad)
         self.model_var = tk.StringVar(value=cfg.get("default_whisper_model", "small"))
         ttk.Combobox(
-            self, textvariable=self.model_var, state="readonly", width=12,
+            self,
+            textvariable=self.model_var,
+            state="readonly",
+            width=12,
             values=["tiny", "base", "small", "medium", "large-v3"],
         ).grid(row=5, column=3, sticky="w", **pad)
 
         self.go_btn = ttk.Button(
-            self, text="Analyze Audio & Discover Speakers",
-            style=BTN_ACCENT, command=self._start
+            self, text="Analyze Audio & Discover Speakers", style=BTN_ACCENT, command=self._start
         )
         self.go_btn.grid(row=6, column=0, columnspan=4, sticky="ew", **pad)
 
-        self.cancel_btn = ttk.Button(self, text="Cancel", command=self._cancel_run, state="disabled")
+        self.cancel_btn = ttk.Button(
+            self, text="Cancel", command=self._cancel_run, state="disabled"
+        )
         self.cancel_btn.grid(row=7, column=0, sticky="w", **pad)
 
         self.progress = ttk.Progressbar(self, mode="determinate", maximum=100)
@@ -96,8 +104,10 @@ class Tab1Onboard(ttk.Frame):
         make_readonly(self.result)  # selectable/copyable, but not editable
 
         self.proceed_btn = ttk.Button(
-            self, text="Proceed to Build Profile (Tab 2)",
-            command=lambda: self.app.jump_to_tab(1), state="disabled",
+            self,
+            text="Proceed to Build Profile (Tab 2)",
+            command=lambda: self.app.jump_to_tab(1),
+            state="disabled",
         )
         self.proceed_btn.grid(row=10, column=0, columnspan=4, sticky="e", **pad)
 
@@ -142,6 +152,7 @@ class Tab1Onboard(ttk.Frame):
             self.status_var.set(msg)
             if pct >= 0:
                 self.progress["value"] = max(0, min(100, pct * 100))
+
         self.after(0, apply)
 
     def _set_busy(self, busy: bool):
@@ -182,7 +193,7 @@ class Tab1Onboard(ttk.Frame):
     def _worker(self):
         api_key = config.get_anthropic_key()
         hf = config.get_huggingface_token()
-        wav_path: Optional[str] = None
+        wav_path: str | None = None
         try:
             self._set_status("Converting audio to 16kHz mono WAV…", 0.05)
             wav_path = audio.convert_to_wav(self.selected_file)
@@ -230,9 +241,11 @@ class Tab1Onboard(ttk.Frame):
                     {
                         "source_speaker_id": prof.get("source_speaker_id", ""),
                         "display_name": prof.get("suggested_display_name", ""),
-                        "role": ("Dungeon Master"
-                                 if prof.get("inferred_role", "").upper() == "DM"
-                                 else (prof.get("inferred_role") or "Player")),
+                        "role": (
+                            "Dungeon Master"
+                            if prof.get("inferred_role", "").upper() == "DM"
+                            else (prof.get("inferred_role") or "Player")
+                        ),
                         "notes": prof.get("notes", ""),
                         "speech_patterns": prof.get("speech_patterns", []),
                         "sample_quotes": prof.get("sample_quotes", []),
@@ -281,4 +294,5 @@ class Tab1Onboard(ttk.Frame):
             self.result.delete("1.0", "end")
             self.result.insert("1.0", "\n".join(text))
             self.proceed_btn.config(state="normal")
+
         self.after(0, apply)

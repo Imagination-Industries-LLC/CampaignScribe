@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
-
-DEFAULT_FALLBACK_POLICY: Dict[str, str] = {
+DEFAULT_FALLBACK_POLICY: dict[str, str] = {
     "unknown_speaker_label": "Unknown/Guest",
     "instructions": (
         "If a speaker cannot be confidently matched to any known player or "
@@ -17,7 +16,7 @@ DEFAULT_FALLBACK_POLICY: Dict[str, str] = {
 }
 
 
-def empty_speakers_doc(campaign: str = "", context: str = "") -> Dict[str, Any]:
+def empty_speakers_doc(campaign: str = "", context: str = "") -> dict[str, Any]:
     return {
         "campaign": campaign,
         "context": context,
@@ -27,11 +26,11 @@ def empty_speakers_doc(campaign: str = "", context: str = "") -> Dict[str, Any]:
     }
 
 
-def load_speakers_json(path: str) -> Dict[str, Any]:
+def load_speakers_json(path: str) -> dict[str, Any]:
     p = Path(path)
     if not p.exists():
         raise FileNotFoundError(f"speakers.json not found at {path}")
-    with open(p, "r", encoding="utf-8") as f:
+    with open(p, encoding="utf-8") as f:
         data = json.load(f)
     if not isinstance(data, dict):
         raise ValueError("speakers.json must be a JSON object.")
@@ -43,9 +42,10 @@ def load_speakers_json(path: str) -> Dict[str, Any]:
     return data
 
 
-def save_speakers_json(path: str, data: Dict[str, Any]) -> None:
+def save_speakers_json(path: str, data: dict[str, Any]) -> None:
     import os
     import shutil
+
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     # Atomic write: serialise to a temp file in the same directory, fsync, then
@@ -67,8 +67,8 @@ def save_speakers_json(path: str, data: Dict[str, Any]) -> None:
 def profiles_to_speakers_doc(
     campaign: str,
     context: str,
-    speakers: List[Dict[str, Any]],
-) -> Dict[str, Any]:
+    speakers: list[dict[str, Any]],
+) -> dict[str, Any]:
     """Transform UI-edited profiles into the speakers.json schema."""
     doc = empty_speakers_doc(campaign=campaign, context=context)
     for sp in speakers:
