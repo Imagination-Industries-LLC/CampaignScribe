@@ -1,4 +1,5 @@
 """Tests for app.config: atomic save, key allowlist, corrupt-file fallback, secrets."""
+
 from __future__ import annotations
 
 import json

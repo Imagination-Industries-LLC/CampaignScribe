@@ -1,4 +1,5 @@
 """Tests for app.core.speakers_io: atomic save + .bak, load validation, transform."""
+
 from __future__ import annotations
 
 import json
@@ -55,12 +56,25 @@ def test_load_speakers_json_fills_defaults(tmp_path):
 
 def test_profiles_to_speakers_doc_routes_players_and_non_players():
     speakers = [
-        {"display_name": "Mike", "role": "Player", "character_name": "Wellbrix",
-         "include_in_tracking": 1, "source_speaker_id": "SPEAKER_01"},
-        {"display_name": "DM Josh", "role": "Non-Player",
-         "include_in_tracking": 1, "source_speaker_id": "SPEAKER_00"},
-        {"display_name": "Background", "role": "Player",
-         "include_in_tracking": 0, "source_speaker_id": "SPEAKER_09"},
+        {
+            "display_name": "Mike",
+            "role": "Player",
+            "character_name": "Wellbrix",
+            "include_in_tracking": 1,
+            "source_speaker_id": "SPEAKER_01",
+        },
+        {
+            "display_name": "DM Josh",
+            "role": "Non-Player",
+            "include_in_tracking": 1,
+            "source_speaker_id": "SPEAKER_00",
+        },
+        {
+            "display_name": "Background",
+            "role": "Player",
+            "include_in_tracking": 0,
+            "source_speaker_id": "SPEAKER_09",
+        },
     ]
     doc = speakers_io.profiles_to_speakers_doc("Camp", "ctx", speakers)
     player_names = [p["player_name"] for p in doc["players"]]

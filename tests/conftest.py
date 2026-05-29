@@ -8,11 +8,12 @@ Isolation strategy:
 - ``fake_claude`` swaps app.core.claude_api.make_client for a fake whose
   messages.create() returns queued canned text — no network, no real key.
 """
+
 from __future__ import annotations
 
 import keyring
-from keyring.backend import KeyringBackend
 import pytest
+from keyring.backend import KeyringBackend
 
 
 # ---- in-memory keyring backend ----
@@ -84,8 +85,10 @@ class FakeClient:
 def fake_claude(monkeypatch):
     """Returns a factory: call ``fake_claude(["resp1", "resp2"])`` to install a
     FakeClient and get it back for assertions on ``.calls``."""
+
     def _install(responses):
         client = FakeClient(responses)
         monkeypatch.setattr("app.core.claude_api.make_client", lambda api_key: client)
         return client
+
     return _install

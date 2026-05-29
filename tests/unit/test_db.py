@@ -1,7 +1,6 @@
 """Tests for app.data.db: schema/version, column allowlist, CRUD, cascade, JSON fields."""
-from __future__ import annotations
 
-import sqlite3
+from __future__ import annotations
 
 import pytest
 
@@ -53,11 +52,14 @@ def test_update_speaker_profile_rejects_unknown_column():
 def test_speaker_profile_json_fields_roundtrip():
     db.init_db()
     sid = db.create_session("Test")
-    pid = db.add_speaker_profile(sid, {
-        "display_name": "Mike",
-        "speech_patterns": ["says 'huzzah'"],
-        "sample_quotes": ["I attack!"],
-    })
+    pid = db.add_speaker_profile(
+        sid,
+        {
+            "display_name": "Mike",
+            "speech_patterns": ["says 'huzzah'"],
+            "sample_quotes": ["I attack!"],
+        },
+    )
     rows = db.get_speakers_for_session(sid)
     row = next(r for r in rows if r["id"] == pid)
     assert row["speech_patterns"] == ["says 'huzzah'"]
@@ -78,5 +80,6 @@ def test_list_sessions_search_filters():
     db.create_session("Other", campaign_name="Different")
     results = db.list_sessions(search="Strahd")
     assert any("Strahd" in r["display_name"] for r in results)
-    assert all("Strahd" in r["display_name"] or "Strahd" in (r["campaign_name"] or "")
-               for r in results)
+    assert all(
+        "Strahd" in r["display_name"] or "Strahd" in (r["campaign_name"] or "") for r in results
+    )
