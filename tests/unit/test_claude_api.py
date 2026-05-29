@@ -28,3 +28,4 @@ def test_make_client_configures_timeout_and_retries(monkeypatch):
     assert captured["api_key"] == "sk-test"
     assert captured["max_retries"] == claude_api._MAX_RETRIES
     assert captured["timeout"].connect == claude_api._TIMEOUT_CONNECT
+    assert captured["timeout"].read == claude_api._TIMEOUT_TOTAL

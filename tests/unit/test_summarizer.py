@@ -30,6 +30,7 @@ def test_consolidate_summaries_parses_name_and_body(fake_claude):
     assert result["session_name"] == "Into the Mist"
     assert "The party fled." in result["body"]
     assert result["raw"].startswith("SESSION NAME:")
+    assert not result["body"].startswith("SESSION NAME:")
 
 
 def test_consolidate_summaries_defaults_name_when_missing(fake_claude):

@@ -25,6 +25,10 @@ def test_extract_fenced_json_no_lang():
     assert speaker_id._extract_json_object(text) == {"a": 1}
 
 
+def test_extract_fenced_scalar():
+    assert speaker_id._extract_json_object("```json\n42\n```") == 42
+
+
 def test_extract_json_with_leading_prose():
     text = 'Here is your result:\n{"SPEAKER_00": "DM"}'
     assert speaker_id._extract_json_object(text) == {"SPEAKER_00": "DM"}
