@@ -10,10 +10,15 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
 from app import config
-from app.core import speakers_io, summarizer
+from app.core import privacy, speakers_io, summarizer
 from app.data import db
 from app.prompts.default_prompt import DEFAULT_PROMPT_NAME, DEFAULT_SUMMARY_PROMPT
-from app.ui.common import open_path_native, open_transcript_editor, reveal_in_folder
+from app.ui.common import (
+    add_privacy_note,
+    open_path_native,
+    open_transcript_editor,
+    reveal_in_folder,
+)
 from app.ui.theme import BTN_ACCENT, LBL_DIM, LBL_HEADER
 
 
@@ -169,6 +174,8 @@ class SummarizeTab(ttk.Frame):
         self._prompt_options: list[dict[str, Any]] = []
         self.refresh_prompts()
         self.refresh_sessions()
+
+        self._privacy_note = add_privacy_note(self, privacy.NOTE_TRANSCRIPT)
 
     def on_settings_changed(self):
         pass

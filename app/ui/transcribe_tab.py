@@ -12,9 +12,14 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
 from app import config
-from app.core import audio, speaker_id, speakers_io, transcriber
+from app.core import audio, privacy, speaker_id, speakers_io, transcriber
 from app.data import db
-from app.ui.common import open_path_native, open_transcript_editor, reveal_in_folder
+from app.ui.common import (
+    add_privacy_note,
+    open_path_native,
+    open_transcript_editor,
+    reveal_in_folder,
+)
 from app.ui.theme import BTN_ACCENT, LBL_DIM, LBL_HEADER
 
 STATE_ICONS = {
@@ -151,6 +156,8 @@ class TranscribeTab(ttk.Frame):
         self.rowconfigure(8, weight=1)
 
         self.refresh_sessions()
+
+        self._privacy_note = add_privacy_note(self, privacy.NOTE_SAMPLES)
 
     def on_settings_changed(self):
         cfg = config.load_config()

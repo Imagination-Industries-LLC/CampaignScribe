@@ -8,9 +8,9 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from app import config
-from app.core import audio, speaker_id, transcriber
+from app.core import audio, privacy, speaker_id, transcriber
 from app.data import db
-from app.ui.common import make_readonly, short_path
+from app.ui.common import add_privacy_note, make_readonly, short_path
 from app.ui.theme import BTN_ACCENT, LBL_DIM, LBL_HEADER, color
 
 
@@ -114,6 +114,8 @@ class DiscoverTab(ttk.Frame):
         self.columnconfigure(1, weight=1)
         self.columnconfigure(3, weight=1)
         self.rowconfigure(9, weight=1)
+
+        self._privacy_note = add_privacy_note(self, privacy.NOTE_SAMPLES)
 
     # ---------- helpers ----------
 

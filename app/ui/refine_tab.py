@@ -10,8 +10,8 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
 from app import config
-from app.core import audio, speaker_id, speakers_io, transcriber
-from app.ui.common import ScrollableFrame
+from app.core import audio, privacy, speaker_id, speakers_io, transcriber
+from app.ui.common import ScrollableFrame, add_privacy_note
 from app.ui.theme import BTN_ACCENT, LBL_DIM, LBL_EYEBROW, LBL_HEADER
 
 
@@ -101,6 +101,8 @@ class RefineTab(ttk.Frame):
 
         # Per-suggestion accepted state, keyed by index/type
         self._accept_vars: dict[str, tk.BooleanVar] = {}
+
+        self._privacy_note = add_privacy_note(self, privacy.NOTE_SAMPLES)
 
     def on_settings_changed(self):
         pass
