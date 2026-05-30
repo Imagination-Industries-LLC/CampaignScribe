@@ -9,9 +9,10 @@ import tkinter as tk
 from tkinter import ttk
 
 from app import __version__, config
+from app.core import privacy
 from app.core.transcriber import check_gpu
 from app.ui.build_profile_tab import BuildProfileTab
-from app.ui.common import open_path_native, reveal_in_folder
+from app.ui.common import make_readonly, open_path_native, open_url, reveal_in_folder
 from app.ui.discover_tab import DiscoverTab
 from app.ui.history_tab import HistoryTab
 from app.ui.refine_tab import RefineTab
@@ -19,6 +20,7 @@ from app.ui.settings_dialog import SettingsDialog
 from app.ui.summarize_tab import SummarizeTab
 from app.ui.theme import (
     BTN_GHOST,
+    BTN_LINK,
     LBL_EYEBROW,
     LBL_STATUS_INFO,
     LBL_STATUS_WARN,
@@ -300,6 +302,8 @@ class AppWindow(tk.Tk):
 
         helpmenu = tk.Menu(menubar, tearoff=0)
         helpmenu.add_command(label="Getting Started", command=self._show_getting_started)
+        helpmenu.add_command(label="Privacy & Data", command=self._show_privacy)
+        helpmenu.add_separator()
         helpmenu.add_command(label="About CampaignScribe", command=self._show_about)
         menubar.add_cascade(label="Help", menu=helpmenu)
 
@@ -365,6 +369,9 @@ class AppWindow(tk.Tk):
             "Summarize. Refine improves your speaker profile from new audio.",
             parent=self,
         )
+
+    def _show_privacy(self):
+        PrivacyDialog(self)
 
     def _show_about(self):
         AboutDialog(self)
@@ -470,4 +477,58 @@ class AboutDialog(tk.Toplevel):
         self.update_idletasks()
         x = master.winfo_rootx() + (master.winfo_width() - self.winfo_width()) // 2
         y = master.winfo_rooty() + 80
+        self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+
+
+class PrivacyDialog(tk.Toplevel):
+    """Scrollable Help → Privacy & Data dialog rendering PRIVACY.md."""
+
+    def __init__(self, master):
+        super().__init__(master)
+        self.title("Privacy & Data — CampaignScribe")
+        self.transient(master)
+        self.geometry("640x560")
+        self.minsize(520, 420)
+        self.grab_set()
+
+        ttk.Label(self, text="Privacy & Data", style=LBL_TITLE).pack(
+            anchor="w", padx=S_4, pady=(S_4, S_2)
+        )
+
+        body = ttk.Frame(self)
+        body.pack(fill="both", expand=True, padx=S_4)
+        text = tk.Text(
+            body,
+            wrap="word",
+            borderwidth=0,
+            highlightthickness=0,
+            background=color("BG_INPUT"),
+            foreground=color("FG"),
+        )
+        scroll = ttk.Scrollbar(body, orient="vertical", command=text.yview)
+        text.configure(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+        text.pack(side="left", fill="both", expand=True)
+        text.insert("1.0", privacy.load_privacy_text())
+        make_readonly(text)
+
+        links = ttk.Frame(self)
+        links.pack(fill="x", padx=S_4, pady=S_3)
+        ttk.Button(
+            links,
+            text="Anthropic Privacy Policy",
+            style=BTN_LINK,
+            command=lambda: open_url(privacy.ANTHROPIC_PRIVACY_URL),
+        ).pack(side="left")
+        ttk.Button(
+            links,
+            text="View PRIVACY.md on GitHub",
+            style=BTN_LINK,
+            command=lambda: open_url(privacy.PRIVACY_MD_URL),
+        ).pack(side="left", padx=(S_3, 0))
+        ttk.Button(links, text="Close", style=BTN_GHOST, command=self.destroy).pack(side="right")
+
+        self.update_idletasks()
+        x = master.winfo_rootx() + (master.winfo_width() - self.winfo_width()) // 2
+        y = master.winfo_rooty() + 60
         self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
