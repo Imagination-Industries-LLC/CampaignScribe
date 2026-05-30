@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import tkinter as tk
+import webbrowser
 from collections.abc import Callable
 from tkinter import messagebox, ttk
 
@@ -52,6 +53,32 @@ def reveal_in_folder(path: str) -> None:
             subprocess.Popen(["xdg-open", target], creationflags=CREATE_NO_WINDOW)
     except Exception:
         pass
+
+
+def open_url(url: str) -> None:
+    """Open a URL in the user's default browser. No-op on empty input."""
+    if not url:
+        return
+    try:
+        webbrowser.open(url, new=2)
+    except Exception:
+        pass
+
+
+def add_privacy_note(tab: tk.Widget, text: str) -> ttk.Label:
+    """Append a muted privacy one-liner to the bottom of a tab.
+
+    Matches the tab's geometry manager: a new bottom grid row spanning all
+    columns for grid-managed tabs, else packed. Returns the label."""
+    from app.ui.theme import LBL_DIM, S_2, S_4
+
+    note = ttk.Label(tab, text=text, style=LBL_DIM, wraplength=760, justify="left")
+    cols, rows = tab.grid_size()
+    if cols > 0:
+        note.grid(row=rows, column=0, columnspan=cols, sticky="w", padx=S_4, pady=(0, S_2))
+    else:
+        note.pack(anchor="w", padx=S_4, pady=(0, S_2))
+    return note
 
 
 def make_readonly(text: tk.Text) -> None:
