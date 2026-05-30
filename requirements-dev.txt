@@ -7,6 +7,6 @@ python-docx>=1.1
 ruff>=0.15
 mypy>=1.11
 bandit>=1.7
-semgrep>=1.80
+semgrep>=1.164.0
 pip-audit>=2.7
 pre-commit>=3.7
