@@ -385,8 +385,6 @@ class AppWindow(tk.Tk):
         open_path_native(str(config.get_app_data_dir()))
 
     def _show_getting_started(self):
-        from tkinter import messagebox
-
         messagebox.showinfo(
             "Getting Started",
             "CampaignScribe needs two free credentials (Settings ⚙):\n\n"

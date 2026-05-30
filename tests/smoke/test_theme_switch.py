@@ -76,3 +76,9 @@ def test_handle_theme_change_blocks_while_busy(app, monkeypatch):
     assert app._rebuild_requested is False  # blocked
     assert shown.get("msg") is True
     app.transcribe_tab._busy = False
+
+
+def test_handle_theme_change_triggers_rebuild_when_idle(app):
+    assert not app._any_tab_busy()
+    app._handle_theme_change()
+    assert app._rebuild_requested is True
