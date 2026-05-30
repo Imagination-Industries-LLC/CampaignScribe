@@ -11,9 +11,12 @@ from app.ui import common
 
 def test_open_url_calls_webbrowser(monkeypatch):
     opened = {}
-    monkeypatch.setattr(common.webbrowser, "open", lambda url, new=0: opened.setdefault("url", url))
+    monkeypatch.setattr(
+        common.webbrowser, "open", lambda url, new=0: opened.update(url=url, new=new)
+    )
     common.open_url("https://example.com/x")
     assert opened["url"] == "https://example.com/x"
+    assert opened["new"] == 2
 
 
 def test_open_url_ignores_empty(monkeypatch):
@@ -37,5 +40,21 @@ def test_add_privacy_note_grid_parent():
         note = common.add_privacy_note(frame, "hello note")
         assert note.cget("text") == "hello note"
         assert note.winfo_manager() == "grid"
+    finally:
+        root.destroy()
+
+
+@pytest.mark.gui
+def test_add_privacy_note_pack_parent():
+    try:
+        root = tk.Tk()
+    except tk.TclError as e:
+        pytest.skip(f"No display: {e}")
+    try:
+        frame = tk.Frame(root)
+        tk.Label(frame, text="x").pack()  # make it pack-managed
+        note = common.add_privacy_note(frame, "packed note")
+        assert note.cget("text") == "packed note"
+        assert note.winfo_manager() == "pack"
     finally:
         root.destroy()
