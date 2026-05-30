@@ -78,8 +78,15 @@ def main() -> int:
         _db.init_db()
         from app.ui.app_window import AppWindow
 
-        win = AppWindow()
-        win.mainloop()
+        # Relaunch loop: a theme change calls AppWindow.request_rebuild(), which
+        # sets _rebuild_requested and destroys the window. We then construct a
+        # fresh AppWindow (apply_theme re-reads theme_mode and applies the new
+        # palette). Any other exit (window close) ends the loop.
+        while True:
+            win = AppWindow()
+            win.mainloop()
+            if not getattr(win, "_rebuild_requested", False):
+                break
         return 0
     except Exception:
         traceback.print_exc()

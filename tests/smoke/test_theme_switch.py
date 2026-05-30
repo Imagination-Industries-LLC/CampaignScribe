@@ -82,3 +82,35 @@ def test_handle_theme_change_triggers_rebuild_when_idle(app):
     assert not app._any_tab_busy()
     app._handle_theme_change()
     assert app._rebuild_requested is True
+
+
+def test_appwindow_applies_persisted_theme_mode(monkeypatch):
+    from app import config
+    from app.data import db
+
+    monkeypatch.setattr(
+        "app.ui.app_window.check_gpu",
+        lambda: {
+            "recommendation": "cpu_unavailable",
+            "torch_version": None,
+            "error": "stub",
+            "smi_gpu_name": None,
+        },
+    )
+    db.init_db()
+    config.save_config({"theme_mode": "light"})
+    try:
+        from app.ui.app_window import AppWindow
+
+        win = AppWindow()
+    except tk.TclError as e:
+        pytest.skip(f"No display: {e}")
+    try:
+        win.withdraw()
+        win.update_idletasks()
+        assert theme._active_variant == "light"
+    finally:
+        try:
+            win.destroy()
+        except tk.TclError:
+            pass
