@@ -15,6 +15,8 @@ def _detect_nvidia_gpu_via_smi() -> str | None:
     import shutil
     import subprocess
 
+    from app.core.proc import CREATE_NO_WINDOW
+
     smi = shutil.which("nvidia-smi")
     if not smi:
         return None
@@ -23,6 +25,7 @@ def _detect_nvidia_gpu_via_smi() -> str | None:
             [smi, "--query-gpu=name", "--format=csv,noheader"],
             stderr=subprocess.DEVNULL,
             timeout=5,
+            creationflags=CREATE_NO_WINDOW,
         )
         first = out.decode("utf-8", errors="replace").splitlines()
         if first and first[0].strip():

@@ -9,6 +9,8 @@ import tkinter as tk
 from collections.abc import Callable
 from tkinter import messagebox, ttk
 
+from app.core.proc import CREATE_NO_WINDOW
+
 
 def open_path_native(path: str) -> None:
     """Open a file or folder in the OS default app."""
@@ -18,9 +20,9 @@ def open_path_native(path: str) -> None:
         if sys.platform.startswith("win"):
             os.startfile(path)  # type: ignore[attr-defined]
         elif sys.platform == "darwin":
-            subprocess.Popen(["open", path])
+            subprocess.Popen(["open", path], creationflags=CREATE_NO_WINDOW)
         else:
-            subprocess.Popen(["xdg-open", path])
+            subprocess.Popen(["xdg-open", path], creationflags=CREATE_NO_WINDOW)
     except Exception:
         pass
 
@@ -34,14 +36,20 @@ def reveal_in_folder(path: str) -> None:
         if sys.platform.startswith("win"):
             if os.path.isfile(path):
                 # explorer returns exit code 1 even on success; don't check it.
-                subprocess.Popen(f'explorer /select,"{os.path.normpath(path)}"')
+                subprocess.Popen(
+                    f'explorer /select,"{os.path.normpath(path)}"',
+                    creationflags=CREATE_NO_WINDOW,
+                )
             else:
                 os.startfile(path)  # type: ignore[attr-defined]
         elif sys.platform == "darwin":
-            subprocess.Popen(["open", "-R", path] if os.path.isfile(path) else ["open", path])
+            subprocess.Popen(
+                ["open", "-R", path] if os.path.isfile(path) else ["open", path],
+                creationflags=CREATE_NO_WINDOW,
+            )
         else:
             target = path if os.path.isdir(path) else (os.path.dirname(path) or ".")
-            subprocess.Popen(["xdg-open", target])
+            subprocess.Popen(["xdg-open", target], creationflags=CREATE_NO_WINDOW)
     except Exception:
         pass
 
