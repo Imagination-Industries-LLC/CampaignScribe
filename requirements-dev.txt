@@ -9,4 +9,4 @@ mypy>=1.11
 bandit>=1.7
 semgrep>=1.80
 pip-audit>=2.7
-pre-commit>=3.7
+pre-commit>=4.6.0
