@@ -3,7 +3,7 @@ from PyInstaller.utils.hooks import collect_data_files
 from PyInstaller.utils.hooks import collect_all
 from PyInstaller.utils.hooks import copy_metadata
 
-datas = [('ffmpeg\\ffmpeg.exe', 'ffmpeg'), ('assets\\icon.ico', 'assets')]
+datas = [('ffmpeg\\ffmpeg.exe', 'ffmpeg'), ('assets\\icon.ico', 'assets'), ('PRIVACY.md', '.')]
 binaries = []
 hiddenimports = ['anthropic', 'keyring.backends.Windows', 'docx', 'ffmpeg', 'app', 'app.ui.app_window']
 datas += collect_data_files('anthropic')
