@@ -120,3 +120,19 @@ def test_add_version_atomic_no_temp_left():
     library.add_version(slug, DOC1)
     leftovers = list(library._campaign_dir(slug).glob("*.tmp"))
     assert leftovers == []
+
+
+def test_rename_to_same_name_keeps_slug():
+    slug = library.create_campaign("Alpha")
+    library.add_version(slug, DOC1)
+    assert library.rename_campaign(slug, "Alpha") == slug
+    assert library.get_current_doc(slug)["campaign"] == "Curse of Strahd"
+
+
+def test_rebuild_manifest_created_at_is_iso():
+    slug = library.create_campaign("C")
+    library.add_version(slug, DOC1)
+    (library._campaign_dir(slug) / "manifest.json").unlink()
+    versions = library.list_versions(slug)  # triggers rebuild
+    assert versions[0]["created_at"].count(":") == 2  # ISO time has 2 colons
+    assert "T" in versions[0]["created_at"]

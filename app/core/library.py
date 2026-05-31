@@ -35,10 +35,20 @@ def _campaign_dir(slug: str) -> Path:
     return library_root() / slug
 
 
-def _unique_slug(display_name: str) -> str:
+def _stem_to_iso(fname: str) -> str:
+    """Recover an ISO-8601 created_at from a version filename like
+    '2026-05-31T005640.json' (or a '-N' collision variant). Falls back to the
+    stem if it doesn't match."""
+    m = re.match(r"(\d{4}-\d{2}-\d{2})T(\d{2})(\d{2})(\d{2})", fname)
+    if m:
+        return f"{m.group(1)}T{m.group(2)}:{m.group(3)}:{m.group(4)}"
+    return fname[:-5]
+
+
+def _unique_slug(display_name: str, exclude: str | None = None) -> str:
     base = _slugify(display_name)
     slug, n = base, 2
-    while _campaign_dir(slug).exists():
+    while _campaign_dir(slug).exists() and slug != exclude:
         slug, n = f"{base}-{n}", n + 1
     return slug
 
@@ -57,14 +67,22 @@ def _atomic_write_json(path: Path, data: Any) -> None:
     os.replace(tmp, path)
 
 
+def _version_sort_key(name: str) -> tuple:
+    m = re.match(r"(\d{4}-\d{2}-\d{2}T\d{6})(?:-(\d+))?\.json$", name)
+    return (m.group(1), int(m.group(2) or 0)) if m else (name, 0)
+
+
 def _version_files(slug: str) -> list[str]:
-    return sorted(p.name for p in _campaign_dir(slug).glob("*.json") if p.name != "manifest.json")
+    files = [p.name for p in _campaign_dir(slug).glob("*.json") if p.name != "manifest.json"]
+    return sorted(files, key=_version_sort_key)
 
 
 def _rebuild_manifest(slug: str) -> dict:
     files = _version_files(slug)
-    versions = [{"file": f, "created_at": f[:-5], "label": None} for f in files]
+    versions = [{"file": f, "created_at": _stem_to_iso(f), "label": None} for f in files]
     manifest = {
+        # display_name cannot be recovered from version files on disk; fall back
+        # to the slug. (The real name is only in the manifest, which is gone here.)
         "display_name": slug,
         "created_at": versions[0]["created_at"] if versions else "",
         "updated_at": versions[-1]["created_at"] if versions else "",
@@ -176,8 +194,9 @@ def set_current(slug: str, version_file: str) -> None:
 
 
 def rename_campaign(slug: str, new_display_name: str) -> str:
-    new_slug = _unique_slug(new_display_name)
-    shutil.move(str(_campaign_dir(slug)), str(_campaign_dir(new_slug)))
+    new_slug = _unique_slug(new_display_name, exclude=slug)
+    if new_slug != slug:
+        shutil.move(str(_campaign_dir(slug)), str(_campaign_dir(new_slug)))
     m = _load_manifest(new_slug)
     m["display_name"] = new_display_name.strip() or new_slug
     m["updated_at"] = datetime.now().isoformat(timespec="seconds")
@@ -187,6 +206,8 @@ def rename_campaign(slug: str, new_display_name: str) -> str:
 
 def delete_campaign(slug: str) -> None:
     shutil.rmtree(_campaign_dir(slug), ignore_errors=True)
+    if _campaign_dir(slug).exists():
+        raise OSError(f"Failed to delete campaign directory: {slug}")
 
 
 def import_file(path: str, label: str = "imported") -> str:
