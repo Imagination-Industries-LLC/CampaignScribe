@@ -60,3 +60,40 @@ def test_tab_has_picker_resolving_campaign(root, modpath, clsname):
     tab.picker.refresh()
     # selecting the campaign resolves to its current version file
     assert tab.picker.selected_path() == str(library.current_version_path(slug))
+
+
+def test_picker_select_by_slug(root):
+    from app.data import db
+    from app.ui.campaign_picker import CampaignPicker
+
+    db.init_db()
+    slug = library.create_campaign("Strahd")
+    library.add_version(slug, DOC)
+    other = library.create_campaign("Wildemount")
+    library.add_version(other, DOC)
+    picker = CampaignPicker(root)
+    root.update_idletasks()
+    assert picker.select_by_slug(other) is True
+    assert picker.selected_slug() == other
+    assert picker.select_by_slug("nonexistent") is False
+
+
+def test_refine_on_show_seeds_speakers_doc(root):
+    import types
+
+    from app.data import db
+    from app.ui.refine_tab import RefineTab
+
+    db.init_db()
+    slug = library.create_campaign("Strahd")
+    library.add_version(slug, DOC)
+    from app import config as _cfg
+
+    c = _cfg.load_config()
+    c["last_campaign"] = slug
+    _cfg.save_config(c)
+    tab = RefineTab(root, types.SimpleNamespace(notebook=None))
+    root.update_idletasks()
+    tab.on_show()
+    assert tab.speakers_path == str(library.current_version_path(slug))
+    assert tab.speakers_doc is not None  # seeded, not None

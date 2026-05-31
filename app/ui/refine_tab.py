@@ -106,7 +106,7 @@ class RefineTab(ttk.Frame):
 
     def on_show(self):
         self.picker.refresh()
-        self.speakers_path = self.picker.selected_path()
+        self._on_picker_change()
 
     def _on_picker_change(self):
         self.speakers_path = self.picker.selected_path()

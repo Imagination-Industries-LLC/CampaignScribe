@@ -90,3 +90,17 @@ class CampaignPicker(ttk.Frame):
             return str(library.current_version_path(slug))
         except FileNotFoundError:
             return None  # campaign has no versions yet
+
+    def select_by_slug(self, slug: str) -> bool:
+        """Select the given campaign by slug (refreshing if needed). Fires on_change.
+        Returns True if the campaign was found and selected."""
+        label = next((lbl for lbl, s in self._slug_by_label.items() if s == slug), None)
+        if label is None:
+            self.refresh()
+            label = next((lbl for lbl, s in self._slug_by_label.items() if s == slug), None)
+        if label is None:
+            return False
+        self._file_path = None
+        self.var.set(label)
+        self._on_combo()  # persists last_campaign + fires on_change
+        return True

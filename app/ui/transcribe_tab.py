@@ -528,13 +528,16 @@ class TranscribeTab(ttk.Frame):
             return
         # Push into Refine tab
         refine_tab = self.app.refine_tab
-        if not refine_tab.speakers_doc:
+        slug = self.picker.selected_slug()
+        if slug and refine_tab.picker.select_by_slug(slug):
+            pass  # picker selection syncs refine.speakers_path + speakers_doc via on_change
+        elif self.speakers_path:
+            # loose file: set directly (picker can't represent an arbitrary file selection here)
+            refine_tab.speakers_path = self.speakers_path
             try:
                 refine_tab.speakers_doc = speakers_io.load_speakers_json(self.speakers_path)
-                refine_tab.speakers_path = self.speakers_path
-            except Exception as e:
-                messagebox.showerror("CampaignScribe", str(e))
-                return
+            except Exception:
+                pass
         refine_tab.suggestions = doc
         refine_tab._render_suggestions()
         self.app.notebook.select(self.app.refine_tab)
