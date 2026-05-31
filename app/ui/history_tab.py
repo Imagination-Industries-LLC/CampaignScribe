@@ -162,14 +162,14 @@ class HistoryTab(ttk.Frame):
             messagebox.showinfo("CampaignScribe", "Select a session first.")
             return
         self.app.transcribe_tab.load_session(self.selected_id)
-        self.app.jump_to_tab(2)
+        self.app.notebook.select(self.app.transcribe_tab)
 
     def _reopen_summarize(self):
         if not self.selected_id:
             messagebox.showinfo("CampaignScribe", "Select a session first.")
             return
         self.app.summarize_tab.load_session(self.selected_id)
-        self.app.jump_to_tab(3)
+        self.app.notebook.select(self.app.summarize_tab)
 
     def _rename(self):
         if not self.selected_id:

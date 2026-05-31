@@ -13,6 +13,7 @@ from app import config
 from app.core import privacy, speakers_io, summarizer
 from app.data import db
 from app.prompts.default_prompt import DEFAULT_PROMPT_NAME, DEFAULT_SUMMARY_PROMPT
+from app.ui.campaign_picker import CampaignPicker
 from app.ui.common import (
     add_privacy_note,
     open_path_native,
@@ -76,16 +77,8 @@ class SummarizeTab(ttk.Frame):
             row=0, column=0, columnspan=4, sticky="w", **pad
         )
 
-        ttk.Label(self, text="speakers.json:").grid(row=1, column=0, sticky="w", **pad)
-        self.speakers_var = tk.StringVar(value=cfg.get("last_speakers_json", ""))
-        if self.speakers_var.get():
-            self.speakers_path = self.speakers_var.get()
-        ttk.Entry(self, textvariable=self.speakers_var, width=60, state="readonly").grid(
-            row=1, column=1, columnspan=2, sticky="ew", **pad
-        )
-        ttk.Button(self, text="Browse…", command=self._browse_speakers).grid(
-            row=1, column=3, sticky="w", **pad
-        )
+        self.picker = CampaignPicker(self, on_change=self._on_picker_change)
+        self.picker.grid(row=1, column=0, columnspan=4, sticky="ew", **pad)
 
         ttk.Label(self, text="Session (optional):").grid(row=2, column=0, sticky="w", **pad)
         self.session_combo = ttk.Combobox(self, state="readonly", width=60)
@@ -174,6 +167,7 @@ class SummarizeTab(ttk.Frame):
         self._prompt_options: list[dict[str, Any]] = []
         self.refresh_prompts()
         self.refresh_sessions()
+        self.speakers_path = self.picker.selected_path()
 
         self._privacy_note = add_privacy_note(self, privacy.NOTE_TRANSCRIPT)
 
@@ -181,8 +175,13 @@ class SummarizeTab(ttk.Frame):
         pass
 
     def on_show(self):
+        self.picker.refresh()
+        self.speakers_path = self.picker.selected_path()
         self.refresh_sessions()
         self.refresh_prompts()
+
+    def _on_picker_change(self):
+        self.speakers_path = self.picker.selected_path()
 
     def load_session(self, sid: int) -> None:
         """Populate from a saved session: select it, set speakers.json, and add
@@ -192,9 +191,8 @@ class SummarizeTab(ttk.Frame):
             self.session_combo.current(self._session_index.index(sid))
         s = db.get_session(sid) or {}
         spk = s.get("speakers_json_path")
-        if spk:
-            self.speakers_path = spk
-            self.speakers_var.set(spk)
+        if spk and not self.picker.select_file(spk):
+            self.speakers_path = spk  # fallback: file unreadable/missing
         folder = s.get("transcripts_folder")
         if folder and os.path.isdir(folder):
             import glob
@@ -302,24 +300,6 @@ class SummarizeTab(ttk.Frame):
         self.refresh_prompts()
 
     # ---------- file pickers ----------
-
-    def _browse_speakers(self):
-        if self._busy:
-            return
-        path = filedialog.askopenfilename(
-            title="Select speakers.json",
-            initialdir=config.get_last_dir("json") or None,
-            filetypes=[("JSON", "*.json"), ("All files", "*.*")],
-        )
-        if path:
-            try:
-                speakers_io.load_speakers_json(path)
-            except Exception as e:
-                messagebox.showerror("CampaignScribe", str(e))
-                return
-            config.set_last_dir("json", path)
-            self.speakers_path = path
-            self.speakers_var.set(path)
 
     def _add_files(self):
         if self._busy:

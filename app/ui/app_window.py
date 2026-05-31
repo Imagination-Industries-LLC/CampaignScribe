@@ -9,9 +9,10 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from app import __version__, config
-from app.core import privacy
+from app.core import library, privacy
 from app.core.transcriber import check_gpu
 from app.ui.build_profile_tab import BuildProfileTab
+from app.ui.campaigns_tab import CampaignsTab
 from app.ui.common import make_readonly, open_path_native, open_url, reveal_in_folder
 from app.ui.discover_tab import DiscoverTab
 from app.ui.history_tab import HistoryTab
@@ -110,6 +111,7 @@ class AppWindow(tk.Tk):
         # before=self.notebook, so the notebook must already be created.
         self._refresh_banner()
 
+        self.campaigns_tab = CampaignsTab(self.notebook, self)
         self.discover_tab = DiscoverTab(self.notebook, self)
         self.refine_tab = RefineTab(self.notebook, self)
         self.build_profile_tab = BuildProfileTab(self.notebook, self)
@@ -119,12 +121,13 @@ class AppWindow(tk.Tk):
 
         # (widget, label, icon-name) in display order
         self._tab_specs = [
-            (self.discover_tab, "1. Discover", "discover"),
-            (self.build_profile_tab, "2. Build Profile", "profile"),
-            (self.transcribe_tab, "3. Transcribe", "transcribe"),
-            (self.summarize_tab, "4. Summarize", "summarize"),
-            (self.refine_tab, "5. Refine", "refine"),
-            (self.history_tab, "6. History", "history"),
+            (self.campaigns_tab, "1. Campaigns", "campaigns"),
+            (self.discover_tab, "2. Discover", "discover"),
+            (self.build_profile_tab, "3. Build Profile", "profile"),
+            (self.transcribe_tab, "4. Transcribe", "transcribe"),
+            (self.summarize_tab, "5. Summarize", "summarize"),
+            (self.refine_tab, "6. Refine", "refine"),
+            (self.history_tab, "7. History", "history"),
         ]
         self._tab_icons = {}  # icon-name -> {"idle": PhotoImage, "active": PhotoImage}
         for widget, label, icon in self._tab_specs:
@@ -174,6 +177,9 @@ class AppWindow(tk.Tk):
         self._bind_shortcuts()
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        # Offer the one-time library migration after the window is shown.
+        self._migration_after_id = self.after(300, self._maybe_offer_library_import)
 
     # ----------------------------------------------------------------------
     # Status bar
@@ -262,12 +268,54 @@ class AppWindow(tk.Tk):
             # Insert above notebook, below topbar
             self.banner.pack(side="top", fill="x", before=self.notebook)
 
+    def _maybe_offer_library_import(self):
+        """One-time migration: if the library is empty and the user has a
+        previously-used speakers.json on disk, offer to import it. Asked at
+        most once (guarded by config 'library_import_prompted')."""
+        import os
+
+        cfg = config.load_config()
+        if cfg.get("library_import_prompted"):
+            return
+        # Already using the library? Nothing to migrate; don't ask again.
+        if library.list_campaigns():
+            cfg["library_import_prompted"] = True
+            config.save_config(cfg)
+            return
+        last = cfg.get("last_speakers_json", "")
+        if not last or not os.path.exists(last):
+            return  # nothing to offer yet — leave the flag so a future run can ask
+        if messagebox.askyesno(
+            "Import to Campaign Library?",
+            "CampaignScribe now organizes speaker profiles into a Campaign "
+            "Library.\n\nImport your most recent speakers.json to get started?"
+            f"\n\n{last}",
+            parent=self,
+        ):
+            try:
+                library.import_file(last)
+            except Exception as e:
+                messagebox.showerror("CampaignScribe", f"Could not import:\n{e}")
+            else:
+                if hasattr(self, "campaigns_tab"):
+                    try:
+                        self.campaigns_tab.on_show()
+                    except Exception:
+                        pass  # a UI refresh failure must not block the migration
+        # Re-load: the modal above ran the Tk event loop, so config may have
+        # changed underneath us (e.g. Settings opened via shortcut). Reload
+        # before flipping the flag so we don't clobber a concurrent write.
+        cfg = config.load_config()
+        cfg["library_import_prompted"] = True
+        config.save_config(cfg)
+
     def open_settings(self):
         old_mode = config.load_config().get("theme_mode", "dark")
         dlg = SettingsDialog(self)
         self.wait_window(dlg)
         self._refresh_banner()
         for tab in (
+            self.campaigns_tab,
             self.discover_tab,
             self.refine_tab,
             self.build_profile_tab,
@@ -289,6 +337,12 @@ class AppWindow(tk.Tk):
         entry-point relaunch loop constructs a fresh one (new theme applied)."""
         self._save_window_geometry()
         self._rebuild_requested = True
+        if getattr(self, "_migration_after_id", None) is not None:
+            try:
+                self.after_cancel(self._migration_after_id)
+            except Exception:
+                pass
+            self._migration_after_id = None
         self.destroy()
 
     def _handle_theme_change(self):
@@ -342,7 +396,7 @@ class AppWindow(tk.Tk):
         self.bind_all("<Control-O>", lambda _e: self._menu_open_audio())
         self.bind_all("<Control-comma>", lambda _e: self.open_settings())
         self.bind_all("<F5>", lambda _e: self._run_current_tab())
-        for i in range(1, 7):
+        for i in range(1, 8):
             self.bind_all(f"<Control-Key-{i}>", lambda _e, n=i - 1: self.jump_to_tab(n))
 
     def _current_tab(self):
@@ -363,7 +417,7 @@ class AppWindow(tk.Tk):
         elif hasattr(tab, "_add_files"):
             tab._add_files()
         else:
-            self.jump_to_tab(0)
+            self.notebook.select(self.discover_tab)
             if hasattr(self.discover_tab, "_browse_audio"):
                 self.discover_tab._browse_audio()
 
@@ -460,6 +514,12 @@ class AppWindow(tk.Tk):
 
     def _on_close(self):
         self._save_window_geometry()
+        if getattr(self, "_migration_after_id", None) is not None:
+            try:
+                self.after_cancel(self._migration_after_id)
+            except Exception:
+                pass
+            self._migration_after_id = None
         self.destroy()
 
 

@@ -10,7 +10,8 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
 from app import config
-from app.core import audio, privacy, speaker_id, speakers_io, transcriber
+from app.core import audio, library, privacy, speaker_id, speakers_io, transcriber
+from app.ui.campaign_picker import CampaignPicker
 from app.ui.common import ScrollableFrame, add_privacy_note
 from app.ui.theme import BTN_ACCENT, LBL_DIM, LBL_EYEBROW, LBL_HEADER
 
@@ -42,14 +43,8 @@ class RefineTab(ttk.Frame):
             justify="left",
         ).pack(anchor="w", pady=(2, 0))
 
-        ttk.Label(self, text="speakers.json:").grid(row=1, column=0, sticky="w", **pad)
-        self.speakers_var = tk.StringVar()
-        ttk.Entry(self, textvariable=self.speakers_var, width=70, state="readonly").grid(
-            row=1, column=1, columnspan=2, sticky="ew", **pad
-        )
-        ttk.Button(self, text="Browse…", command=self._browse_speakers).grid(
-            row=1, column=3, sticky="w", **pad
-        )
+        self.picker = CampaignPicker(self, on_change=self._on_picker_change)
+        self.picker.grid(row=1, column=0, columnspan=4, sticky="ew", **pad)
 
         ttk.Label(self, text="Audio files:").grid(row=2, column=0, sticky="nw", **pad)
         self.files_box = tk.Listbox(self, height=4, selectmode="extended")
@@ -102,31 +97,28 @@ class RefineTab(ttk.Frame):
         # Per-suggestion accepted state, keyed by index/type
         self._accept_vars: dict[str, tk.BooleanVar] = {}
 
+        self.speakers_path = self.picker.selected_path()
+
         self._privacy_note = add_privacy_note(self, privacy.NOTE_SAMPLES)
 
     def on_settings_changed(self):
         pass
 
-    # ---------- file pickers ----------
+    def on_show(self):
+        self.picker.refresh()
+        self._on_picker_change()
 
-    def _browse_speakers(self):
-        if self._busy:
-            return
-        path = filedialog.askopenfilename(
-            title="Select speakers.json",
-            initialdir=config.get_last_dir("json") or None,
-            filetypes=[("JSON", "*.json"), ("All files", "*.*")],
-        )
-        if not path:
-            return
-        try:
-            self.speakers_doc = speakers_io.load_speakers_json(path)
-        except Exception as e:
-            messagebox.showerror("CampaignScribe", f"Could not load speakers.json:\n{e}")
-            return
-        config.set_last_dir("json", path)
-        self.speakers_path = path
-        self.speakers_var.set(path)
+    def _on_picker_change(self):
+        self.speakers_path = self.picker.selected_path()
+        if self.speakers_path:
+            try:
+                self.speakers_doc = speakers_io.load_speakers_json(self.speakers_path)
+            except Exception:
+                self.speakers_doc = None
+        else:
+            self.speakers_doc = None
+
+    # ---------- file pickers ----------
 
     def _add_files(self):
         if self._busy:
@@ -424,7 +416,12 @@ class RefineTab(ttk.Frame):
             )
 
         try:
-            speakers_io.save_speakers_json(self.speakers_path, doc)
-            messagebox.showinfo("CampaignScribe", f"Updated {self.speakers_path}")
+            slug = self.picker.selected_slug()
+            if slug:
+                library.add_version(slug, doc, label="refined")
+                messagebox.showinfo("CampaignScribe", "New version saved to campaign library.")
+            else:
+                speakers_io.save_speakers_json(self.speakers_path, doc)
+                messagebox.showinfo("CampaignScribe", f"Updated {self.speakers_path}")
         except Exception as e:
             messagebox.showerror("CampaignScribe", f"Save failed:\n{e}")

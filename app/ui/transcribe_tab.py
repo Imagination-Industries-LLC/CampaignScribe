@@ -14,6 +14,7 @@ from typing import Any
 from app import config
 from app.core import audio, privacy, speaker_id, speakers_io, transcriber
 from app.data import db
+from app.ui.campaign_picker import CampaignPicker
 from app.ui.common import (
     add_privacy_note,
     open_path_native,
@@ -51,16 +52,8 @@ class TranscribeTab(ttk.Frame):
             row=0, column=0, columnspan=4, sticky="w", **pad
         )
 
-        ttk.Label(self, text="speakers.json:").grid(row=1, column=0, sticky="w", **pad)
-        self.speakers_var = tk.StringVar(value=cfg.get("last_speakers_json", ""))
-        if self.speakers_var.get():
-            self.speakers_path = self.speakers_var.get()
-        ttk.Entry(self, textvariable=self.speakers_var, width=60, state="readonly").grid(
-            row=1, column=1, columnspan=2, sticky="ew", **pad
-        )
-        ttk.Button(self, text="Browse…", command=self._browse_speakers).grid(
-            row=1, column=3, sticky="w", **pad
-        )
+        self.picker = CampaignPicker(self, on_change=self._on_picker_change)
+        self.picker.grid(row=1, column=0, columnspan=4, sticky="ew", **pad)
 
         ttk.Label(self, text="Session (optional):").grid(row=2, column=0, sticky="w", **pad)
         self.session_combo = ttk.Combobox(self, state="readonly", width=60)
@@ -156,6 +149,7 @@ class TranscribeTab(ttk.Frame):
         self.rowconfigure(8, weight=1)
 
         self.refresh_sessions()
+        self.speakers_path = self.picker.selected_path()
 
         self._privacy_note = add_privacy_note(self, privacy.NOTE_SAMPLES)
 
@@ -165,7 +159,12 @@ class TranscribeTab(ttk.Frame):
         self.model_var.set(cfg.get("default_whisper_model", "large-v3"))
 
     def on_show(self):
+        self.picker.refresh()
+        self.speakers_path = self.picker.selected_path()
         self.refresh_sessions()
+
+    def _on_picker_change(self):
+        self.speakers_path = self.picker.selected_path()
 
     def refresh_sessions(self):
         sessions = db.list_sessions()
@@ -199,9 +198,8 @@ class TranscribeTab(ttk.Frame):
             files = []
         self._set_audio_files(files)
         spk = s.get("speakers_json_path")
-        if spk:
-            self.speakers_path = spk
-            self.speakers_var.set(spk)
+        if spk and not self.picker.select_file(spk):
+            self.speakers_path = spk  # fallback: file unreadable/missing
         self.session_id = sid
 
     def _set_audio_files(self, files: list[str]) -> None:
@@ -222,24 +220,6 @@ class TranscribeTab(ttk.Frame):
             )
 
     # ---------- file pickers ----------
-
-    def _browse_speakers(self):
-        if self._busy:
-            return
-        path = filedialog.askopenfilename(
-            title="Select speakers.json",
-            initialdir=config.get_last_dir("json") or None,
-            filetypes=[("JSON", "*.json"), ("All files", "*.*")],
-        )
-        if path:
-            try:
-                speakers_io.load_speakers_json(path)
-            except Exception as e:
-                messagebox.showerror("CampaignScribe", str(e))
-                return
-            config.set_last_dir("json", path)
-            self.speakers_path = path
-            self.speakers_var.set(path)
 
     def _add_files(self):
         if self._busy:
@@ -548,14 +528,19 @@ class TranscribeTab(ttk.Frame):
             return
         # Push into Refine tab
         refine_tab = self.app.refine_tab
-        if not refine_tab.speakers_doc:
+        slug = self.picker.selected_slug()
+        if slug and refine_tab.picker.select_by_slug(slug):
+            pass  # campaign selection syncs refine.speakers_path + speakers_doc via on_change
+        elif self.speakers_path and refine_tab.picker.select_file(self.speakers_path):
+            pass  # loose file: picker file-mode syncs refine.speakers_path + speakers_doc,
+            # and selected_slug() now returns None so Refine "accept" saves in place
+        elif self.speakers_path:
+            # last resort (file unreadable): set directly
+            refine_tab.speakers_path = self.speakers_path
             try:
                 refine_tab.speakers_doc = speakers_io.load_speakers_json(self.speakers_path)
-                refine_tab.speakers_path = self.speakers_path
-                refine_tab.speakers_var.set(self.speakers_path)
-            except Exception as e:
-                messagebox.showerror("CampaignScribe", str(e))
-                return
+            except Exception:
+                pass
         refine_tab.suggestions = doc
         refine_tab._render_suggestions()
-        self.app.jump_to_tab(4)
+        self.app.notebook.select(self.app.refine_tab)

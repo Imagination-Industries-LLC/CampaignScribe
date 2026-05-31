@@ -17,6 +17,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "default_num_speakers": 5,
     "theme_mode": "dark",
     "last_speakers_json": "",
+    "last_campaign": "",
+    "library_import_prompted": False,
     "last_output_folder": "",
     "last_audio_dir": "",
     "last_json_dir": "",

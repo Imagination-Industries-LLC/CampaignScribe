@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import tkinter as tk
-from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
 from app import config
-from app.core import speakers_io
+from app.core import library, speakers_io
 from app.data import db
 from app.ui.common import ScrollableFrame
-from app.ui.theme import LBL_HEADER
+from app.ui.theme import BTN_ACCENT, LBL_HEADER
 
 ROLE_OPTIONS = ["Dungeon Master", "Player", "Non-Player", "Unknown"]
 
@@ -102,6 +101,7 @@ class BuildProfileTab(ttk.Frame):
         self.editors: list[SpeakerEditor] = []
         self.loaded_doc: dict[str, Any] | None = None
         self.loaded_path: str | None = None
+        self._library_slug: str | None = None
 
         pad = {"padx": 10, "pady": 4}
         ttk.Label(self, text="Speaker Profile Builder", style=LBL_HEADER).grid(
@@ -139,18 +139,17 @@ class BuildProfileTab(ttk.Frame):
         self.scroll = ScrollableFrame(self)
         self.scroll.grid(row=5, column=0, columnspan=4, sticky="nsew", **pad)
 
-        ttk.Label(self, text="Output speakers.json:").grid(row=6, column=0, sticky="w", **pad)
-        self.out_var = tk.StringVar()
-        ttk.Entry(self, textvariable=self.out_var, width=60).grid(
-            row=6, column=1, columnspan=2, sticky="ew", **pad
-        )
-        ttk.Button(self, text="Browse…", command=self._browse_out).grid(
-            row=6, column=3, sticky="w", **pad
-        )
-
         btn_row = ttk.Frame(self)
-        btn_row.grid(row=7, column=0, columnspan=4, sticky="e", **pad)
-        ttk.Button(btn_row, text="Save speakers.json", command=self._save).pack(side="left", padx=4)
+        btn_row.grid(row=6, column=0, columnspan=4, sticky="e", **pad)
+        ttk.Button(
+            btn_row,
+            text="Save to Library",
+            command=self._save_to_library,
+            style=BTN_ACCENT,
+        ).pack(side="left", padx=4)
+        ttk.Button(btn_row, text="Export a copy…", command=self._export_copy).pack(
+            side="left", padx=4
+        )
         ttk.Button(
             btn_row,
             text="→ Save & Use in Transcribe",
@@ -192,10 +191,6 @@ class BuildProfileTab(ttk.Frame):
         self.campaign_var.set(sess.get("campaign_name") or "")
         speakers = db.get_speakers_for_session(sid)
         self._render(speakers)
-        if not self.out_var.get():
-            cfg = config.load_config()
-            base = cfg.get("default_output_folder") or str(Path.home() / "CampaignScribe")
-            self.out_var.set(str(Path(base) / f"speakers_{sid}.json"))
 
     def _load_existing(self):
         path = filedialog.askopenfilename(
@@ -214,7 +209,10 @@ class BuildProfileTab(ttk.Frame):
         self.loaded_doc = doc
         self.loaded_path = path
         self.speakers_var.set(path)
-        self.out_var.set(path)
+        self._populate_from_doc(doc)
+
+    def _populate_from_doc(self, doc: dict[str, Any]) -> None:
+        """Populate campaign_var, context_box, and editors from a speakers doc."""
         self.campaign_var.set(doc.get("campaign", "") or "")
         self.context_box.delete("1.0", "end")
         self.context_box.insert("1.0", doc.get("context", "") or "")
@@ -265,28 +263,16 @@ class BuildProfileTab(ttk.Frame):
                 text="(No speakers loaded yet — load a session or speakers.json above.)",
             ).pack(padx=10, pady=20)
 
-    def _browse_out(self):
-        path = filedialog.asksaveasfilename(
-            title="Save speakers.json as…",
-            defaultextension=".json",
-            initialdir=config.get_last_dir("json") or None,
-            filetypes=[("JSON", "*.json")],
-            initialfile="speakers.json",
-        )
-        if path:
-            config.set_last_dir("json", path)
-            self.out_var.set(path)
+    def _build_doc(self) -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
+        """Validate editors and build a speakers doc.
 
-    def _save(self, show_success: bool = True) -> bool:
+        Returns (doc, speakers) on success, or None on validation failure.
+        """
         if not self.editors:
             messagebox.showerror(
                 "CampaignScribe", "Nothing to save — load a session or speakers.json."
             )
-            return False
-        out_path = self.out_var.get().strip()
-        if not out_path:
-            messagebox.showerror("CampaignScribe", "Choose an output path.")
-            return False
+            return None
         speakers = [ed.collect() for ed in self.editors]
         for sp in speakers:
             if sp["include_in_tracking"] and not sp["display_name"]:
@@ -294,59 +280,127 @@ class BuildProfileTab(ttk.Frame):
                     "CampaignScribe",
                     f"Speaker {sp.get('source_speaker_id', '?')} is included but has no display name.",
                 )
-                return False
+                return None
         doc = speakers_io.profiles_to_speakers_doc(
             campaign=self.campaign_var.get().strip(),
             context=self.context_box.get("1.0", "end").strip(),
             speakers=speakers,
         )
-        try:
-            speakers_io.save_speakers_json(out_path, doc)
-        except Exception as e:
-            messagebox.showerror("CampaignScribe", f"Save failed:\n{e}")
-            return False
+        return doc, speakers
 
-        # Persist edits back to DB if linked to a session
-        if self.session_id:
-            existing = db.get_speakers_for_session(self.session_id)
-            for sp in speakers:
-                match = next(
-                    (e for e in existing if e["source_speaker_id"] == sp["source_speaker_id"]),
-                    None,
-                )
-                if match:
-                    db.update_speaker_profile(
-                        match["id"],
-                        display_name=sp["display_name"],
-                        character_name=sp["character_name"],
-                        character_class=sp["character_class"],
-                        role=sp["role"],
-                        include_in_tracking=sp["include_in_tracking"],
-                        notes=sp["notes"],
-                        speech_patterns=sp["speech_patterns"],
-                        sample_quotes=sp["sample_quotes"],
-                    )
-                else:
-                    db.add_speaker_profile(self.session_id, sp)
-            db.update_session(
-                self.session_id,
-                speakers_json_path=out_path,
-                campaign_name=self.campaign_var.get().strip(),
+    def _persist_session_db(self, speakers: list[dict[str, Any]]) -> None:
+        """Persist speaker edits back to the DB if this tab is linked to a session."""
+        if not self.session_id:
+            return
+        existing = db.get_speakers_for_session(self.session_id)
+        for sp in speakers:
+            match = next(
+                (e for e in existing if e["source_speaker_id"] == sp["source_speaker_id"]),
+                None,
             )
+            if match:
+                db.update_speaker_profile(
+                    match["id"],
+                    display_name=sp["display_name"],
+                    character_name=sp["character_name"],
+                    character_class=sp["character_class"],
+                    role=sp["role"],
+                    include_in_tracking=sp["include_in_tracking"],
+                    notes=sp["notes"],
+                    speech_patterns=sp["speech_patterns"],
+                    sample_quotes=sp["sample_quotes"],
+                )
+            else:
+                db.add_speaker_profile(self.session_id, sp)
+        db.update_session(
+            self.session_id,
+            campaign_name=self.campaign_var.get().strip(),
+        )
+
+    def _save_to_library(self) -> str | None:
+        """Save the current profile as a new version in the campaign library.
+
+        Returns the slug on success, or None on failure.
+        """
+        result = self._build_doc()
+        if result is None:
+            return None
+        doc, speakers = result
+
+        campaign_name = self.campaign_var.get().strip() or "Untitled Campaign"
+
+        # Resolve campaign slug: prefer existing _library_slug if it still exists,
+        # then search by display name, then create a new campaign.
+        slug = None
+        existing = library.list_campaigns()
+        if self._library_slug and any(c["slug"] == self._library_slug for c in existing):
+            slug = self._library_slug
+        else:
+            match = next(
+                (c for c in existing if c["display_name"].lower() == campaign_name.lower()),
+                None,
+            )
+            if match:
+                slug = match["slug"]
+            else:
+                slug = library.create_campaign(campaign_name)
+
+        library.add_version(slug, doc)
+        self._library_slug = slug
 
         cfg = config.load_config()
-        cfg["last_speakers_json"] = out_path
+        cfg["last_campaign"] = slug
         config.save_config(cfg)
 
-        if show_success:
-            messagebox.showinfo("CampaignScribe", f"Saved {out_path}")
-        return True
+        self._persist_session_db(speakers)
 
-    def _save_and_use_in_transcribe(self):
-        if not self._save(show_success=False):
+        messagebox.showinfo(
+            "CampaignScribe",
+            f"Saved to library: {campaign_name} (new version).",
+        )
+        return slug
+
+    def _export_copy(self) -> None:
+        """Export a copy of the current profile to a user-chosen file path."""
+        result = self._build_doc()
+        if result is None:
             return
-        out_path = self.out_var.get().strip()
-        transcribe_tab = self.app.transcribe_tab
-        transcribe_tab.speakers_var.set(out_path)
-        transcribe_tab.speakers_path = out_path
-        self.app.jump_to_tab(2)
+        doc, _speakers = result
+        path = filedialog.asksaveasfilename(
+            title="Export a copy…",
+            defaultextension=".json",
+            initialfile="speakers.json",
+            initialdir=config.get_last_dir("json") or None,
+            filetypes=[("JSON", "*.json")],
+        )
+        if not path:
+            return
+        speakers_io.save_speakers_json(path, doc)
+        config.set_last_dir("json", path)
+        messagebox.showinfo("CampaignScribe", f"Exported copy to {path}")
+
+    def load_campaign(self, slug: str) -> None:
+        """Load a campaign from the library into this tab's editors."""
+        self._library_slug = slug
+        try:
+            doc = library.get_current_doc(slug)
+        except FileNotFoundError:
+            # New campaign with no versions yet — start empty but keep the name.
+            row = next((r for r in library.list_campaigns() if r["slug"] == slug), None)
+            name = row["display_name"] if row else ""
+            doc = {
+                "campaign": name,
+                "context": "",
+                "players": [],
+                "known_non_players": [],
+                "fallback_policy": {},
+            }
+        self._populate_from_doc(doc)
+
+    def _save_and_use_in_transcribe(self) -> None:
+        slug = self._save_to_library()
+        if not slug:
+            return
+        self.app.notebook.select(self.app.transcribe_tab)
+        if hasattr(self.app.transcribe_tab, "picker"):
+            self.app.transcribe_tab.picker.select_by_slug(slug)

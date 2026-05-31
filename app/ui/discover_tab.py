@@ -106,7 +106,7 @@ class DiscoverTab(ttk.Frame):
         self.proceed_btn = ttk.Button(
             self,
             text="Proceed to Build Profile",
-            command=lambda: self.app.jump_to_tab(1),
+            command=lambda: self.app.notebook.select(self.app.build_profile_tab),
             state="disabled",
         )
         self.proceed_btn.grid(row=10, column=0, columnspan=4, sticky="e", **pad)

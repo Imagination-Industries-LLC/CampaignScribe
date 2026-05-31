@@ -11,12 +11,13 @@ pytestmark = pytest.mark.gui
 # Expected display labels in display order. Update ONLY if the intended tab
 # ordering changes — names are decoupled from module/class names by Group E.
 EXPECTED_LABELS = [
-    "1. Discover",
-    "2. Build Profile",
-    "3. Transcribe",
-    "4. Summarize",
-    "5. Refine",
-    "6. History",
+    "1. Campaigns",
+    "2. Discover",
+    "3. Build Profile",
+    "4. Transcribe",
+    "5. Summarize",
+    "6. Refine",
+    "7. History",
 ]
 
 
@@ -52,8 +53,9 @@ def app(monkeypatch):
         win.destroy()
 
 
-def test_app_window_constructs_with_six_tabs(app):
-    assert len(app.notebook.tabs()) == 6
+def test_app_window_constructs_with_seven_tabs(app):
+    assert len(app.notebook.tabs()) == 7
+    assert app.campaigns_tab.winfo_exists()
 
 
 def test_tab_labels_in_expected_order(app):
