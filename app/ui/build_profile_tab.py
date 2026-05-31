@@ -263,8 +263,11 @@ class BuildProfileTab(ttk.Frame):
                 text="(No speakers loaded yet — load a session or speakers.json above.)",
             ).pack(padx=10, pady=20)
 
-    def _build_doc(self) -> dict[str, Any] | None:
-        """Validate editors and build a speakers doc. Returns None on validation failure."""
+    def _build_doc(self) -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
+        """Validate editors and build a speakers doc.
+
+        Returns (doc, speakers) on success, or None on validation failure.
+        """
         if not self.editors:
             messagebox.showerror(
                 "CampaignScribe", "Nothing to save — load a session or speakers.json."
@@ -278,11 +281,12 @@ class BuildProfileTab(ttk.Frame):
                     f"Speaker {sp.get('source_speaker_id', '?')} is included but has no display name.",
                 )
                 return None
-        return speakers_io.profiles_to_speakers_doc(
+        doc = speakers_io.profiles_to_speakers_doc(
             campaign=self.campaign_var.get().strip(),
             context=self.context_box.get("1.0", "end").strip(),
             speakers=speakers,
         )
+        return doc, speakers
 
     def _persist_session_db(self, speakers: list[dict[str, Any]]) -> None:
         """Persist speaker edits back to the DB if this tab is linked to a session."""
@@ -318,10 +322,10 @@ class BuildProfileTab(ttk.Frame):
 
         Returns the slug on success, or None on failure.
         """
-        speakers = [ed.collect() for ed in self.editors]
-        doc = self._build_doc()
-        if doc is None:
+        result = self._build_doc()
+        if result is None:
             return None
+        doc, speakers = result
 
         campaign_name = self.campaign_var.get().strip() or "Untitled Campaign"
 
@@ -358,9 +362,10 @@ class BuildProfileTab(ttk.Frame):
 
     def _export_copy(self) -> None:
         """Export a copy of the current profile to a user-chosen file path."""
-        doc = self._build_doc()
-        if doc is None:
+        result = self._build_doc()
+        if result is None:
             return
+        doc, _speakers = result
         path = filedialog.asksaveasfilename(
             title="Export a copy…",
             defaultextension=".json",
@@ -376,8 +381,20 @@ class BuildProfileTab(ttk.Frame):
 
     def load_campaign(self, slug: str) -> None:
         """Load a campaign from the library into this tab's editors."""
-        doc = library.get_current_doc(slug)
         self._library_slug = slug
+        try:
+            doc = library.get_current_doc(slug)
+        except FileNotFoundError:
+            # New campaign with no versions yet — start empty but keep the name.
+            row = next((r for r in library.list_campaigns() if r["slug"] == slug), None)
+            name = row["display_name"] if row else ""
+            doc = {
+                "campaign": name,
+                "context": "",
+                "players": [],
+                "known_non_players": [],
+                "fallback_policy": {},
+            }
         self._populate_from_doc(doc)
 
     def _save_and_use_in_transcribe(self) -> None:

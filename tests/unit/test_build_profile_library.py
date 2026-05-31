@@ -59,3 +59,16 @@ def test_load_campaign_then_save_creates_new_version(root, monkeypatch):
     out_slug = tab._save_to_library()
     assert out_slug == slug
     assert len(library.list_versions(slug)) == 2  # original + the save
+
+
+def test_load_campaign_with_no_versions_does_not_crash(root):
+    from app.data import db
+    from app.ui import build_profile_tab as bpt
+
+    db.init_db()
+    slug = library.create_campaign("Empty")  # zero versions
+    tab = bpt.BuildProfileTab(root, types.SimpleNamespace(notebook=None, transcribe_tab=None))
+    root.update_idletasks()
+    tab.load_campaign(slug)  # must not raise
+    assert tab.campaign_var.get() == "Empty"
+    assert tab.editors == []  # empty, ready to build
