@@ -179,7 +179,7 @@ class AppWindow(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         # Offer the one-time library migration after the window is shown.
-        self.after(300, self._maybe_offer_library_import)
+        self._migration_after_id = self.after(300, self._maybe_offer_library_import)
 
     # ----------------------------------------------------------------------
     # Status bar
@@ -294,10 +294,17 @@ class AppWindow(tk.Tk):
         ):
             try:
                 library.import_file(last)
-                if hasattr(self, "campaigns_tab"):
-                    self.campaigns_tab.on_show()
             except Exception as e:
                 messagebox.showerror("CampaignScribe", f"Could not import:\n{e}")
+            else:
+                if hasattr(self, "campaigns_tab"):
+                    try:
+                        self.campaigns_tab.on_show()
+                    except Exception:
+                        pass  # a UI refresh failure must not block the migration
+        # Re-load: the modal above ran the Tk event loop, so config may have
+        # changed underneath us (e.g. Settings opened via shortcut). Reload
+        # before flipping the flag so we don't clobber a concurrent write.
         cfg = config.load_config()
         cfg["library_import_prompted"] = True
         config.save_config(cfg)
@@ -330,6 +337,12 @@ class AppWindow(tk.Tk):
         entry-point relaunch loop constructs a fresh one (new theme applied)."""
         self._save_window_geometry()
         self._rebuild_requested = True
+        if getattr(self, "_migration_after_id", None) is not None:
+            try:
+                self.after_cancel(self._migration_after_id)
+            except Exception:
+                pass
+            self._migration_after_id = None
         self.destroy()
 
     def _handle_theme_change(self):
@@ -501,6 +514,12 @@ class AppWindow(tk.Tk):
 
     def _on_close(self):
         self._save_window_geometry()
+        if getattr(self, "_migration_after_id", None) is not None:
+            try:
+                self.after_cancel(self._migration_after_id)
+            except Exception:
+                pass
+            self._migration_after_id = None
         self.destroy()
 
 
