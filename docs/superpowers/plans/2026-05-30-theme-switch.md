@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.11, Tkinter/ttk, the existing `app.ui.theme` engine, `darkdetect` (tiny pure-python OS-theme detector), `winreg` (stdlib fallback).
 
-**Repo:** `Imagination-Industries-Inc/CampaignScribe`. Phase 1, unit 2 of 3 (Privacy ✅ → **Theme** → Feedback/Support Hub). Branch off `main`: `feature/theme-switch`.
+**Repo:** `Imagination-Industries-LLC/CampaignScribe`. Phase 1, unit 2 of 3 (Privacy ✅ → **Theme** → Feedback/Support Hub). Branch off `main`: `feature/theme-switch`.
 
 ---
 

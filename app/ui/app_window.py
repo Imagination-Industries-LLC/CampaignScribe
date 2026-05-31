@@ -496,7 +496,7 @@ class AboutDialog(tk.Toplevel):
             self,
             text=(
                 "Built on WhisperX, pyannote.audio, and the Anthropic Claude API.\n"
-                "github.com/Imagination-Industries-Inc/CampaignScribe"
+                "github.com/Imagination-Industries-LLC/CampaignScribe"
             ),
             wraplength=420,
             justify="center",

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.11, pytest, ruff, mypy, bandit, semgrep, pip-audit, CodeQL, GitHub Actions, pre-commit. App stack (Tkinter/WhisperX/pyannote/anthropic) is unchanged.
 
-**Target repo:** `Imagination-Industries-Inc/CampaignScribe` (public). Local clone: `H:\git\CampaignScribe`, `origin` → org repo, `personal` → archived old repo.
+**Target repo:** `Imagination-Industries-LLC/CampaignScribe` (public). Local clone: `H:\git\CampaignScribe`, `origin` → org repo, `personal` → archived old repo.
 
 ---
 
@@ -60,7 +60,7 @@ Most Group B tests are **characterization tests** over already-shipped, hardened
 - `app/ui/app_window.py` — imports, `self.tabN` attributes, `_tab_specs`, `open_settings` loop.
 
 **Modified (stale-repo cleanup):**
-- `README.md` and `app/ui/app_window.py:436` — `github.com/MikeRompel/CampaignScribe` → `github.com/Imagination-Industries-Inc/CampaignScribe`.
+- `README.md` and `app/ui/app_window.py:436` — `github.com/MikeRompel/CampaignScribe` → `github.com/Imagination-Industries-LLC/CampaignScribe`.
 
 ---
 
@@ -1155,7 +1155,7 @@ In the GitHub UI: **Settings → Code security and analysis → CodeQL analysis 
 
 - [ ] **Step 2: Verify**
 
-Run: `gh api repos/Imagination-Industries-Inc/CampaignScribe/code-scanning/default-setup`
+Run: `gh api repos/Imagination-Industries-LLC/CampaignScribe/code-scanning/default-setup`
 Expected: `"state": "configured"`.
 
 ---
@@ -1212,21 +1212,21 @@ $body = @'
 }
 '@
 [System.IO.File]::WriteAllText("$env:TEMP\bp.json", $body, [System.Text.UTF8Encoding]::new($false))
-gh api -X PUT repos/Imagination-Industries-Inc/CampaignScribe/branches/main/protection `
+gh api -X PUT repos/Imagination-Industries-LLC/CampaignScribe/branches/main/protection `
   -H "Accept: application/vnd.github+json" --input "$env:TEMP\bp.json"
 ```
 Expected: returns the protection JSON (HTTP 200). Note: `required_approving_review_count: 0` lets the solo owner merge once checks + AI reviews are green; raise it later if collaborators join.
 
 - [ ] **Step 2: Verify**
 
-Run: `gh api repos/Imagination-Industries-Inc/CampaignScribe/branches/main/protection --jq '.required_status_checks.contexts'`
+Run: `gh api repos/Imagination-Industries-LLC/CampaignScribe/branches/main/protection --jq '.required_status_checks.contexts'`
 Expected: `["lint-test-linux","gui-test-windows"]`
 
 ---
 
 # Group D — PR-bot AI reviewers
 
-These are GitHub App installations + light config. They cannot be fully done from the CLI; each step says what the user must click. Install each app **scoped to `Imagination-Industries-Inc/CampaignScribe`**.
+These are GitHub App installations + light config. They cannot be fully done from the CLI; each step says what the user must click. Install each app **scoped to `Imagination-Industries-LLC/CampaignScribe`**.
 
 ### Task D1: CodeRabbit
 
@@ -1259,7 +1259,7 @@ git commit -m "ci: add CodeRabbit config"
 
 - [ ] **Step 3: Install the app (user action)**
 
-Go to https://github.com/apps/coderabbitai → **Install** → select the `Imagination-Industries-Inc` org → restrict to the `CampaignScribe` repo. CodeRabbit will auto-review new PRs.
+Go to https://github.com/apps/coderabbitai → **Install** → select the `Imagination-Industries-LLC` org → restrict to the `CampaignScribe` repo. CodeRabbit will auto-review new PRs.
 
 ---
 
@@ -1283,7 +1283,7 @@ Open/refresh the Group E PR and confirm a Copilot review appears. If the plan do
 
 - [ ] **Step 1: Install Qodo Merge (user action)**
 
-Go to https://github.com/apps/qodo-merge-pro (or the open-source `pr-agent`) → **Install** → org `Imagination-Industries-Inc` → repo `CampaignScribe`. Free tier covers public/open-source repos.
+Go to https://github.com/apps/qodo-merge-pro (or the open-source `pr-agent`) → **Install** → org `Imagination-Industries-LLC` → repo `CampaignScribe`. Free tier covers public/open-source repos.
 
 - [ ] **Step 2: Verify**
 
@@ -1297,7 +1297,7 @@ On a PR, comment `/review` (if not automatic) and confirm Qodo responds. Enable 
 
 - [ ] **Step 1: Install Greptile (user action)**
 
-Go to https://app.greptile.com → connect GitHub → authorize for `Imagination-Industries-Inc/CampaignScribe` → enable **automatic PR reviews**.
+Go to https://app.greptile.com → connect GitHub → authorize for `Imagination-Industries-LLC/CampaignScribe` → enable **automatic PR reviews**.
 
 - [ ] **Step 2: Verify**
 
@@ -1455,11 +1455,11 @@ git commit -m "refactor: rename tab modules/classes to descriptive non-numeric n
 
 - [ ] **Step 1: Update the About dialog URL**
 
-In `app/ui/app_window.py`, change `github.com/MikeRompel/CampaignScribe` → `github.com/Imagination-Industries-Inc/CampaignScribe`.
+In `app/ui/app_window.py`, change `github.com/MikeRompel/CampaignScribe` → `github.com/Imagination-Industries-LLC/CampaignScribe`.
 
 - [ ] **Step 2: Update README repo references**
 
-In `README.md`, replace any `MikeRompel/CampaignScribe` with `Imagination-Industries-Inc/CampaignScribe`.
+In `README.md`, replace any `MikeRompel/CampaignScribe` with `Imagination-Industries-LLC/CampaignScribe`.
 
 - [ ] **Step 3: Verify none remain**
 
@@ -1481,7 +1481,7 @@ git commit -m "docs: point repo references at the org repo"
 
 ```bash
 git push origin phase-0-foundation
-gh pr create --repo Imagination-Industries-Inc/CampaignScribe --base main --head phase-0-foundation \
+gh pr create --repo Imagination-Industries-LLC/CampaignScribe --base main --head phase-0-foundation \
   --title "Phase 0: engineering foundation (CI, tests, AI reviewers, tab rename)" \
   --body "Stands up pyproject/ruff/mypy, the pytest suite, GitHub Actions CI, Dependabot, PR-bot reviewers, and the descriptive-name tab refactor. See docs/superpowers/plans/2026-05-28-phase-0-engineering-foundation.md."
 ```

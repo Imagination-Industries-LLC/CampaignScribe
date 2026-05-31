@@ -32,4 +32,4 @@ Anthropic states that API inputs are not used to train their models (commercial 
 
 ---
 
-Questions or concerns? Open an issue or discussion at https://github.com/Imagination-Industries-Inc/CampaignScribe
+Questions or concerns? Open an issue or discussion at https://github.com/Imagination-Industries-LLC/CampaignScribe

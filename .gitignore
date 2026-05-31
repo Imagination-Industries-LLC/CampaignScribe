@@ -34,6 +34,7 @@ htmlcov/
 
 # Local agent/editor config (machine-local)
 .claude/
+.superpowers/
 
 # OS / cloud sync cruft
 .DS_Store

@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 ANTHROPIC_PRIVACY_URL = "https://www.anthropic.com/legal/privacy"
-PRIVACY_MD_URL = "https://github.com/Imagination-Industries-Inc/CampaignScribe/blob/main/PRIVACY.md"
+PRIVACY_MD_URL = "https://github.com/Imagination-Industries-LLC/CampaignScribe/blob/main/PRIVACY.md"
 
 NOTE_SAMPLES = (
     "Speaker samples are sent to the Anthropic Claude API for this step. "
