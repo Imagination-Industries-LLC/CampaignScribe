@@ -13,8 +13,6 @@ from app.ui.common import ScrollableFrame
 from app.ui.speaker_editor import SpeakerEditor
 from app.ui.theme import BTN_ACCENT, BTN_GHOST, LBL_DIM, LBL_HEADER, S_2, S_3
 
-ROLE_OPTIONS = ["Dungeon Master", "Player", "Non-Player", "Unknown"]
-
 
 class EditProfileWindow(tk.Toplevel):
     def __init__(self, master, app_window, slug: str):
@@ -117,15 +115,35 @@ class EditProfileWindow(tk.Toplevel):
             }
             for p in doc.get("players", [])
         ]
-        self.ignored = [
-            {
-                "source_speaker_id": n.get("source_speaker_id", ""),
-                "display_name": n.get("name", ""),
-                "notes": n.get("notes", ""),
-                "speech_patterns": n.get("speech_patterns", []),
-            }
-            for n in doc.get("known_non_players", [])
-        ]
+        # Split known_non_players by the ignore flag:
+        #   ignore=True (or absent)  → truly ignored voice → self.ignored
+        #   ignore=False             → tracked Non-Player  → loaded as an editor
+        self.ignored = []
+        for n in doc.get("known_non_players", []):
+            if n.get("ignore", True):
+                self.ignored.append(
+                    {
+                        "source_speaker_id": n.get("source_speaker_id", ""),
+                        "display_name": n.get("name", ""),
+                        "notes": n.get("notes", ""),
+                        "speech_patterns": n.get("speech_patterns", []),
+                    }
+                )
+            else:
+                players.append(
+                    {
+                        "source_speaker_id": n.get("source_speaker_id", ""),
+                        "display_name": n.get("name", ""),
+                        "character_name": "",
+                        "character_class": "",
+                        "role": "Non-Player",
+                        "include_in_tracking": 1,
+                        "notes": n.get("notes", ""),
+                        "speech_patterns": n.get("speech_patterns", []),
+                        "sample_quotes": [],
+                        "confidence": "high",
+                    }
+                )
         self._render(players)
         self._refresh_npc_label()
         self._refresh_versions()
@@ -339,12 +357,17 @@ class EditProfileWindow(tk.Toplevel):
                     model_size=config.load_config().get("default_whisper_model", "small"),
                     hf_token=hf,
                 )
-                segments = pipeline.transcribe_file(
-                    wav,
-                    num_speakers=int(config.load_config().get("default_num_speakers", 5)),
-                )
-                result = speaker_id.discover_speakers(segments, api_key)
-                pipeline.close()
+                try:
+                    segments = pipeline.transcribe_file(
+                        wav,
+                        num_speakers=int(config.load_config().get("default_num_speakers", 5)),
+                    )
+                    result = speaker_id.discover_speakers(segments, api_key)
+                finally:
+                    try:
+                        pipeline.close()
+                    except Exception:  # noqa: BLE001
+                        pass
             except Exception as e:  # noqa: BLE001 - surfaced to the user below
                 config.log_exception("edit_profile.discover", e)
                 self.after(0, lambda msg=str(e): messagebox.showerror("CampaignScribe", msg))
