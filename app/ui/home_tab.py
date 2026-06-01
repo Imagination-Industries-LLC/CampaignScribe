@@ -73,9 +73,11 @@ class HomeTab(ttk.Frame):
         )
         self.edit_btn.pack(side="right")
 
-        ttk.Button(right, text="＋ New session", style=BTN_ACCENT, command=self._new_session).grid(
-            row=2, column=0, sticky="w", pady=(0, S_2)
+        self.new_session_btn = ttk.Button(
+            right, text="＋ New session", style=BTN_ACCENT, command=self._new_session
         )
+        self.new_session_btn.grid(row=2, column=0, sticky="w", pady=(0, S_2))
+        self.new_session_btn.state(["disabled"])
 
         cols = ("id", "name", "created", "status")
         self.session_tree = ttk.Treeview(right, columns=cols, show="headings", height=12)
@@ -127,8 +129,14 @@ class HomeTab(ttk.Frame):
         self.campaign_list.insert("end", UNCATEGORIZED_LABEL)
         if self.selected_is_uncat:
             self.select_uncategorized()
+            idx = len(self._rows) - 1  # Uncategorized is always last
+            self.campaign_list.selection_set(idx)
+            self.campaign_list.see(idx)
         elif self.selected_slug in self._rows:
             self.select_campaign(self.selected_slug)
+            idx = self._rows.index(self.selected_slug)
+            self.campaign_list.selection_set(idx)
+            self.campaign_list.see(idx)
         else:
             self._clear_detail()
 
@@ -155,12 +163,13 @@ class HomeTab(ttk.Frame):
             players = doc.get("players", [])
             dms = sum(1 for p in players if "dungeon master" in (p.get("role", "").lower()))
             self.summary_var.set(
-                f"v{row['version_count']} · {len(players)} players · {dms} DM · "
+                f"v{row['version_count']} · {len(players) - dms} players · {dms} DM · "
                 f"{len(doc.get('npcs', []))} NPCs"
             )
         except Exception:
             self.summary_var.set(f"v{row['version_count']} · no profile yet")
         self.edit_btn.state(["!disabled"])
+        self.new_session_btn.state(["!disabled"])
         self._refresh_sessions(db.list_sessions(campaign_slug=slug))
 
     def select_uncategorized(self):
@@ -169,6 +178,7 @@ class HomeTab(ttk.Frame):
         self.title_var.set("Uncategorized")
         self.summary_var.set("Loose sessions not filed into a campaign")
         self.edit_btn.state(["disabled"])
+        self.new_session_btn.state(["disabled"])
         self._refresh_sessions(db.list_sessions(campaign_slug=db.UNCATEGORIZED))
 
     def _clear_detail(self):
@@ -177,6 +187,8 @@ class HomeTab(ttk.Frame):
         self.title_var.set("Select a campaign")
         self.summary_var.set("")
         self.session_tree.delete(*self.session_tree.get_children())
+        self.edit_btn.state(["disabled"])
+        self.new_session_btn.state(["disabled"])
 
     # ---------- sessions ----------
     def _refresh_sessions(self, sessions):
@@ -199,20 +211,14 @@ class HomeTab(ttk.Frame):
         self.selected_session_id = int(sel[0]) if sel else None
 
     def _new_session(self):
-        if self.selected_is_uncat:
-            slug = None
-            name = "Untitled Campaign"
-        elif self.selected_slug:
-            slug = self.selected_slug
-            row = next((r for r in library.list_campaigns() if r["slug"] == slug), None)
-            name = row["display_name"] if row else ""
-        else:
+        if not self.selected_slug or self.selected_is_uncat:
             messagebox.showinfo("CampaignScribe", "Select a campaign first.")
             return None
+        slug = self.selected_slug
+        row = next((r for r in library.list_campaigns() if r["slug"] == slug), None)
+        name = row["display_name"] if row else ""
         sid = db.create_session("Untitled Session", campaign_name=name, campaign_slug=slug)
-        self._refresh_sessions(
-            db.list_sessions(campaign_slug=db.UNCATEGORIZED if slug is None else slug)
-        )
+        self._refresh_sessions(db.list_sessions(campaign_slug=slug))
         self.app.open_session(sid)
         return sid
 
