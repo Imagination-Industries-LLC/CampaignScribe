@@ -21,6 +21,7 @@ def empty_speakers_doc(campaign: str = "", context: str = "") -> dict[str, Any]:
         "campaign": campaign,
         "context": context,
         "known_non_players": [],
+        "npcs": [],
         "fallback_policy": dict(DEFAULT_FALLBACK_POLICY),
         "players": [],
     }
@@ -39,6 +40,7 @@ def load_speakers_json(path: str) -> dict[str, Any]:
     data.setdefault("known_non_players", [])
     data.setdefault("fallback_policy", dict(DEFAULT_FALLBACK_POLICY))
     data.setdefault("players", [])
+    data.setdefault("npcs", [])
     return data
 
 
@@ -68,9 +70,11 @@ def profiles_to_speakers_doc(
     campaign: str,
     context: str,
     speakers: list[dict[str, Any]],
+    npcs: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Transform UI-edited profiles into the speakers.json schema."""
     doc = empty_speakers_doc(campaign=campaign, context=context)
+    doc["npcs"] = list(npcs or [])
     for sp in speakers:
         included = bool(sp.get("include_in_tracking", 1))
         role = (sp.get("role") or "").strip()
@@ -87,6 +91,7 @@ def profiles_to_speakers_doc(
             non_player = {
                 "name": entry["player_name"],
                 "role": "ignore" if not included else (role or "Non-Player"),
+                "ignore": not included,
                 "notes": entry["notes"],
                 "speech_patterns": entry["speech_patterns"],
                 "source_speaker_id": entry["source_speaker_id"],
