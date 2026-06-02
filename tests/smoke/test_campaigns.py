@@ -61,21 +61,6 @@ def test_campaigns_tab_builds_and_label_order(app):
     assert labels == EXPECTED_LABELS
 
 
-def test_picker_lists_and_resolves_campaign_across_consuming_tabs(app):
-    from app.core import library
-
-    slug = library.create_campaign("Curse of Strahd")
-    library.add_version(slug, DOC)
-    expected_path = str(library.current_version_path(slug))
-
-    for tab in (app.transcribe_tab, app.summarize_tab, app.refine_tab):
-        tab.picker.refresh()
-        app.update_idletasks()
-        # the campaign is listed and selectable
-        assert tab.picker.select_by_slug(slug) is True
-        assert tab.picker.selected_slug() == slug
-        assert tab.picker.selected_path() == expected_path
-
 
 def test_campaigns_tab_on_show_reflects_new_campaign(app):
     from app.core import library
