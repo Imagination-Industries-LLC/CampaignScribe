@@ -177,7 +177,11 @@ class ScrollableFrame(ttk.Frame):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
     def _on_canvas_configure(self, evt):
-        self.canvas.itemconfig(self.inner_id, width=evt.width)
+        # Inner tracks the canvas width; and fills the canvas height when the
+        # content is shorter than the viewport (so weight-based rows can expand),
+        # otherwise stays content-height so it scrolls. Best of both.
+        height = max(self.inner.winfo_reqheight(), evt.height)
+        self.canvas.itemconfig(self.inner_id, width=evt.width, height=height)
 
     def _on_mousewheel(self, evt):
         # Only scroll when the pointer is over us
