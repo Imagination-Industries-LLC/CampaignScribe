@@ -28,6 +28,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "window_x": -1,
     "window_y": -1,
     "discover_sample_minutes": 0,  # 0 = discover on the full (first) audio file; >0 caps to N minutes
+    "discover_whisper_model": "small",  # lighter model used only during speaker discovery
 }
 
 

@@ -27,3 +27,9 @@ def test_config_has_discover_sample_minutes():
     from app import config
 
     assert "discover_sample_minutes" in config.DEFAULT_CONFIG
+
+
+def test_config_has_discover_whisper_model_default_small():
+    from app import config
+
+    assert config.DEFAULT_CONFIG.get("discover_whisper_model") == "small"

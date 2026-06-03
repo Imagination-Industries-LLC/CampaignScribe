@@ -86,6 +86,50 @@ class SettingsDialog(tk.Toplevel):
         ).grid(row=row, column=1, sticky="w", **pad)
         row += 1
 
+        # ---- Discovery section ----
+        ttk.Separator(self, orient="horizontal").grid(
+            row=row, column=0, columnspan=3, sticky="ew", padx=10, pady=(6, 2)
+        )
+        row += 1
+        ttk.Label(self, text="— Discovery —").grid(
+            row=row, column=0, columnspan=3, sticky="w", padx=10, pady=(0, 4)
+        )
+        row += 1
+        ttk.Label(
+            self,
+            text=(
+                "Discovery uses a lighter model on a sample to build the initial roster"
+                " — you review it before transcribing."
+            ),
+            wraplength=420,
+            justify="left",
+        ).grid(row=row, column=0, columnspan=3, sticky="w", padx=10, pady=(0, 4))
+        row += 1
+
+        ttk.Label(self, text="Discovery model:").grid(row=row, column=0, sticky="w", **pad)
+        self.discover_model_var = tk.StringVar(value=cfg.get("discover_whisper_model", "small"))
+        ttk.Combobox(
+            self,
+            textvariable=self.discover_model_var,
+            state="readonly",
+            width=20,
+            values=["tiny", "base", "small", "medium", "large-v3"],
+        ).grid(row=row, column=1, sticky="w", **pad)
+        row += 1
+
+        ttk.Label(self, text="Discovery sample (min, 0 = full first file):").grid(
+            row=row, column=0, sticky="w", **pad
+        )
+        self.discover_sample_var = tk.IntVar(value=int(cfg.get("discover_sample_minutes", 0)))
+        ttk.Spinbox(
+            self,
+            from_=0,
+            to=120,
+            textvariable=self.discover_sample_var,
+            width=8,
+        ).grid(row=row, column=1, sticky="w", **pad)
+        row += 1
+
         btn_frame = ttk.Frame(self)
         btn_frame.grid(row=row, column=0, columnspan=3, pady=12)
         ttk.Button(btn_frame, text="Save", command=self._save).pack(side="left", padx=6)
@@ -120,6 +164,8 @@ class SettingsDialog(tk.Toplevel):
             cfg["default_whisper_model"] = self.model_var.get()
             cfg["default_num_speakers"] = int(self.spk_var.get() or 5)
             cfg["theme_mode"] = self.theme_var.get().lower()
+            cfg["discover_whisper_model"] = self.discover_model_var.get()
+            cfg["discover_sample_minutes"] = int(self.discover_sample_var.get() or 0)
             config.save_config(cfg)
         except Exception as e:
             messagebox.showerror("Settings", f"Could not save settings:\n{e}", parent=self)

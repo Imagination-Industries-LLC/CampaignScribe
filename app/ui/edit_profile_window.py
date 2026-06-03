@@ -361,7 +361,7 @@ class EditProfileWindow(tk.Toplevel):
             try:
                 wav = audio.convert_to_wav(path, max_seconds=max_seconds)
                 pipeline = transcriber.TranscriptionPipeline(
-                    model_size=config.load_config().get("default_whisper_model", "small"),
+                    model_size=config.load_config().get("discover_whisper_model", "small"),
                     hf_token=hf,
                 )
                 try:
