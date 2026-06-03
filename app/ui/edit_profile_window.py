@@ -348,7 +348,7 @@ class EditProfileWindow(tk.Toplevel):
             )
             return
         config.set_last_dir("audio", path)
-        sample_min = int(config.load_config().get("discover_sample_minutes", 10))
+        sample_min = int(config.load_config().get("discover_sample_minutes", 0))
         max_seconds = sample_min * 60 if sample_min and sample_min > 0 else None
         self.npc_var.set(
             f"Discovering speakers from the first {sample_min} min…"
