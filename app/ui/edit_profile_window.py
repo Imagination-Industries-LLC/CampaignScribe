@@ -324,18 +324,19 @@ class EditProfileWindow(tk.Toplevel):
             self.app.open_home()
 
     # ---------- discover from audio ----------
-    def _discover_from_audio(self) -> None:
+    def _discover_from_audio(self, path: str | None = None) -> None:
         # Reuses the diarization + Claude profiling worker (formerly in the
         # retired Discover tab): convert -> TranscriptionPipeline.transcribe_file ->
         # speaker_id.discover_speakers, then APPEND the returned profiles to the
         # editor list (no DB session is created here — this only seeds the roster).
         from app.core import audio, speaker_id, transcriber
 
-        path = filedialog.askopenfilename(
-            title="Discover speakers from audio",
-            initialdir=config.get_last_dir("audio") or None,
-            filetypes=[("Audio files", "*.wav *.mp3 *.m4a *.flac *.ogg *.mp4 *.webm")],
-        )
+        if path is None:
+            path = filedialog.askopenfilename(
+                title="Discover speakers from audio",
+                initialdir=config.get_last_dir("audio") or None,
+                filetypes=[("Audio files", "*.wav *.mp3 *.m4a *.flac *.ogg *.mp4 *.webm")],
+            )
         if not path:
             return
         api_key = config.get_anthropic_key()
@@ -405,3 +406,8 @@ class EditProfileWindow(tk.Toplevel):
             self.after(0, apply)
 
         threading.Thread(target=worker, daemon=True).start()
+
+    def start_discover(self, audio_path: str) -> None:
+        """Kick off speaker discovery on a specific audio file (used by the
+        Transcribe cold-start on-ramp). Opens nothing; runs Discover on `audio_path`."""
+        self._discover_from_audio(path=audio_path)

@@ -386,8 +386,11 @@ class AppWindow(tk.Tk):
         if hasattr(self.home_tab, "on_show"):
             self.home_tab.on_show()
 
-    def open_edit_profile(self, slug: str):
-        EditProfileWindow(self, self, slug)
+    def open_edit_profile(self, slug: str, discover_audio: str | None = None):
+        win = EditProfileWindow(self, self, slug)
+        if discover_audio:
+            win.start_discover(discover_audio)
+        return win
 
     def open_session(self, session_id: int):
         SessionView(self, self, session_id)

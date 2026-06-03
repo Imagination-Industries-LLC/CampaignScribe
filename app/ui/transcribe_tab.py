@@ -324,8 +324,22 @@ class TranscribeTab(ttk.Frame):
         if self._busy:
             return
         if not self.speakers_path:
+            slug = getattr(self, "active_slug", None)
+            if slug and hasattr(self.app, "open_edit_profile"):
+                if messagebox.askyesno(
+                    "Build speaker profile?",
+                    "This campaign has no speaker profile yet.\n\n"
+                    "Discover speakers from your audio to build one? You'll review and "
+                    "edit the profile in the next window, then come back here and click "
+                    "Transcribe.",
+                ):
+                    audio = self.audio_files[0] if self.audio_files else None
+                    self.app.open_edit_profile(slug, discover_audio=audio)
+                return
             messagebox.showerror(
-                "CampaignScribe", "No speaker profile loaded — open a session from Home first."
+                "CampaignScribe",
+                "No speaker profile loaded — open a session from a campaign in Home, "
+                "or build a profile first.",
             )
             return
         if not self.audio_files:
