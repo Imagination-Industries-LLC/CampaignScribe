@@ -37,10 +37,15 @@ jobs:
       - name: Semgrep (OWASP/SAST)
         run: semgrep --config=p/python --config=p/owasp-top-ten --error app
       - name: pip-audit (deps)
-        # PYSEC-2026-178: pyjwt<2.13.0 CVE, pulled in transitively by semgrep
-        # (semgrep pins pyjwt~=2.12.0, so we can't upgrade). Dev-tooling only — not
-        # shipped in the app. Remove this ignore once semgrep relaxes its pyjwt pin.
-        run: pip-audit -r requirements-dev.txt --ignore-vuln PYSEC-2026-178
+        # pyjwt 2.12.1 advisories (PYSEC-2026-175/177/178/179), pulled in transitively
+        # by semgrep which pins pyjwt~=2.12.0 — so we cannot upgrade. Dev-tooling only,
+        # NOT shipped in the app. Remove these ignores once semgrep relaxes its pyjwt pin.
+        run: >-
+          pip-audit -r requirements-dev.txt
+          --ignore-vuln PYSEC-2026-175
+          --ignore-vuln PYSEC-2026-177
+          --ignore-vuln PYSEC-2026-178
+          --ignore-vuln PYSEC-2026-179
       - name: Pytest (non-gui)
         run: pytest -m "not gui" -v
 
