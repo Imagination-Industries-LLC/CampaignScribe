@@ -22,6 +22,29 @@ from app.core import library
 _NPZ = "fingerprints.npz"
 _JSON = "fingerprints.json"
 
+# ---------------------------------------------------------------------------
+# Session-embedding stash (in-memory, Task 4)
+# Holds per-cluster embeddings extracted during a transcribe run until the
+# ② Review screen reads them. Never persisted; cleared by pop_session_embeddings.
+# ---------------------------------------------------------------------------
+
+_SESSION_EMB: dict[int, dict] = {}
+
+
+def stash_session_embeddings(session_id: int, embeddings: dict) -> None:
+    """Hold this run's {cluster: embedding} for a session until the ② Review screen reads it."""
+    _SESSION_EMB[int(session_id)] = embeddings
+
+
+def peek_session_embeddings(session_id: int) -> dict | None:
+    """Read without removing (② reads on open; may re-open)."""
+    return _SESSION_EMB.get(int(session_id))
+
+
+def pop_session_embeddings(session_id: int) -> dict | None:
+    """Remove and return the stashed embeddings, or None if absent."""
+    return _SESSION_EMB.pop(int(session_id), None)
+
 
 def _paths(slug: str) -> tuple[Path, Path]:
     d = library._campaign_dir(slug)

@@ -104,6 +104,20 @@ def test_config_has_voice_match_keys():
     assert 0.0 < config.DEFAULT_CONFIG.get("voice_match_threshold") < 1.0
 
 
+def test_session_embedding_stash_peek_pop():
+    from app.core import voiceprints
+
+    vec = np.array([1.0, 2.0], dtype="float32")
+    voiceprints.stash_session_embeddings(101, {"SPEAKER_00": vec})
+    assert voiceprints.peek_session_embeddings(101)["SPEAKER_00"].tolist() == [1.0, 2.0]
+    # peek does not remove
+    assert voiceprints.peek_session_embeddings(101) is not None
+    popped = voiceprints.pop_session_embeddings(101)
+    assert "SPEAKER_00" in popped
+    assert voiceprints.peek_session_embeddings(101) is None
+    assert voiceprints.pop_session_embeddings(999) is None  # missing -> None
+
+
 def test_load_corrupt_npz_returns_empty(tmp_path):
     slug = library.create_campaign("Strahd")
     voiceprints.update(slug, "Mike", np.array([1.0, 0.0, 0.0], dtype="float32"))

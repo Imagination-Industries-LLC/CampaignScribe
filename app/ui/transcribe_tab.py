@@ -504,6 +504,26 @@ class TranscribeTab(ttk.Frame):
             except Exception:
                 pass
 
+        # Voice Auto-Match (Spec 2): best-effort — extract per-cluster voice embeddings and
+        # stash them in-memory for the session's ② Review. NEVER break transcription.
+        # NOTE: This runs diarization as a separate pass (v1 safety); single-pass reuse is a perf follow-up.
+        if (
+            config.load_config().get("voice_match_enabled", True)
+            and self.session_id
+            and self.audio_files
+        ):
+            try:
+                from app.core import voiceprints
+
+                wav0 = audio.convert_to_wav(
+                    self.audio_files[0]
+                )  # v1: first file only (multi-track is a follow-up)
+                emb = pipeline.extract_speaker_embeddings(transcriber.load_waveform_dict(wav0))
+                if emb:
+                    voiceprints.stash_session_embeddings(self.session_id, emb)
+            except Exception:  # noqa: BLE001 - best-effort; transcription must never be affected
+                pass
+
         try:
             pipeline.close()
         except Exception:
