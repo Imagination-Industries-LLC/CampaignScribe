@@ -261,6 +261,26 @@ class SessionView(tk.Toplevel):
                 },
             )
 
+        # Voice Auto-Match (Spec 2): learn from confirmations — feed each confirmed
+        # (cluster -> roster person) embedding into that person's fingerprint. Best-effort.
+        try:
+            cfg = config.load_config()
+            if cfg.get("voice_match_enabled", True) and self.slug and _voiceprints is not None:
+                emb_map = (
+                    getattr(self, "_cluster_embeddings", {})
+                    or _voiceprints.peek_session_embeddings(self.session_id)
+                    or {}
+                )
+                roster = set(self._roster)  # real campaign persons only; guests excluded
+                for cid, target in self._collect_assignments().items():
+                    if not target or target in (IGNORE_CHOICE, GUEST_CHOICE):
+                        continue
+                    if target in roster and cid in emb_map:
+                        _voiceprints.update(self.slug, target, emb_map[cid])
+                _voiceprints.pop_session_embeddings(self.session_id)  # consume once learned
+        except Exception:  # noqa: BLE001 — learning is best-effort; never block saving
+            pass
+
     def _save_to_profile(self) -> None:
         self._save_session_mapping()
         if not self.slug:
