@@ -42,6 +42,26 @@ def _campaign(name, players):
     return slug
 
 
+def test_manual_count_survives_roster_toggle(root):
+    from app.data import db
+    from app.ui.session_view import SessionView
+
+    db.init_db()
+    slug = _campaign("Barovia", ["Ann", "Bob", "Cara"])
+    sid = db.create_session("Night 2", campaign_slug=slug)
+    view = SessionView(root, _app(), sid)
+    root.update_idletasks()
+    try:
+        assert int(view.count_spin_var.get()) == 3
+        view.count_spin_var.set(6)  # user bumps to force a missed voice out
+        view._toggle_present("Ann")  # mark Ann absent -> roster tally drops to 2
+        # The manual override must NOT be clobbered by the toggle.
+        assert int(view.count_spin_var.get()) == 6
+        assert view._run_params_for_transcribe() == {"expected_count": 6}
+    finally:
+        view.destroy()
+
+
 def test_confirm_step_has_editable_preseeded_count(root):
     from app.data import db
     from app.ui.session_view import SessionView

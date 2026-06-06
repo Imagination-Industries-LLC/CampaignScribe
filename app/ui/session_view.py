@@ -72,7 +72,8 @@ class SessionView(tk.Toplevel):
         countrow = ttk.Frame(confirm_lf)
         countrow.pack(fill="x", padx=4, pady=2)
         ttk.Label(countrow, text="Expected voices for this run:").pack(side="left")
-        self.count_spin_var = tk.IntVar(value=self.expected_speaker_count())
+        self.count_spin_var = tk.IntVar(value=0)
+        self._count_auto_value = 0
         ttk.Spinbox(countrow, from_=1, to=20, textvariable=self.count_spin_var, width=6).pack(
             side="left", padx=6
         )
@@ -162,14 +163,26 @@ class SessionView(tk.Toplevel):
         n = self.expected_speaker_count()
         self.count_var.set(f"Present in roster: {n}")
         if hasattr(self, "count_spin_var"):
-            self.count_spin_var.set(n)
+            # Auto-follow the roster tally until the user overrides the spinbox;
+            # once they set a different number, respect it (don't clobber on later toggles).
+            try:
+                current = int(self.count_spin_var.get())
+            except Exception:
+                current = self._count_auto_value
+            if current == self._count_auto_value:
+                self.count_spin_var.set(n)
+            self._count_auto_value = n
 
     def expected_speaker_count(self) -> int:
         present = [n for n in (self._roster + self._guests) if n not in self._absent]
         return len(present)
 
     def _run_params_for_transcribe(self) -> dict:
-        return {"expected_count": int(self.count_spin_var.get() or 0)}
+        try:
+            n = int(self.count_spin_var.get())
+        except Exception:
+            n = self.expected_speaker_count()
+        return {"expected_count": max(0, n)}
 
     # ---------- ② review ----------
 
