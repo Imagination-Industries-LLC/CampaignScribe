@@ -396,7 +396,7 @@ class AppWindow(tk.Tk):
     def open_session(self, session_id: int):
         SessionView(self, self, session_id)
 
-    def open_session_stage(self, session_id: int, stage: str):
+    def open_session_stage(self, session_id: int, stage: str, run_params: dict | None = None):
         from app.data import db
 
         session = db.get_session(session_id)
@@ -406,7 +406,7 @@ class AppWindow(tk.Tk):
             "refine": self.refine_tab,
         }.get(stage, self.transcribe_tab)
         if session is not None and hasattr(tab, "load_for_session"):
-            tab.load_for_session(session)
+            tab.load_for_session(session, run_params=run_params)
         self.notebook.select(tab)
 
     def jump_to_tab(self, index: int):

@@ -18,6 +18,42 @@ def coerce_embeddings(raw: dict | None) -> dict:
     return {lab: np.asarray(vec, dtype="float32") for lab, vec in (raw or {}).items()}
 
 
+def speaker_count_window(
+    num_speakers: int | None = None,
+    min_speakers: int | None = None,
+    max_speakers: int | None = None,
+) -> dict:
+    """Build diarization min/max_speakers kwargs. Explicit min/max win; otherwise
+    num_speakers (>0) locks an exact count (min=max=N). Floors at 1. {} = unconstrained."""
+    lo = (
+        min_speakers
+        if min_speakers is not None
+        else (num_speakers if (num_speakers or 0) > 0 else None)
+    )
+    hi = (
+        max_speakers
+        if max_speakers is not None
+        else (num_speakers if (num_speakers or 0) > 0 else None)
+    )
+    out: dict[str, int] = {}
+    if lo is not None and lo >= 1:
+        out["min_speakers"] = int(lo)
+    if hi is not None and hi >= 1:
+        out["max_speakers"] = int(hi)
+    return out
+
+
+def diarization_run_kwargs(expected_count: int | None, fallback_count: int) -> dict:
+    """Translate the UI's run-params into transcribe_file kwargs. A confirmed
+    expected_count (>0) becomes an 'at least N, room for one more' window
+    (min=max(1,N), max=N+1); otherwise the loose-file spinbox is used as an exact
+    count. Pure / Tk-free."""
+    n = int(expected_count or 0)
+    if n > 0:
+        return {"min_speakers": max(1, n), "max_speakers": n + 1}
+    return {"num_speakers": int(fallback_count)}
+
+
 def _detect_nvidia_gpu_via_smi() -> str | None:
     """Use nvidia-smi to detect a physical NVIDIA GPU even when CUDA torch isn't loaded."""
     import shutil
@@ -163,6 +199,8 @@ class TranscriptionPipeline:
         self,
         wav_path: str,
         num_speakers: int | None = None,
+        min_speakers: int | None = None,
+        max_speakers: int | None = None,
         progress: Callable[[str, float], None] | None = None,
     ) -> list[dict[str, Any]]:
         """Run the full transcribe + align + diarize pipeline. Returns segment list."""
@@ -189,10 +227,7 @@ class TranscriptionPipeline:
 
         if progress:
             progress("Diarizing speakers", 0.75)
-        kwargs: dict[str, Any] = {}
-        if num_speakers and num_speakers > 0:
-            kwargs["min_speakers"] = num_speakers
-            kwargs["max_speakers"] = num_speakers
+        kwargs: dict[str, Any] = speaker_count_window(num_speakers, min_speakers, max_speakers)
         try:
             diarize_segments, _spk_emb = self._diarize(wav_path, return_embeddings=True, **kwargs)
             self._last_speaker_embeddings = coerce_embeddings(_spk_emb)

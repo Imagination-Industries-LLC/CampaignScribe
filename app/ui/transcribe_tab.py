@@ -45,6 +45,7 @@ class TranscribeTab(ttk.Frame):
         self.results: list[dict[str, str]] = []  # output files
         self._busy = False
         self._cancel = threading.Event()
+        self._run_params: dict = {}
 
         self._scroll = ScrollableFrame(self)
         self._scroll.pack(fill="both", expand=True)
@@ -179,7 +180,7 @@ class TranscribeTab(ttk.Frame):
         if sid:
             self.load_session(sid, refresh=False)
 
-    def load_for_session(self, session: dict) -> None:
+    def load_for_session(self, session: dict, run_params: dict | None = None) -> None:
         """Set the active session and derive speakers.json from its campaign_slug
         (current library version), falling back to the session's stored path."""
         self.session_id = int(session["id"])
@@ -187,6 +188,8 @@ class TranscribeTab(ttk.Frame):
         self.speakers_path = self._resolve_speakers_path(session)
         # populate audio/transcript inputs from the session as load_session did
         self.load_session(self.session_id)
+        # store run_params AFTER load_session (which resets _run_params to {})
+        self._run_params = run_params or {}
 
     def _resolve_speakers_path(self, session: dict) -> str | None:
         slug = session.get("campaign_slug")
@@ -214,6 +217,9 @@ class TranscribeTab(ttk.Frame):
         self._set_audio_files(files)
         self.speakers_path = self._resolve_speakers_path(s)
         self.session_id = sid
+        # Standalone open (session dropdown / History reopen): no ①-launch params,
+        # so the run falls back to the spinbox count. load_for_session re-sets this after.
+        self._run_params = {}
 
     def _set_audio_files(self, files: list[str]) -> None:
         self.audio_files = []
@@ -430,9 +436,11 @@ class TranscribeTab(ttk.Frame):
                         raise InterruptedError("Cancelled")
                     self._set_row(_ap, "transcribing", stage)
 
-                segments = pipeline.transcribe_file(
-                    wav, num_speakers=int(self.spk_var.get()), progress=progress_cb
+                count_kwargs = transcriber.diarization_run_kwargs(
+                    self._run_params.get("expected_count"),
+                    int(self.spk_var.get()),
                 )
+                segments = pipeline.transcribe_file(wav, progress=progress_cb, **count_kwargs)
                 # Save raw JSON
                 json_path = os.path.join(self.output_dir, f"transcript_{run_ts}_{i}.json")
                 transcriber.save_segments_json(segments, json_path)

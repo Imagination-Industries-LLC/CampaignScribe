@@ -179,7 +179,7 @@ class SummarizeTab(ttk.Frame):
         self.refresh_sessions()
         self.refresh_prompts()
 
-    def load_for_session(self, session: dict) -> None:
+    def load_for_session(self, session: dict, run_params: dict | None = None) -> None:
         """Set the active session and derive speakers.json from its campaign_slug
         (current library version), falling back to the session's stored path."""
         self.session_id = int(session["id"])

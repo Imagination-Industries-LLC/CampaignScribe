@@ -107,7 +107,7 @@ class RefineTab(ttk.Frame):
     def on_show(self):
         pass
 
-    def load_for_session(self, session: dict) -> None:
+    def load_for_session(self, session: dict, run_params: dict | None = None) -> None:
         """Set the active session and derive speakers.json from its campaign_slug
         (current library version), falling back to the session's stored path."""
         self.session_id = int(session["id"])
