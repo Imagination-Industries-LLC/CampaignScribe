@@ -217,6 +217,8 @@ class TranscribeTab(ttk.Frame):
         self._set_audio_files(files)
         self.speakers_path = self._resolve_speakers_path(s)
         self.session_id = sid
+        # Standalone open (session dropdown / History reopen): no ①-launch params,
+        # so the run falls back to the spinbox count. load_for_session re-sets this after.
         self._run_params = {}
 
     def _set_audio_files(self, files: list[str]) -> None:
@@ -434,10 +436,8 @@ class TranscribeTab(ttk.Frame):
                         raise InterruptedError("Cancelled")
                     self._set_row(_ap, "transcribing", stage)
 
-                from app.core import transcriber as _tr
-
-                count_kwargs = _tr.diarization_run_kwargs(
-                    (getattr(self, "_run_params", {}) or {}).get("expected_count"),
+                count_kwargs = transcriber.diarization_run_kwargs(
+                    self._run_params.get("expected_count"),
                     int(self.spk_var.get()),
                 )
                 segments = pipeline.transcribe_file(wav, progress=progress_cb, **count_kwargs)
