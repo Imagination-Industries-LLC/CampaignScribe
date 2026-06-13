@@ -436,6 +436,7 @@ class AppWindow(tk.Tk):
         helpmenu = tk.Menu(menubar, tearoff=0)
         helpmenu.add_command(label="Getting Started", command=self._show_getting_started)
         helpmenu.add_command(label="Privacy & Data", command=self._show_privacy)
+        helpmenu.add_command(label="Feedback & Support", command=self._show_feedback)
         helpmenu.add_separator()
         helpmenu.add_command(label="About CampaignScribe", command=self._show_about)
         menubar.add_cascade(label="Help", menu=helpmenu)
@@ -503,6 +504,11 @@ class AppWindow(tk.Tk):
 
     def _show_privacy(self):
         PrivacyDialog(self)
+
+    def _show_feedback(self):
+        from app.ui.feedback_dialog import FeedbackSupportDialog
+
+        FeedbackSupportDialog(self)
 
     def _show_about(self):
         AboutDialog(self)
