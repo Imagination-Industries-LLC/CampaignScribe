@@ -513,6 +513,8 @@ class SummarizeTab(ttk.Frame):
                         summary_path=out_path,
                         status="summarized",
                     )
+                # One-time support nudge (Slice B) — main thread, best-effort, never disrupts the summary.
+                self.after(0, self._maybe_support_nudge)
             except Exception as e:
                 self._set_status(f"Consolidation failed: {e}")
                 self.after(0, lambda err=e: messagebox.showerror("CampaignScribe", str(err)))
@@ -520,6 +522,14 @@ class SummarizeTab(ttk.Frame):
                 self.after(0, lambda: self._set_busy(False))
 
         threading.Thread(target=worker, daemon=True).start()
+
+    def _maybe_support_nudge(self) -> None:
+        try:
+            from app.ui.feedback_dialog import maybe_show_support_nudge
+
+            maybe_show_support_nudge(self)
+        except Exception:  # noqa: BLE001 - the nudge must never disrupt the summary flow
+            pass
 
     def _open_selected(self):
         sel = list(self.out_box.curselection())
