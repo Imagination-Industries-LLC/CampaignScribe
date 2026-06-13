@@ -231,6 +231,8 @@ def show_support_nudge(master) -> None:
     ttk.Button(row, text="Don't show again", style=BTN_GHOST, command=win.destroy).pack(
         side="left", padx=4
     )
+    win.bind("<Escape>", lambda _e: win.destroy())
+    win.focus_set()
     win.update_idletasks()
 
 

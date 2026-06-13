@@ -90,6 +90,25 @@ def test_copy_email_address(root, monkeypatch):
         dlg.destroy()
 
 
+def test_no_support_section_when_no_funding_links(root, monkeypatch):
+    from tkinter import ttk
+
+    from app.core import support
+    from app.ui import feedback_dialog
+
+    monkeypatch.setattr(support, "KOFI_URL", "")
+    monkeypatch.setattr(support, "SPONSORS_URL", "")
+    monkeypatch.setattr(support, "PATREON_URL", "")
+    dlg = feedback_dialog.FeedbackSupportDialog(root)
+    root.update_idletasks()
+    try:
+        frames = [w for w in dlg.winfo_children() if isinstance(w, ttk.Frame)]
+        assert len(frames) == 4  # Support section not rendered
+        assert dlg._support_buttons == {}
+    finally:
+        dlg.destroy()
+
+
 def test_report_problem_overflow_uses_clipboard(root, monkeypatch):
     from app.core import diagnostics
     from app.ui import feedback_dialog

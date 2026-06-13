@@ -618,9 +618,11 @@ class AboutDialog(tk.Toplevel):
             wraplength=420,
             justify="center",
         ).pack(padx=24, pady=(8, 4))
+
         def _support():
             from app.ui.feedback_dialog import FeedbackSupportDialog
 
+            self.destroy()
             FeedbackSupportDialog(master)
 
         btnrow = ttk.Frame(self)
