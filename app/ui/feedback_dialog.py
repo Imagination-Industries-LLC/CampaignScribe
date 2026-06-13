@@ -40,12 +40,24 @@ class FeedbackSupportDialog(tk.Toplevel):
             "Copy diagnostics…",
             self._copy_diagnostics,
         )
-        self._section(
-            "✉️  Email feedback",
-            f"Write to {support.FEEDBACK_EMAIL}. Opens a draft with a short build-info header.",
-            "Email us",
-            self._email_feedback,
+        # Email feedback (custom: a copyable address as a fallback for users with no mail client).
+        email_frame = ttk.Frame(self)
+        email_frame.pack(fill="x", padx=16, pady=8)
+        ttk.Label(email_frame, text="✉️  Email feedback").pack(anchor="w")
+        ttk.Label(
+            email_frame,
+            text=f"Write to {support.FEEDBACK_EMAIL}. Opens a draft with a short build-info header.",
+            style=LBL_DIM,
+            wraplength=500,
+        ).pack(anchor="w")
+        email_btns = ttk.Frame(email_frame)
+        email_btns.pack(anchor="w", pady=4)
+        ttk.Button(email_btns, text="Email us", style=BTN_GHOST, command=self._email_feedback).pack(
+            side="left"
         )
+        ttk.Button(
+            email_btns, text="Copy address", style=BTN_GHOST, command=self._copy_email_address
+        ).pack(side="left", padx=6)
         self._section(
             "💡  Feature ideas",
             "Discuss ideas and see what's planned on GitHub Discussions.",
@@ -148,6 +160,13 @@ class FeedbackSupportDialog(tk.Toplevel):
         subject = f"CampaignScribe Feedback (v{__version__})"
         body = diagnostics.build_email_header() + "\n\n— your feedback below —\n"
         open_url(support.mailto_url(subject, body))
+
+    def _copy_email_address(self) -> None:
+        self.clipboard_clear()
+        self.clipboard_append(support.FEEDBACK_EMAIL)
+        messagebox.showinfo(
+            "Email feedback", f"Copied {support.FEEDBACK_EMAIL} to the clipboard.", parent=self
+        )
 
     def _open_discussions(self) -> None:
         open_url(support.discussions_url())

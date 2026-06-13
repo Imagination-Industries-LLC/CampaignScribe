@@ -9,8 +9,7 @@ from __future__ import annotations
 
 from urllib.parse import quote, urlencode
 
-# CONTROLLER: replace with the owner-provided public feedback address.
-FEEDBACK_EMAIL = "feedback@example.com"
+FEEDBACK_EMAIL = "cs@mikesdmtools.com"
 
 REPO_SLUG = "Imagination-Industries-LLC/CampaignScribe"
 

@@ -55,6 +55,21 @@ def test_dialog_renders_four_sections(root):
         dlg.destroy()
 
 
+def test_copy_email_address(root, monkeypatch):
+    from app.core import support
+    from app.ui import feedback_dialog
+
+    monkeypatch.setattr(feedback_dialog.messagebox, "showinfo", lambda *a, **k: None)
+    dlg = feedback_dialog.FeedbackSupportDialog(root)
+    root.update_idletasks()
+    try:
+        dlg._copy_email_address()
+        assert dlg.clipboard_get() == support.FEEDBACK_EMAIL
+        assert support.FEEDBACK_EMAIL == "cs@mikesdmtools.com"
+    finally:
+        dlg.destroy()
+
+
 def test_report_problem_overflow_uses_clipboard(root, monkeypatch):
     from app.core import diagnostics
     from app.ui import feedback_dialog
