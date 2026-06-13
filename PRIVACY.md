@@ -23,6 +23,11 @@ Anthropic states that API inputs are not used to train their models (commercial 
 
 *Note: automatic update checks are planned and not active in the current release.*
 
+## Feedback & diagnostics (user-initiated only)
+The **Help → Feedback & Support** menu can help you share information with us — but only when you choose to, and only after showing you exactly what will be shared:
+- **Copy diagnostics / Report a problem** build a small bundle of *non-sensitive* build info: app version, OS, GPU/driver details, and the tail of the local error log. File paths are scrubbed (your home folder shown as `~`) and email addresses are removed. The bundle **never** contains transcripts, audio, API keys/tokens, or `speakers.json`. Copy Diagnostics shows it to you first; Report a Problem opens a pre-filled GitHub issue (public) that you review before submitting.
+- **Email feedback** opens a draft to our public address with a short build-info header (version/OS/GPU only — no error log) and space for your message. Nothing is sent until you send it.
+
 ## Optional crash reports (off by default)
 - Only if you opt in. Crash reports are scrubbed of transcripts, keys, and audio before sending.
 
