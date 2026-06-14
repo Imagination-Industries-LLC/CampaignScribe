@@ -31,6 +31,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "discover_whisper_model": "small",  # lighter model used only during speaker discovery
     "voice_match_enabled": True,
     "voice_match_threshold": 0.70,  # cosine; below -> cluster stays manual
+    "summaries_completed": 0,  # count of completed consolidated summaries (drives the one-time support nudge)
+    "support_nudge_shown": False,  # the gentle one-time support nudge has been shown
 }
 
 

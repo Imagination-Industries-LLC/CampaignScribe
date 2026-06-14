@@ -618,7 +618,17 @@ class AboutDialog(tk.Toplevel):
             wraplength=420,
             justify="center",
         ).pack(padx=24, pady=(8, 4))
-        ttk.Button(self, text="Close", command=self.destroy).pack(pady=12)
+
+        def _support():
+            from app.ui.feedback_dialog import FeedbackSupportDialog
+
+            self.destroy()
+            FeedbackSupportDialog(master)
+
+        btnrow = ttk.Frame(self)
+        btnrow.pack(pady=12)
+        ttk.Button(btnrow, text="❤️ Support", command=_support).pack(side="left", padx=4)
+        ttk.Button(btnrow, text="Close", command=self.destroy).pack(side="left", padx=4)
 
         self.update_idletasks()
         x = master.winfo_rootx() + (master.winfo_width() - self.winfo_width()) // 2

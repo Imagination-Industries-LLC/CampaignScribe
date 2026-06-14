@@ -65,6 +65,32 @@ class FeedbackSupportDialog(tk.Toplevel):
             self._open_discussions,
         )
 
+        # Support development (Slice B): a button per configured funding platform.
+        self._support_buttons: dict = {}
+        links = support.funding_links()
+        if links:
+            sup = ttk.Frame(self)
+            sup.pack(fill="x", padx=16, pady=8)
+            ttk.Label(sup, text="❤️  Support development").pack(anchor="w")
+            ttk.Label(
+                sup,
+                text=(
+                    "CampaignScribe is free and open. Donations support ongoing development "
+                    "only — they do not cover AI model or API costs (you pay your AI provider "
+                    "directly; local and other low-cost model options are on the roadmap)."
+                ),
+                style=LBL_DIM,
+                wraplength=500,
+            ).pack(anchor="w")
+            sup_btns = ttk.Frame(sup)
+            sup_btns.pack(anchor="w", pady=4)
+            for label, url in links:
+                btn = ttk.Button(
+                    sup_btns, text=label, style=BTN_GHOST, command=lambda u=url: open_url(u)
+                )
+                btn.pack(side="left", padx=(0, 6))
+                self._support_buttons[label] = btn
+
         ttk.Button(self, text="Close", style=BTN_GHOST, command=self.destroy).pack(pady=12)
 
         self.update_idletasks()
@@ -170,3 +196,49 @@ class FeedbackSupportDialog(tk.Toplevel):
 
     def _open_discussions(self) -> None:
         open_url(support.discussions_url())
+
+
+def show_support_nudge(master) -> None:
+    """The gentle one-time support nudge dialog (Support / Maybe later / Don't show again).
+    The 'shown' flag is set by support.record_summary_and_check_nudge before this is called,
+    so every close path means it never appears again."""
+    win = tk.Toplevel(master)
+    win.title("Support CampaignScribe")
+    win.transient(master)
+    win.grab_set()
+    ttk.Label(win, text="Enjoying CampaignScribe?", style=LBL_TITLE).pack(padx=20, pady=(16, 6))
+    ttk.Label(
+        win,
+        text=(
+            "It's free and open. If it's saved you time at the table, a one-time $5/$10 helps "
+            "development. (This doesn't cover AI costs.)"
+        ),
+        wraplength=360,
+        justify="center",
+        style=LBL_DIM,
+    ).pack(padx=20)
+    row = ttk.Frame(win)
+    row.pack(pady=14)
+
+    def _support():
+        win.destroy()
+        FeedbackSupportDialog(master)
+
+    ttk.Button(row, text="Support", style=BTN_GHOST, command=_support).pack(side="left", padx=4)
+    ttk.Button(row, text="Maybe later", style=BTN_GHOST, command=win.destroy).pack(
+        side="left", padx=4
+    )
+    ttk.Button(row, text="Don't show again", style=BTN_GHOST, command=win.destroy).pack(
+        side="left", padx=4
+    )
+    win.bind("<Escape>", lambda _e: win.destroy())
+    win.focus_set()
+    win.update_idletasks()
+
+
+def maybe_show_support_nudge(master) -> bool:
+    """Show the support nudge if it is due now. Returns whether it was shown. Best-effort."""
+    if not support.record_summary_and_check_nudge():
+        return False
+    show_support_nudge(master)
+    return True
