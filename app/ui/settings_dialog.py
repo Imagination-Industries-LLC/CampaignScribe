@@ -130,6 +130,33 @@ class SettingsDialog(tk.Toplevel):
         ).grid(row=row, column=1, sticky="w", **pad)
         row += 1
 
+        # ---- Privacy / crash reporting ----
+        ttk.Separator(self, orient="horizontal").grid(
+            row=row, column=0, columnspan=3, sticky="ew", padx=10, pady=(6, 2)
+        )
+        row += 1
+        ttk.Label(self, text="— Privacy —").grid(
+            row=row, column=0, columnspan=3, sticky="w", padx=10, pady=(0, 4)
+        )
+        row += 1
+        self.crash_var = tk.BooleanVar(value=bool(cfg.get("crash_reporting_enabled", False)))
+        ttk.Checkbutton(
+            self,
+            text="Send anonymous crash reports to help fix bugs (opt-in)",
+            variable=self.crash_var,
+        ).grid(row=row, column=0, columnspan=3, sticky="w", padx=10, pady=(0, 2))
+        row += 1
+        ttk.Label(
+            self,
+            text=(
+                "Off by default. Reports are scrubbed of transcripts, audio, keys, speaker "
+                "profiles, and personal paths before sending. See Help → Privacy & Data."
+            ),
+            wraplength=420,
+            justify="left",
+        ).grid(row=row, column=0, columnspan=3, sticky="w", padx=10, pady=(0, 6))
+        row += 1
+
         btn_frame = ttk.Frame(self)
         btn_frame.grid(row=row, column=0, columnspan=3, pady=12)
         ttk.Button(btn_frame, text="Save", command=self._save).pack(side="left", padx=6)
@@ -166,7 +193,11 @@ class SettingsDialog(tk.Toplevel):
             cfg["theme_mode"] = self.theme_var.get().lower()
             cfg["discover_whisper_model"] = self.discover_model_var.get()
             cfg["discover_sample_minutes"] = int(self.discover_sample_var.get() or 0)
+            cfg["crash_reporting_enabled"] = bool(self.crash_var.get())
             config.save_config(cfg)
+            from app.core import crash_reporting
+
+            crash_reporting.set_enabled(cfg["crash_reporting_enabled"])
         except Exception as e:
             messagebox.showerror("Settings", f"Could not save settings:\n{e}", parent=self)
             return

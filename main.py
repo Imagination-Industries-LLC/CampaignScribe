@@ -76,6 +76,9 @@ def main() -> int:
         from app.data import db as _db
 
         _db.init_db()
+        from app.core import crash_reporting
+
+        crash_reporting.init_from_config()
         from app.ui.app_window import AppWindow
 
         # Relaunch loop: a theme change calls AppWindow.request_rebuild(), which

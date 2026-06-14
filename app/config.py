@@ -138,4 +138,10 @@ def log_exception(context: str, exc: BaseException) -> str:
             f.write(block)
     except Exception:
         pass
+    try:
+        from app.core import crash_reporting
+
+        crash_reporting.capture(exc)
+    except Exception:
+        pass
     return str(log_path)
