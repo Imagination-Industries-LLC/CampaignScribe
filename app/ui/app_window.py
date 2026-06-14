@@ -569,6 +569,25 @@ class AppWindow(tk.Tk):
         except Exception:
             pass
 
+    def report_callback_exception(self, exc, val, tb):
+        """Route uncaught UI-callback exceptions to the error log + opt-in crash
+        reporting (via config.log_exception) and tell the user — instead of Tk's
+        default silent stderr print."""
+        try:
+            config.log_exception("ui.callback", val)
+        except Exception:
+            pass
+        try:
+            messagebox.showerror(
+                "CampaignScribe",
+                "Something went wrong:\n\n"
+                + str(val)
+                + "\n\nThe details were saved to the error log (Tools → Open Logs Folder).",
+                parent=self,
+            )
+        except Exception:
+            pass
+
     def _on_close(self):
         self._save_window_geometry()
         if getattr(self, "_migration_after_id", None) is not None:

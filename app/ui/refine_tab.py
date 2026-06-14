@@ -242,6 +242,7 @@ class RefineTab(ttk.Frame):
         except InterruptedError:
             self._set_status("Cancelled.", 0.0)
         except Exception as e:
+            config.log_exception("refine.worker", e)
             self._set_status(f"Error: {e}", 0.0)
             self.after(0, lambda _e=e: messagebox.showerror("CampaignScribe", str(_e)))
         finally:
@@ -277,6 +278,7 @@ class RefineTab(ttk.Frame):
                 self.suggestions = json.load(f)
             self._render_suggestions()
         except Exception as e:
+            config.log_exception("refine.load_suggestions", e)
             messagebox.showerror("CampaignScribe", f"Could not load file:\n{e}")
 
     def _render_suggestions(self):
@@ -438,4 +440,5 @@ class RefineTab(ttk.Frame):
                 speakers_io.save_speakers_json(self.speakers_path, doc)
                 messagebox.showinfo("CampaignScribe", f"Updated {self.speakers_path}")
         except Exception as e:
+            config.log_exception("refine.save", e)
             messagebox.showerror("CampaignScribe", f"Save failed:\n{e}")
