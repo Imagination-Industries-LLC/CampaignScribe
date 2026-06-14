@@ -12,7 +12,7 @@ from __future__ import annotations
 DSN = ""
 
 # Keys whose values can carry identity; dropped wherever they appear in the event.
-_DROP_KEYS = {"server_name", "user"}
+_DROP_KEYS = {"server_name", "user", "device"}
 
 _initialized = False
 

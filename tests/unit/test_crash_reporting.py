@@ -83,3 +83,12 @@ def test_capture_sends_when_initialized(monkeypatch):
     crash_reporting.capture(err)
     assert sent == [err]
     crash_reporting._initialized = False
+
+
+def test_before_send_drops_device_context():
+    out = crash_reporting.before_send(
+        {"contexts": {"device": {"name": "MIKE-PC"}, "os": {"name": "Windows"}}}, {}
+    )
+    dumped = json.dumps(out)
+    assert "MIKE-PC" not in dumped
+    assert "Windows" in dumped  # non-identity context (os) is kept

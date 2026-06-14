@@ -35,6 +35,9 @@ def scrub(text: str) -> str:
     out = re.sub(r"/home/[^/]+", "~", out)
     # Drop email addresses.
     out = re.sub(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", "[email removed]", out)
+    # Redact API keys/tokens (Anthropic sk-..., HuggingFace hf_...).
+    out = re.sub(r"\bsk-[A-Za-z0-9_-]{8,}", "[token removed]", out)
+    out = re.sub(r"\bhf_[A-Za-z0-9]{8,}", "[token removed]", out)
     return out
 
 
