@@ -8,8 +8,9 @@ is imported lazily, so the app runs normally when it is absent. Tk-free.
 
 from __future__ import annotations
 
-# CONTROLLER: embed the Sentry write-only DSN before release. Empty => never reports.
-DSN = ""
+# Sentry write-only DSN: a public client key — safe to embed (it can only send events,
+# never read). Empty => never reports.
+DSN = "https://d2c09d43e432ad6766b17a446c2167cb@o4511312616161280.ingest.us.sentry.io/4511561396060160"
 
 # Keys whose values can carry identity; dropped wherever they appear in the event.
 _DROP_KEYS = {"server_name", "user", "device"}
