@@ -29,9 +29,9 @@ The **Help → Feedback & Support** menu can help you share information with us 
 - **Email feedback** opens a draft to our public address with a short build-info header (version/OS/GPU only — no error log) and space for your message. Nothing is sent until you send it.
 
 ## Optional crash reports (off by default)
-- Only if you opt in. Crash reports are scrubbed of transcripts, keys, and audio before sending.
-
-*Note: opt-in crash reporting is planned and not active in the current release.*
+- **Off unless you turn it on** in Settings → Privacy. When enabled, only *crash* reports (unhandled errors) are sent, via Sentry, to help fix bugs — no usage tracking or session pings.
+- Every report is **scrubbed before sending**: no transcripts, audio, API keys/tokens, or speaker profiles; file paths have your home folder replaced with `~`, email addresses are removed, and your computer/account name is dropped. Stack-frame local variables are never collected.
+- Turning the setting back off **stops all transmission** immediately.
 
 ## What CampaignScribe does NOT do
 - No analytics, no tracking, no telemetry by default, and no servers of our own. We collect nothing about you.
