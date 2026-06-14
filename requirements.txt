@@ -31,3 +31,4 @@ huggingface_hub==0.36.2
 lightning==2.6.1
 pytorch-lightning==2.6.1
 faster-whisper
+sentry-sdk~=2.20

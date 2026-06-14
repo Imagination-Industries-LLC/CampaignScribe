@@ -33,6 +33,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "voice_match_threshold": 0.70,  # cosine; below -> cluster stays manual
     "summaries_completed": 0,  # count of completed consolidated summaries (drives the one-time support nudge)
     "support_nudge_shown": False,  # the gentle one-time support nudge has been shown
+    "crash_reporting_enabled": False,  # opt-in (default off) Sentry crash reporting
 }
 
 
@@ -135,6 +136,12 @@ def log_exception(context: str, exc: BaseException) -> str:
     try:
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(block)
+    except Exception:
+        pass
+    try:
+        from app.core import crash_reporting
+
+        crash_reporting.capture(exc)
     except Exception:
         pass
     return str(log_path)

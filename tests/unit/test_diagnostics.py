@@ -79,3 +79,10 @@ def test_bundle_scrubs_pii_in_log_tail(monkeypatch, tmp_path):
     out = diagnostics.build_diagnostics_bundle(include_log_tail=True)
     assert "alice" not in out
     assert "~" in out
+
+
+def test_scrub_removes_api_tokens():
+    out = diagnostics.scrub("anthropic sk-ant-api03-abc123XYZ_def-456 and hf_AbCdEf1234567890")
+    assert "sk-ant-api03-abc123XYZ_def-456" not in out
+    assert "hf_AbCdEf1234567890" not in out
+    assert "[token removed]" in out

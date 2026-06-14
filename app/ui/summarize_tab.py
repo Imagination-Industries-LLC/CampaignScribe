@@ -516,6 +516,7 @@ class SummarizeTab(ttk.Frame):
                 # One-time support nudge (Slice B) — main thread, best-effort, never disrupts the summary.
                 self.after(0, self._maybe_support_nudge)
             except Exception as e:
+                config.log_exception("summarize.consolidate", e)
                 self._set_status(f"Consolidation failed: {e}")
                 self.after(0, lambda err=e: messagebox.showerror("CampaignScribe", str(err)))
             finally:
