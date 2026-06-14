@@ -63,6 +63,7 @@ def init(enabled: bool) -> bool:
         include_local_variables=False,
         send_default_pii=False,
         traces_sample_rate=0.0,
+        auto_session_tracking=False,
     )
     _initialized = True
     return True

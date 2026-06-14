@@ -53,7 +53,20 @@ def test_init_calls_sentry_with_scrubber(monkeypatch):
     assert calls["before_send"] is crash_reporting.before_send
     assert calls["include_local_variables"] is False
     assert calls["send_default_pii"] is False
+    assert calls["auto_session_tracking"] is False
     crash_reporting._initialized = False
+
+
+def test_before_send_fails_closed_on_scrub_error(monkeypatch):
+    # If scrubbing raises, before_send must return None (drop the event), never the raw event.
+    import app.core.diagnostics as diag
+
+    def _boom(_text):
+        raise RuntimeError("scrub exploded")
+
+    monkeypatch.setattr(diag, "scrub", _boom)
+    out = crash_reporting.before_send({"server_name": "MIKE", "msg": "secret path"}, {})
+    assert out is None
 
 
 def test_capture_noop_when_not_initialized():
