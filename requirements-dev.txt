@@ -1,6 +1,6 @@
 # Test + lint tooling (light; NO torch/whisperx/pyannote — those are mocked in tests)
 pytest>=9.0.3
-anthropic>=0.105.2
+anthropic>=0.109.1
 httpx>=0.28.1
 keyring>=25.7.0
 python-docx>=1.2.0
