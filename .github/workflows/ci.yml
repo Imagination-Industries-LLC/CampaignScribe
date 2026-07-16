@@ -37,15 +37,24 @@ jobs:
       - name: Semgrep (OWASP/SAST)
         run: semgrep --config=p/python --config=p/owasp-top-ten --error app
       - name: pip-audit (deps)
-        # pyjwt 2.12.1 advisories (PYSEC-2026-175/177/178/179), pulled in transitively
-        # by semgrep which pins pyjwt~=2.12.0 — so we cannot upgrade. Dev-tooling only,
-        # NOT shipped in the app. Remove these ignores once semgrep relaxes its pyjwt pin.
+        # All ignores below are transitive pins of semgrep (dev tooling only, NOT
+        # shipped in the app) — the resolver cannot take the fixed versions while
+        # semgrep pins them. Verified 2026-07-16 in python:3.11 (ResolutionImpossible).
+        # Remove each block once semgrep relaxes the corresponding pin:
+        #  - pyjwt 2.12.1 (semgrep pins pyjwt~=2.12.0): PYSEC-2026-175/177/178/179
+        #  - mcp 1.23.3 (semgrep pins mcp==1.23.3; fixes in 1.27.2/1.28.1):
+        #    CVE-2026-52869/52870/59950
+        #  - click 8.1.8 (semgrep pins click~=8.1.8; fix in 8.3.3): PYSEC-2026-2132
         run: >-
           pip-audit -r requirements-dev.txt
           --ignore-vuln PYSEC-2026-175
           --ignore-vuln PYSEC-2026-177
           --ignore-vuln PYSEC-2026-178
           --ignore-vuln PYSEC-2026-179
+          --ignore-vuln CVE-2026-52869
+          --ignore-vuln CVE-2026-52870
+          --ignore-vuln CVE-2026-59950
+          --ignore-vuln PYSEC-2026-2132
       - name: Pytest (non-gui)
         run: pytest -m "not gui" -v
 
