@@ -6,6 +6,7 @@ exception. Tk-free; no SDK import. Settings runs this on a worker thread.
 
 from __future__ import annotations
 
+import http.client
 import json
 import re
 import urllib.error
@@ -79,5 +80,11 @@ def detect(
     except (urllib.error.URLError, OSError) as e:  # refused, timeout, DNS
         reason = getattr(e, "reason", None) or e
         return DetectResult(runtime_id, False, [], f"{type(e).__name__}: {reason}")
-    except (ValueError, KeyError, AttributeError, TypeError) as e:  # bad JSON / wrong shape
+    except (
+        ValueError,
+        KeyError,
+        AttributeError,
+        TypeError,
+        http.client.HTTPException,
+    ) as e:  # bad JSON / wrong shape / protocol error
         return DetectResult(runtime_id, False, [], f"unexpected response: {type(e).__name__}: {e}")

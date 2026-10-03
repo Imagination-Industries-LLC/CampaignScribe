@@ -122,6 +122,45 @@ def test_unknown_runtime_raises():
         local_detect.detect("banana")
 
 
+def test_non_http_service_is_not_running():
+    """A raw TCP service that doesn't speak HTTP triggers http.client.HTTPException."""
+    import socket as sock_module
+    import time
+
+    def tcp_server(port):
+        s = sock_module.socket()
+        s.setsockopt(sock_module.SOL_SOCKET, sock_module.SO_REUSEADDR, 1)
+        s.bind(("127.0.0.1", port))
+        s.listen(1)
+        try:
+            conn, _ = s.accept()
+            # Send a malformed status line: just newlines without a valid HTTP response.
+            # urllib will try to parse this and http.client will raise BadStatusLine.
+            conn.send(b"\r\n")
+            # Keep socket open briefly to avoid immediate close errors
+            time.sleep(0.5)
+            conn.close()
+        except Exception:
+            pass
+        finally:
+            s.close()
+
+    # Find a free port
+    s = sock_module.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+
+    t = threading.Thread(target=tcp_server, args=(port,), daemon=True)
+    t.start()
+    # Brief sleep to ensure server is listening
+    time.sleep(0.05)
+
+    r = local_detect.detect("ollama", base_url=f"http://127.0.0.1:{port}/v1", timeout_s=2.0)
+    assert r.running is False
+    assert "unexpected response" in r.error
+
+
 def test_default_base_urls():
     assert local_detect.RUNTIMES == {
         "ollama": "http://localhost:11434/v1",
