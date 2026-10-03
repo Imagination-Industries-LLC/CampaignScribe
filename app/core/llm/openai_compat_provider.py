@@ -83,7 +83,19 @@ class OpenAICompatProvider:
                 ) from e
             raise network_error(self.provider_id, self.display_name, type(e).__name__) from e
         except o.APIStatusError as e:
-            raise generic_error(self.provider_id, self.display_name, f"HTTP {e.status_code}") from e
+            detail = f"HTTP {e.status_code}"
+            if self._local_runtime:
+                body = e.body if isinstance(e.body, dict) else {}
+                err = body.get("error")
+                if isinstance(err, dict):
+                    msg = str(err.get("message") or "")
+                elif isinstance(err, str):
+                    msg = err
+                else:
+                    msg = str(getattr(e, "message", "") or "")
+                if msg:
+                    detail += f": {msg}"
+            raise generic_error(self.provider_id, self.display_name, detail) from e
         choices = getattr(resp, "choices", None) or []
         content = choices[0].message.content if choices else None
         if not content or not content.strip():

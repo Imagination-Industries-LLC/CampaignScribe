@@ -2,6 +2,7 @@
 
 Pure urllib with a short timeout; a stopped runtime is a result, not an
 exception. Tk-free; no SDK import. Settings runs this on a worker thread.
+Ollama entries from embedding-only families are skipped (they cannot chat).
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ RUNTIME_NAMES: dict[str, str] = {"ollama": "Ollama", "lmstudio": "LM Studio"}
 
 _DEFAULT_TIMEOUT_S = 1.5
 QUALITY_GOOD_MIN_B = 12.0
+_EMBEDDING_FAMILIES = frozenset({"bert", "nomic-bert"})
 _SIZE_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*[bB]")
 
 
@@ -46,6 +48,11 @@ def quality_label(parameter_size: str) -> str:
     return "Good" if float(m.group(1)) >= QUALITY_GOOD_MIN_B else "Basic"
 
 
+def _is_embedding(details: dict) -> bool:
+    fams = [details.get("family"), *(details.get("families") or [])]
+    return any(str(f).lower() in _EMBEDDING_FAMILIES for f in fams if f)
+
+
 def _get_json(url: str, timeout_s: float):
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout_s) as resp:  # noqa: S310 - localhost only
@@ -69,6 +76,7 @@ def detect(
                     str((m.get("details") or {}).get("parameter_size") or ""),
                 )
                 for m in data["models"]
+                if not _is_embedding(m.get("details") or {})
             ]
         else:
             data = _get_json(f"{base}/models", timeout_s)

@@ -67,6 +67,27 @@ def test_ollama_lists_models_with_sizes(server):
     assert r.models[0].parameter_size == "14.8B"
 
 
+def test_ollama_skips_embedding_models(server):
+    base, routes = server
+    routes["/api/tags"] = (
+        200,
+        json.dumps(
+            {
+                "models": [
+                    {"name": "qwen2.5:14b", "details": {"family": "qwen2"}},
+                    {
+                        "name": "nomic-embed-text:latest",
+                        "details": {"family": "nomic-bert", "families": ["nomic-bert"]},
+                    },
+                    {"name": "mxbai-embed-large:latest", "details": {"family": "bert"}},
+                ]
+            }
+        ).encode(),
+    )
+    r = local_detect.detect("ollama", base_url=f"{base}/v1")
+    assert [m.model_id for m in r.models] == ["qwen2.5:14b"]
+
+
 def test_ollama_entry_without_details_is_listed_as_basic(server):
     base, routes = server
     routes["/api/tags"] = (200, json.dumps({"models": [{"name": "tiny:latest"}]}).encode())
@@ -127,11 +148,7 @@ def test_non_http_service_is_not_running():
     import socket as sock_module
     import time
 
-    def tcp_server(port):
-        s = sock_module.socket()
-        s.setsockopt(sock_module.SOL_SOCKET, sock_module.SO_REUSEADDR, 1)
-        s.bind(("127.0.0.1", port))
-        s.listen(1)
+    def tcp_server(s):
         try:
             conn, _ = s.accept()
             # Send a malformed status line: just newlines without a valid HTTP response.
@@ -145,16 +162,14 @@ def test_non_http_service_is_not_running():
         finally:
             s.close()
 
-    # Find a free port
+    # Listen before detect() connects; the thread only accepts on this socket.
     s = sock_module.socket()
     s.bind(("127.0.0.1", 0))
+    s.listen(1)
     port = s.getsockname()[1]
-    s.close()
 
-    t = threading.Thread(target=tcp_server, args=(port,), daemon=True)
+    t = threading.Thread(target=tcp_server, args=(s,), daemon=True)
     t.start()
-    # Brief sleep to ensure server is listening
-    time.sleep(0.05)
 
     r = local_detect.detect("ollama", base_url=f"http://127.0.0.1:{port}/v1", timeout_s=2.0)
     assert r.running is False

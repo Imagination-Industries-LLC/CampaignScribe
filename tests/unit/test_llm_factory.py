@@ -62,6 +62,13 @@ def test_make_provider_each_preset():
     assert not c.supports_json_mode
 
 
+def test_make_provider_timeout_override():
+    p = llm.make_provider("ollama", model="m", api_key="", timeout_s=30.0)
+    assert p._client.kwargs["timeout"] == 30.0
+    q = llm.make_provider("ollama", model="m", api_key="")
+    assert q._client.kwargs["timeout"] == 600.0
+
+
 def test_make_provider_requires_key_for_key_presets():
     with pytest.raises(llm.LLMError) as ei:
         llm.make_provider("openrouter", model="m", api_key="")

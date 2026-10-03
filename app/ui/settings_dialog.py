@@ -13,6 +13,7 @@ from app.core.llm import local_detect
 
 # Room for Gemini thinking tokens / reasoning models; the probe reply is still one word.
 _TEST_PROBE_MAX_TOKENS = 64
+_TEST_PROBE_TIMEOUT_S = 30.0
 
 
 class SettingsDialog(tk.Toplevel):
@@ -403,7 +404,9 @@ class SettingsDialog(tk.Toplevel):
             self._refresh_badges()
 
     def _reset_model(self) -> None:
-        self.llm_model_var.set(llm.PRESETS[self._llm_current].default_model)
+        default = llm.PRESETS[self._llm_current].default_model
+        if default:  # blank for local presets: keep the user's chosen model
+            self.llm_model_var.set(default)
 
     def _test_connection(self, _sync: bool = False) -> None:
         self._stash_llm_fields()
@@ -415,7 +418,11 @@ class SettingsDialog(tk.Toplevel):
         def run() -> str:
             try:
                 provider = llm.make_provider(
-                    pid, model=st["model"], api_key=st["key"].strip(), base_url=st["base_url"]
+                    pid,
+                    model=st["model"],
+                    api_key=st["key"].strip(),
+                    base_url=st["base_url"],
+                    timeout_s=_TEST_PROBE_TIMEOUT_S,
                 )
                 provider.complete(
                     "Reply with the single word OK.", max_tokens=_TEST_PROBE_MAX_TOKENS

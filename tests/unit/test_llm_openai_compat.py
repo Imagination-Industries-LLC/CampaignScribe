@@ -162,6 +162,24 @@ def test_status_error_maps_to_generic_with_code(fake_openai):
     assert "429" in str(ei.value)
 
 
+def test_local_status_error_includes_server_message(fake_openai):
+    import openai
+
+    req = httpx.Request("POST", "http://localhost:11434/v1/chat/completions")
+    exc = openai.APIStatusError(
+        "x",
+        response=httpx.Response(400, request=req),
+        body={"error": {"message": '"nomic-embed-text:latest" does not support chat'}},
+    )
+    fake_openai(exc)
+    p = _make(fake_openai, local_runtime="ollama")
+    with pytest.raises(base.LLMError) as ei:
+        p.complete("x", max_tokens=5)
+    assert ei.value.kind == "error"
+    assert "does not support chat" in str(ei.value)
+    assert "HTTP 400" in str(ei.value)
+
+
 def test_timeout_s_reaches_client(fake_openai):
     _make(fake_openai, timeout_s=600.0)
     assert fake_openai.captured["timeout"] == 600.0

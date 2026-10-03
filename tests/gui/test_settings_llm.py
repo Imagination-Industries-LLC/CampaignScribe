@@ -125,6 +125,19 @@ def test_custom_model_id_still_saved(root):
     assert config.load_config()["llm_model_anthropic"] == "claude-opus-5-5"
 
 
+def test_default_button_is_noop_for_local(root, monkeypatch):
+    _scripted_detect(monkeypatch, {"ollama": _OLLAMA_OK})
+    dlg = _open(root)
+    try:
+        _select(dlg, "Ollama (local)")
+        dlg._run_detect(_sync=True)
+        assert dlg.llm_model_var.get() == "qwen2.5:14b"
+        dlg._reset_model()
+        assert dlg.llm_model_var.get() == "qwen2.5:14b"
+    finally:
+        dlg.destroy()
+
+
 def test_test_connection_reports_success_and_error(root, monkeypatch):
     class _Good:
         display_name = "Claude"
@@ -140,11 +153,18 @@ def test_test_connection_reports_success_and_error(root, monkeypatch):
     monkeypatch.setattr(llm, "make_provider", lambda *a, **k: good)
     import app.ui.settings_dialog as sd
 
-    monkeypatch.setattr(sd.llm, "make_provider", lambda *a, **k: good)
+    made = []
+
+    def _record(*a, **k):
+        made.append(k)
+        return good
+
+    monkeypatch.setattr(sd.llm, "make_provider", _record)
     dlg = _open(root)
     try:
         dlg.api_var.set("k")
         dlg._test_connection(_sync=True)
+        assert made[-1]["timeout_s"] == 30.0
         dlg.update_idletasks()
         assert dlg.llm_test_label.cget("text").startswith("✓ Connected")
         assert "claude-sonnet-5-5" in dlg.llm_test_label.cget("text")

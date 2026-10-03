@@ -126,8 +126,18 @@ def _local_pick_message(preset: Preset) -> str:
     )
 
 
-def make_provider(provider_id: str, *, model: str, api_key: str, base_url: str = "") -> Provider:
-    """Build an adapter from explicit values (Settings → Test connection uses unsaved ones)."""
+def make_provider(
+    provider_id: str,
+    *,
+    model: str,
+    api_key: str,
+    base_url: str = "",
+    timeout_s: float | None = None,
+) -> Provider:
+    """Build an adapter from explicit values (Settings → Test connection uses unsaved ones).
+
+    ``timeout_s`` overrides the preset's request timeout (OpenAI-compatible adapters only).
+    """
     preset = PRESETS.get(provider_id)
     if preset is None:
         raise ValueError(f"unknown LLM provider: {provider_id!r}")
@@ -153,7 +163,7 @@ def make_provider(provider_id: str, *, model: str, api_key: str, base_url: str =
         provider_id=provider_id,
         display_name=preset.display_name,
         supports_json_mode=preset.supports_json_mode,
-        timeout_s=preset.timeout_s,
+        timeout_s=timeout_s if timeout_s is not None else preset.timeout_s,
         local_runtime=preset.local_runtime,
     )
 

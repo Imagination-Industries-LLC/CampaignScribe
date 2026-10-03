@@ -62,8 +62,8 @@ Theme follows the OS by default and can be forced to dark or light in Settings.
   [Anthropic](https://console.anthropic.com/settings/keys) (default),
   [Google Gemini](https://aistudio.google.com/apikey), or
   [OpenRouter](https://openrouter.ai/keys). A custom OpenAI-compatible
-  endpoint (for example a local Ollama server) needs a base URL and model
-  instead; a key is optional there. To run with no API cost and no data
+  endpoint (for example Ollama on another machine, or a self-hosted
+  vLLM) needs a base URL and model instead; a key is optional there. To run with no API cost and no data
   leaving your PC, install [Ollama](https://ollama.com) (or LM Studio),
   pull a model such as `ollama pull qwen2.5:14b`, and pick **Ollama
   (local)** in Settings → AI model; **Detect** lists the models you have
