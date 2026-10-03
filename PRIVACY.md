@@ -16,7 +16,7 @@ CampaignScribe uses one AI provider at a time — chosen in **Settings → AI mo
 
 Where that data goes depends on the provider you pick:
 - **Claude (Anthropic Claude API, default)** — Anthropic states that API inputs are not used to train their models (commercial terms); API logs are retained briefly (~7–30 days) for abuse monitoring. https://www.anthropic.com/legal/privacy
-- **Google Gemini** — sent to Google's Gemini API under the Gemini API terms (paid-tier data is not used to improve Google's products; check your tier). https://ai.google.dev/gemini-api/terms
+- **Google Gemini** — sent to Google's Gemini API under the Gemini API terms (on the **paid** tier Google states prompts are not used to improve its products; on the **free** tier they may be — check which tier your key is on). https://ai.google.dev/gemini-api/terms
 - **OpenRouter** — sent to OpenRouter, which **forwards it to the model vendor you selected** (an extra routing hop; that vendor's own policy then applies). https://openrouter.ai/privacy
 - **Custom endpoint** — sent to whatever OpenAI-compatible server you configured. If that is a local server (for example Ollama on your own PC), your transcripts stay on your machine.
 

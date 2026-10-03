@@ -6,6 +6,7 @@ import pytest
 
 from app import config
 from app.core import llm
+from app.core.llm import factory
 
 
 @pytest.fixture(autouse=True)
@@ -54,6 +55,19 @@ def test_make_provider_each_preset():
     assert not c.supports_json_mode
 
 
+def test_make_provider_requires_key_for_key_presets():
+    with pytest.raises(llm.LLMError) as ei:
+        llm.make_provider("openrouter", model="m", api_key="")
+    assert ei.value.kind == "missing_key"
+    c = llm.make_provider("custom", model="llama3", api_key="", base_url="http://localhost:1/v1")
+    assert c.provider_id == "custom"
+
+
+def test_config_defaults_match_presets():
+    for pid, preset in llm.PRESETS.items():
+        assert config.DEFAULT_CONFIG[f"llm_model_{pid}"] == preset.default_model
+
+
 def test_make_provider_unknown_id_raises():
     with pytest.raises(ValueError):
         llm.make_provider("banana", model="x", api_key="k")
@@ -79,6 +93,7 @@ def test_get_provider_blank_model_uses_preset_default():
 
 
 def test_get_provider_unknown_id_falls_back_to_anthropic(monkeypatch):
+    monkeypatch.setattr(factory, "_warned_unknown", set())
     logged = []
     monkeypatch.setattr(config, "log_exception", lambda ctx, exc: logged.append((ctx, str(exc))))
     cfg = config.load_config()
@@ -86,8 +101,9 @@ def test_get_provider_unknown_id_falls_back_to_anthropic(monkeypatch):
     config.save_config(cfg)
     config.save_provider_key("anthropic", "k")
     p = llm.get_provider()
+    llm.get_provider()
     assert p.provider_id == "anthropic"
-    assert logged and "banana" in logged[0][1]
+    assert len(logged) == 1 and "banana" in logged[0][1]
     assert llm.active_preset().provider_id == "anthropic"
 
 

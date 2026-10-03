@@ -16,6 +16,8 @@ from app.core.llm.base import (
 )
 
 _TIMEOUT_MS = 120_000
+# First try + 3 retries, matching the other adapters (google-genai defaults to never retry).
+_RETRY_ATTEMPTS = 4
 _RELAXED_CATEGORIES = (
     "HARM_CATEGORY_HARASSMENT",
     "HARM_CATEGORY_HATE_SPEECH",
@@ -41,14 +43,21 @@ class GeminiProvider:
         self._httpx = httpx
         self.model = model
         self._client = genai.Client(
-            api_key=api_key, http_options=types.HttpOptions(timeout=_TIMEOUT_MS)
+            api_key=api_key,
+            http_options=types.HttpOptions(
+                timeout=_TIMEOUT_MS,
+                retry_options=types.HttpRetryOptions(attempts=_RETRY_ATTEMPTS),
+            ),
         )
 
     def _config(self, max_tokens: int, json_mode: bool):
         t = self._types
+        # Gemini 2.5 Flash accepts a zero thinking budget; Pro models reject it.
+        thinking = t.ThinkingConfig(thinking_budget=0) if "flash" in self.model.lower() else None
         return t.GenerateContentConfig(
             max_output_tokens=max_tokens,
             response_mime_type="application/json" if json_mode else None,
+            thinking_config=thinking,
             safety_settings=[
                 t.SafetySetting(category=c, threshold="BLOCK_NONE") for c in _RELAXED_CATEGORIES
             ],

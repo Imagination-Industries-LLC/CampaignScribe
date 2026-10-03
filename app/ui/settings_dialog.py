@@ -9,6 +9,9 @@ from tkinter import filedialog, messagebox, ttk
 from app import config
 from app.core import llm
 
+# Room for Gemini thinking tokens / reasoning models; the probe reply is still one word.
+_TEST_PROBE_MAX_TOKENS = 64
+
 
 class SettingsDialog(tk.Toplevel):
     def __init__(self, master):
@@ -285,7 +288,9 @@ class SettingsDialog(tk.Toplevel):
                 provider = llm.make_provider(
                     pid, model=st["model"], api_key=st["key"].strip(), base_url=st["base_url"]
                 )
-                provider.complete("Reply with the single word OK.", max_tokens=5)
+                provider.complete(
+                    "Reply with the single word OK.", max_tokens=_TEST_PROBE_MAX_TOKENS
+                )
                 return f"✓ Connected ({provider.display_name} · {provider.model})"
             except llm.LLMError as e:
                 return f"✗ {e}"

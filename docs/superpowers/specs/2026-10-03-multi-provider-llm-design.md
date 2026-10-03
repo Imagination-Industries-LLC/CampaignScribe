@@ -87,7 +87,7 @@ class LLMError(RuntimeError):
 - `complete`: `client.models.generate_content(model=self.model, contents=prompt, config=types.GenerateContentConfig(max_output_tokens=max_tokens, response_mime_type="application/json" if json_mode else None, safety_settings=_RELAXED))`.
   - `_RELAXED` sets the harassment / hate / sexually-explicit / dangerous categories to `BLOCK_NONE`. Tabletop transcripts are full of violence and profanity; default safety settings return an empty candidate and we would rather get text than a silent blank.
   - Returns `response.text`. If it is `None`/empty, raise `LLMError(kind="empty")` including `candidates[0].finish_reason` when present.
-- Timeout: `http_options=types.HttpOptions(timeout=120_000)` (ms). Retries: the SDK retries on 429/5xx by default; no extra layer.
+- Timeout: `http_options=types.HttpOptions(timeout=120_000)` (ms). Retries: `HttpRetryOptions(attempts=4)` — the SDK's default policy is never-retry.
 - `supports_json_mode = True`.
 - Default model (config): `gemini-2.5-flash`. Editable.
 

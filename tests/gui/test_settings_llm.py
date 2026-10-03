@@ -109,13 +109,17 @@ def test_test_connection_reports_success_and_error(root, monkeypatch):
         display_name = "Claude"
         model = "claude-sonnet-5-5"
 
+        seen_max_tokens = []
+
         def complete(self, prompt, max_tokens, json_mode=False):
+            self.seen_max_tokens.append(max_tokens)
             return "OK"
 
-    monkeypatch.setattr(llm, "make_provider", lambda *a, **k: _Good())
+    good = _Good()
+    monkeypatch.setattr(llm, "make_provider", lambda *a, **k: good)
     import app.ui.settings_dialog as sd
 
-    monkeypatch.setattr(sd.llm, "make_provider", lambda *a, **k: _Good())
+    monkeypatch.setattr(sd.llm, "make_provider", lambda *a, **k: good)
     dlg = _open(root)
     try:
         dlg.api_var.set("k")
@@ -123,6 +127,7 @@ def test_test_connection_reports_success_and_error(root, monkeypatch):
         dlg.update_idletasks()
         assert dlg.llm_test_label.cget("text").startswith("✓ Connected")
         assert "claude-sonnet-5-5" in dlg.llm_test_label.cget("text")
+        assert good.seen_max_tokens == [64]
 
         def _bad(*a, **k):
             raise llm.LLMError(

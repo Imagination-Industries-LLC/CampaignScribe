@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app import config
-from app.core.llm.base import LLMError, Provider
+from app.core.llm.base import LLMError, Provider, missing_key_error
 
 
 @dataclass(frozen=True)
@@ -72,6 +72,8 @@ def make_provider(provider_id: str, *, model: str, api_key: str, base_url: str =
     preset = PRESETS.get(provider_id)
     if preset is None:
         raise ValueError(f"unknown LLM provider: {provider_id!r}")
+    if preset.needs_key and not (api_key or "").strip():
+        raise missing_key_error(provider_id, preset.display_name)
     model = (model or "").strip() or preset.default_model
     if provider_id == "anthropic":
         from app.core.llm.anthropic_provider import AnthropicProvider
@@ -97,13 +99,18 @@ def _cfg(cfg: dict[str, Any] | None) -> dict[str, Any]:
     return cfg if cfg is not None else config.load_config()
 
 
+_warned_unknown: set[str] = set()
+
+
 def _resolve_id(cfg: dict[str, Any]) -> str:
     pid = cfg.get("llm_provider", "anthropic")
     if pid not in PRESETS:
-        config.log_exception(
-            "llm.factory: unknown llm_provider in config, falling back to anthropic",
-            ValueError(repr(pid)),
-        )
+        if repr(pid) not in _warned_unknown:
+            _warned_unknown.add(repr(pid))
+            config.log_exception(
+                "llm.factory: unknown llm_provider in config, falling back to anthropic",
+                ValueError(repr(pid)),
+            )
         return "anthropic"
     return pid
 

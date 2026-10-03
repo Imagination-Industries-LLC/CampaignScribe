@@ -482,11 +482,6 @@ class SummarizeTab(ttk.Frame):
             messagebox.showerror("CampaignScribe", llm.not_ready_message())
             return
         try:
-            provider = llm.get_provider()
-        except llm.LLMError as e:
-            messagebox.showerror("CampaignScribe", str(e))
-            return
-        try:
             speakers_doc = speakers_io.load_speakers_json(self.speakers_path)
         except Exception as e:
             messagebox.showerror("CampaignScribe", str(e))
@@ -495,12 +490,17 @@ class SummarizeTab(ttk.Frame):
         if not out:
             return
         self._set_busy(True)
-        self._set_status(f"Consolidating with {provider.display_name}…")
 
         known_npcs = self._campaign_npcs()
 
         def worker():
             try:
+                try:
+                    provider = llm.get_provider()
+                except llm.LLMError as e:
+                    self._set_status(str(e))
+                    return
+                self._set_status(f"Consolidating with {provider.display_name}…")
                 result = summarizer.consolidate_summaries(
                     self.part_summaries, speakers_doc, provider, known_npcs=known_npcs
                 )

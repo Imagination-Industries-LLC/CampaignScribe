@@ -55,6 +55,8 @@ class AnthropicProvider:
             raise network_error(self.provider_id, self.display_name, type(e).__name__) from e
         except a.APIStatusError as e:
             raise generic_error(self.provider_id, self.display_name, f"HTTP {e.status_code}") from e
+        except a.APIError as e:
+            raise generic_error(self.provider_id, self.display_name, type(e).__name__) from e
         text = "".join(
             getattr(block, "text", "")
             for block in getattr(resp, "content", [])

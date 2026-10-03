@@ -69,6 +69,17 @@ def test_client_gets_key_and_timeout(fake_genai):
     GeminiProvider("g-key", "gemini-2.5-flash")
     assert fake_genai.captured["api_key"] == "g-key"
     assert fake_genai.captured["http_options"].timeout == 120_000
+    assert fake_genai.captured["http_options"].retry_options.attempts == 4
+
+
+def test_flash_model_disables_thinking(fake_genai):
+    p = GeminiProvider("g-key", "gemini-2.5-flash")
+    assert p._config(64, False).thinking_config.thinking_budget == 0
+
+
+def test_non_flash_model_leaves_thinking_default(fake_genai):
+    p = GeminiProvider("g-key", "gemini-2.5-pro")
+    assert p._config(64, False).thinking_config is None
 
 
 def test_complete_maps_json_mode_and_relaxes_safety(fake_genai):

@@ -131,3 +131,14 @@ def test_other_status_error_maps_to_generic_with_code(fake_anthropic):
         p.complete("x", max_tokens=10)
     assert ei.value.kind == "error"
     assert "529" in str(ei.value)
+
+
+def test_bare_api_error_maps_to_generic(fake_anthropic):
+    import anthropic
+
+    req = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    fake_anthropic(anthropic.APIError("x", request=req, body=None))
+    p = AnthropicProvider("sk-test", "claude-sonnet-5-5")
+    with pytest.raises(base.LLMError) as ei:
+        p.complete("x", max_tokens=10)
+    assert ei.value.kind == "error"
