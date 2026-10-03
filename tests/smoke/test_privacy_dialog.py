@@ -58,12 +58,28 @@ def test_privacy_dialog_builds_and_shows_statement(app):
         text_widgets = [w for w in widgets if isinstance(w, tk.Text)]
         assert text_widgets, "PrivacyDialog should contain a Text widget"
         assert "Anthropic Claude API" in text_widgets[0].get("1.0", "end")
+        assert "OpenRouter" in text_widgets[0].get("1.0", "end")
     finally:
         if dlg is not None:
             dlg.destroy()
 
 
-def test_api_tabs_have_privacy_notes(app):
-    assert app.transcribe_tab._privacy_note.cget("text") == privacy.NOTE_SAMPLES
-    assert app.refine_tab._privacy_note.cget("text") == privacy.NOTE_SAMPLES
-    assert app.summarize_tab._privacy_note.cget("text") == privacy.NOTE_TRANSCRIPT
+def test_api_tabs_have_privacy_notes_for_active_provider(app):
+    from app import config
+
+    assert app.transcribe_tab._privacy_note.cget("text") == privacy.note_samples(
+        "Anthropic (Claude)"
+    )
+    assert app.refine_tab._privacy_note.cget("text") == privacy.note_samples("Anthropic (Claude)")
+    assert app.summarize_tab._privacy_note.cget("text") == privacy.note_transcript(
+        "Anthropic (Claude)"
+    )
+
+    cfg = config.load_config()
+    cfg["llm_provider"] = "gemini"
+    config.save_config(cfg)
+    for tab in (app.transcribe_tab, app.refine_tab, app.summarize_tab):
+        tab.on_settings_changed()
+    app.update_idletasks()
+    assert "Google (Gemini)" in app.transcribe_tab._privacy_note.cget("text")
+    assert "Google (Gemini)" in app.summarize_tab._privacy_note.cget("text")

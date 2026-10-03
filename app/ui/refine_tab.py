@@ -10,7 +10,7 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
 from app import config
-from app.core import audio, library, privacy, speaker_id, speakers_io, transcriber
+from app.core import audio, library, llm, privacy, speaker_id, speakers_io, transcriber
 from app.ui.common import ScrollableFrame, add_privacy_note
 from app.ui.theme import BTN_ACCENT, LBL_DIM, LBL_EYEBROW, LBL_HEADER
 
@@ -99,10 +99,12 @@ class RefineTab(ttk.Frame):
         # Per-suggestion accepted state, keyed by index/type
         self._accept_vars: dict[str, tk.BooleanVar] = {}
 
-        self._privacy_note = add_privacy_note(body, privacy.NOTE_SAMPLES)
+        self._privacy_note = add_privacy_note(
+            body, privacy.note_samples(llm.active_preset().vendor_label)
+        )
 
     def on_settings_changed(self):
-        pass
+        self._privacy_note.config(text=privacy.note_samples(llm.active_preset().vendor_label))
 
     def on_show(self):
         pass
@@ -196,8 +198,8 @@ class RefineTab(ttk.Frame):
         if not self.audio_files:
             messagebox.showerror("CampaignScribe", "Add at least one audio file.")
             return
-        if not config.get_anthropic_key():
-            messagebox.showerror("CampaignScribe", "Add your Anthropic API key in Settings (⚙).")
+        if not llm.provider_ready():
+            messagebox.showerror("CampaignScribe", llm.not_ready_message())
             return
         self._cancel.clear()
         self._set_busy(True)
@@ -205,12 +207,12 @@ class RefineTab(ttk.Frame):
         threading.Thread(target=self._worker, daemon=True).start()
 
     def _worker(self):
-        api_key = config.get_anthropic_key()
         hf = config.get_huggingface_token()
         all_segments: list[dict[str, Any]] = []
         wavs: list[str] = []
         pipeline = None
         try:
+            provider = llm.get_provider()
             cfg = config.load_config()
             pipeline = transcriber.TranscriptionPipeline(
                 model_size=cfg.get("default_whisper_model", "small"),
@@ -235,8 +237,8 @@ class RefineTab(ttk.Frame):
                 )
                 all_segments.extend(segments)
 
-            self._set_status("Asking Claude for refinement suggestions…", 0.95)
-            self.suggestions = speaker_id.refine_speakers(all_segments, self.speakers_doc, api_key)
+            self._set_status(f"Asking {provider.display_name} for refinement suggestions…", 0.95)
+            self.suggestions = speaker_id.refine_speakers(all_segments, self.speakers_doc, provider)
             self._set_status("Done. Review suggestions below.", 1.0)
             self.after(0, self._render_suggestions)
         except InterruptedError:

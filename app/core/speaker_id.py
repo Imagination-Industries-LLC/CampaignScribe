@@ -1,6 +1,8 @@
-"""Claude API helpers for speaker discovery, identification, and refinement.
+"""LLM helpers for speaker discovery, identification, and refinement.
 
-Adapted from the reference format_transcript.py.
+Provider-agnostic: every call goes through app.core.llm.Provider.complete with
+json_mode=True; the prompts ask for JSON and _extract_json_object tolerates
+fences and prose for providers without a native JSON mode.
 """
 
 from __future__ import annotations
@@ -10,18 +12,11 @@ import re
 from typing import Any
 
 from app.core import transcriber as _transcriber
-
-CLAUDE_MODEL = "claude-sonnet-4-20250514"
-
-
-def _client(api_key: str):
-    from app.core.claude_api import make_client
-
-    return make_client(api_key)
+from app.core.llm.base import Provider
 
 
 def _extract_json_object(text: str) -> Any:
-    """Pull the first COMPLETE JSON object/array out of a Claude response,
+    """Pull the first COMPLETE JSON object/array out of a model response,
     tolerating markdown fences and surrounding prose.
 
     Scans from each candidate opening brace with json.JSONDecoder.raw_decode,
@@ -45,17 +40,11 @@ def _extract_json_object(text: str) -> Any:
                 return obj
             except json.JSONDecodeError:
                 continue
-    raise ValueError("Could not parse JSON from Claude response.")
+    raise ValueError("Could not parse JSON from the model response.")
 
 
-def _send(api_key: str, prompt: str, max_tokens: int = 4000) -> str:
-    client = _client(api_key)
-    resp = client.messages.create(
-        model=CLAUDE_MODEL,
-        max_tokens=max_tokens,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return resp.content[0].text
+def _send(provider: Provider, prompt: str, max_tokens: int = 4000, json_mode: bool = True) -> str:
+    return provider.complete(prompt, max_tokens=max_tokens, json_mode=json_mode)
 
 
 # ---------- Tab 1: speaker discovery ----------
@@ -100,14 +89,14 @@ SPEAKER SAMPLES:
 """
 
 
-def discover_speakers(segments: list[dict[str, Any]], api_key: str) -> dict[str, Any]:
+def discover_speakers(segments: list[dict[str, Any]], provider: Provider) -> dict[str, Any]:
     samples = _transcriber.collect_speaker_samples(segments, max_lines=30)
     samples_text = "\n\n".join(
         f"{sid}:\n" + "\n".join(f"  - {line}" for line in lines)
         for sid, lines in sorted(samples.items())
     )
     prompt = DISCOVERY_PROMPT_TEMPLATE.format(samples=samples_text)
-    raw = _send(api_key, prompt, max_tokens=4000)
+    raw = _send(provider, prompt, max_tokens=4000)
     parsed = _extract_json_object(raw)
     if not isinstance(parsed, dict):
         raise ValueError("Discovery response was not a JSON object.")
@@ -145,7 +134,7 @@ Return only the JSON object, no explanation, no markdown fences."""
 def identify_speakers(
     segments: list[dict[str, Any]],
     speakers_reference: dict[str, Any],
-    api_key: str,
+    provider: Provider,
 ) -> dict[str, str]:
     samples = _transcriber.collect_speaker_samples(segments, max_lines=15)
     if not samples:
@@ -158,7 +147,7 @@ def identify_speakers(
         campaign_json=json.dumps(speakers_reference, indent=2),
         samples=samples_text,
     )
-    raw = _send(api_key, prompt, max_tokens=1000)
+    raw = _send(provider, prompt, max_tokens=1000)
     try:
         parsed = _extract_json_object(raw)
         if isinstance(parsed, dict):
@@ -259,7 +248,7 @@ Return ONLY valid JSON, no markdown fences:
 def refine_speakers(
     segments: list[dict[str, Any]],
     speakers_reference: dict[str, Any],
-    api_key: str,
+    provider: Provider,
 ) -> dict[str, Any]:
     samples = _transcriber.collect_speaker_samples(segments, max_lines=20)
     samples_text = "\n\n".join(
@@ -270,7 +259,7 @@ def refine_speakers(
         existing=json.dumps(speakers_reference, indent=2),
         samples=samples_text,
     )
-    raw = _send(api_key, prompt, max_tokens=4000)
+    raw = _send(provider, prompt, max_tokens=4000)
     try:
         parsed = _extract_json_object(raw)
         if isinstance(parsed, dict):

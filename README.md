@@ -36,9 +36,11 @@ The window has four tabs plus a menu bar.
 
 Menu bar:
 
-- **File** → Settings (API key, HuggingFace token, default and discovery
-  Whisper models, output folder, expected speakers, theme, voice-match
-  threshold, crash reporting opt-in) · Exit
+- **File** → Settings (AI provider, model and API key — Claude, Google
+  Gemini, OpenRouter or a custom OpenAI-compatible endpoint — plus
+  HuggingFace token, default and discovery Whisper models, output folder,
+  expected speakers, theme, voice-match threshold, crash reporting opt-in)
+  · Exit
 - **Tools** → Open Logs Folder · Open Data Folder
 - **Help** → Getting Started · Privacy & Data (see [PRIVACY.md](PRIVACY.md)) ·
   Feedback & Support (scrubbed diagnostics bundle, report a problem, email,
@@ -56,7 +58,12 @@ Theme follows the OS by default and can be forced to dark or light in Settings.
   driver supporting CUDA 12.8 or newer will let the app use the GPU. If no
   compatible GPU/driver is found, the app falls back to CPU automatically and
   the status bar explains why.
-- An [Anthropic API key](https://console.anthropic.com/settings/keys).
+- An API key for the AI provider you choose in Settings → AI model:
+  [Anthropic](https://console.anthropic.com/settings/keys) (default),
+  [Google Gemini](https://aistudio.google.com/apikey), or
+  [OpenRouter](https://openrouter.ai/keys). A custom OpenAI-compatible
+  endpoint (for example a local Ollama server) needs a base URL and model
+  instead; a key is optional there.
 - A [HuggingFace token](https://huggingface.co/settings/tokens) AND license
   acceptance for the diarization model (one click):
   - https://huggingface.co/pyannote/speaker-diarization-community-1
@@ -98,7 +105,8 @@ First run:
 
 1. The app creates `%APPDATA%\CampaignScribe\` for its database, config,
    speaker library and logs.
-2. A banner reminds you to add the Anthropic API key via **⚙ Settings**.
+2. A banner reminds you to add the API key for your chosen AI provider via
+   **⚙ Settings**.
 3. The status bar shows GPU detection — green = CUDA, yellow = CPU only.
 
 Recommended workflow for a brand-new campaign:
@@ -144,8 +152,8 @@ and `ffmpeg.exe`. A slim installer and auto-update are on the roadmap
 - Speaker library: `%APPDATA%\CampaignScribe\library\<campaign-slug>\`
   (`manifest.json` + immutable timestamped roster versions; per-campaign
   voice fingerprints in `fingerprints.npz`, never uploaded)
-- API key + HF token: Windows Credential Manager (via `keyring`), never on
-  disk.
+- AI-provider API keys + HF token: Windows Credential Manager (via
+  `keyring`), never on disk.
 - Audio files, transcripts, summaries: wherever you point the output folder.
 
 Privacy details, including exactly what leaves the machine and when, are in
@@ -159,7 +167,8 @@ Privacy details, including exactly what leaves the machine and when, are in
 - **HuggingFace 403 / cannot download diarization model** — accept the
   license on the pyannote model page and verify your HF token is set in
   Settings.
-- **Claude 401** — the API key in Settings was rejected; re-paste it.
+- **"<provider> rejected the API key"** — the key saved for that provider in
+  Settings → AI model was rejected; re-paste it and use Test connection.
 - **CUDA out of memory** — pick a smaller Whisper model (medium / small) in
   Settings.
 - **Something else broke** — Help → Feedback & Support → Report a problem

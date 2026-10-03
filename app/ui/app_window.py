@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from app import __version__, config
-from app.core import library, privacy
+from app.core import library, llm, privacy
 from app.core.transcriber import check_gpu
 from app.ui.common import add_tooltip, make_readonly, open_path_native, open_url, reveal_in_folder
 from app.ui.edit_profile_window import EditProfileWindow
@@ -110,11 +110,8 @@ class AppWindow(tk.Tk):
         banner_inner = tk.Frame(self.banner, background=color("BG_CHROME"))
         banner_inner.pack(fill="x", padx=S_4, pady=S_2)
 
-        ttk.Label(
-            banner_inner,
-            text="⚠  No Anthropic API key stored. Click Settings (⚙) to add it.",
-            style=LBL_STATUS_WARN,
-        ).pack(side="left")
+        self.banner_text = ttk.Label(banner_inner, text="", style=LBL_STATUS_WARN)
+        self.banner_text.pack(side="left")
 
         self.banner_label = banner_inner  # backwards-compatible attribute
 
@@ -273,9 +270,11 @@ class AppWindow(tk.Tk):
     # ----------------------------------------------------------------------
 
     def _refresh_banner(self):
-        if config.get_anthropic_key():
+        msg = llm.not_ready_message()
+        if not msg:
             self.banner.pack_forget()
         else:
+            self.banner_text.config(text=f"⚠  {msg}")
             # Insert above notebook, below topbar
             self.banner.pack(side="top", fill="x", before=self.notebook)
 
@@ -689,18 +688,20 @@ class PrivacyDialog(tk.Toplevel):
 
         links = ttk.Frame(self)
         links.pack(fill="x", padx=S_4, pady=S_3)
-        ttk.Button(
-            links,
-            text="Anthropic Privacy Policy",
-            style=BTN_LINK,
-            command=lambda: open_url(privacy.ANTHROPIC_PRIVACY_URL),
-        ).pack(side="left")
+        for label, url in (
+            ("Anthropic policy", privacy.ANTHROPIC_PRIVACY_URL),
+            ("Gemini terms", privacy.GEMINI_PRIVACY_URL),
+            ("OpenRouter policy", privacy.OPENROUTER_PRIVACY_URL),
+        ):
+            ttk.Button(links, text=label, style=BTN_LINK, command=lambda u=url: open_url(u)).pack(
+                side="left", padx=(0, S_3)
+            )
         ttk.Button(
             links,
             text="View PRIVACY.md on GitHub",
             style=BTN_LINK,
             command=lambda: open_url(privacy.PRIVACY_MD_URL),
-        ).pack(side="left", padx=(S_3, 0))
+        ).pack(side="left")
         ttk.Button(links, text="Close", style=BTN_GHOST, command=self.destroy).pack(side="right")
 
         self.update_idletasks()

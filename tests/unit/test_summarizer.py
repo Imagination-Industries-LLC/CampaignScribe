@@ -1,4 +1,4 @@
-"""Tests for summarizer helpers + consolidate_summaries (mocked client) + docx export."""
+"""Tests for summarizer helpers + consolidate_summaries (mocked provider) + docx export."""
 
 from __future__ import annotations
 
@@ -22,20 +22,20 @@ def test_parse_session_name_absent():
     assert summarizer.parse_session_name_from_text("no header here") is None
 
 
-def test_consolidate_summaries_parses_name_and_body(fake_claude):
-    fake_claude(["SESSION NAME: Into the Mist\n\n## Recap\nThe party fled."])
-    result = summarizer.consolidate_summaries(
-        ["part 1 summary"], {"campaign": "Strahd"}, api_key="sk-x"
-    )
+def test_consolidate_summaries_parses_name_and_body(fake_provider):
+    provider = fake_provider(["SESSION NAME: Into the Mist\n\n## Recap\nThe party fled."])
+    result = summarizer.consolidate_summaries(["part 1 summary"], {"campaign": "Strahd"}, provider)
     assert result["session_name"] == "Into the Mist"
     assert "The party fled." in result["body"]
     assert result["raw"].startswith("SESSION NAME:")
     assert not result["body"].startswith("SESSION NAME:")
+    assert provider.calls[0]["json_mode"] is False
+    assert provider.calls[0]["max_tokens"] == 4000
 
 
-def test_consolidate_summaries_defaults_name_when_missing(fake_claude):
-    fake_claude(["No name header, just prose."])
-    result = summarizer.consolidate_summaries(["p1"], {}, api_key="sk-x")
+def test_consolidate_summaries_defaults_name_when_missing(fake_provider):
+    provider = fake_provider(["No name header, just prose."])
+    result = summarizer.consolidate_summaries(["p1"], {}, provider)
     assert result["session_name"] == "Session Summary"
 
 
