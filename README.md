@@ -1,50 +1,69 @@
 # CampaignScribe
 
-Windows desktop app that transcribes D&D session audio with WhisperX +
-pyannote diarization, identifies who said what against a `speakers.json`
-profile, and generates per-part and consolidated session summaries with the
+Windows desktop app that transcribes tabletop RPG session audio with WhisperX +
+pyannote diarization, works out who said what against a campaign's speaker
+roster, and generates per-part and consolidated session summaries with the
 Anthropic Claude API.
 
-This bundle was built from the project design spec and the reference scripts
-(`transcribe.py`, `format_transcript.py`, `session_summary_prompt.txt`,
-`speakers.json`) in the `CampaignScribe reference docs` folder.
+Campaigns own their sessions and a versioned speaker roster. The app learns
+each player's voice across sessions and pre-fills speaker review for you.
 
-## Tabs
+## Layout
 
-1. **Discover** — drop a sample recording, run WhisperX + diarization, ask
-   Claude to suggest initial speaker profiles, save to local SQLite.
-2. **Refine** — analyze new audio against an existing `speakers.json` and
-   review per-suggestion accept/reject improvements (also accepts the
-   `speakers_improvements_*.json` files Tab 5 produces).
-3. **Build Profile** — name speakers, assign character/role, mark
-   include/exclude, write a fresh `speakers.json`.
-4. **History** — browse all sessions in the database, rename, open files,
-   delete records (files on disk are never deleted).
-5. **Transcribe** — full pipeline against one or more audio files with a
-   chosen `speakers.json`. Produces `transcript_N.json/.txt`,
-   `speaker_mapping_N.json`, and a `speakers_improvements_*.json` review file.
-6. **Summarize** — per-transcript summaries with the default D&D session
-   prompt (or any custom user prompt), plus optional consolidation into a
-   thematically-named `.docx` session summary.
+The window has four tabs plus a menu bar.
+
+1. **Home** — the campaign + session hub. Pick or create a campaign, import an
+   existing `speakers.json`, open **Edit profile** (the campaign-scoped,
+   auto-versioned roster editor), and manage the campaign's sessions (new,
+   open, rename, delete record). A session opens in its own window with a
+   three-step flow: add audio tracks → **① Confirm who's here** (set the
+   expected voices for this run, add guests) → **Start transcription** →
+   **② Review speakers** (voice auto-match pre-fills the mapping; fix anything
+   wrong and **Save changes to profile**).
+2. **Transcribe** — the full pipeline (WhisperX + diarization + Claude speaker
+   ID) against one or more audio files for a chosen campaign. Produces
+   `transcript_N.json/.txt`, `speaker_mapping_N.json`, and a
+   `speakers_improvements_*.json` review file. Starting on a campaign with no
+   roster yet offers **Discover**: run a lighter model over the first file,
+   let Claude propose initial speaker profiles, then review them in Edit
+   profile.
+3. **Summarize** — per-transcript summaries with the default D&D session
+   prompt (or any custom prompt), plus optional consolidation into a
+   thematically named `.docx` session summary.
+4. **Refine** — analyze new audio against the campaign's current roster and
+   accept/reject per-speaker improvements. Accepting appends a new roster
+   version (history is never overwritten).
+
+Menu bar:
+
+- **File** → Settings (API key, HuggingFace token, default and discovery
+  Whisper models, output folder, expected speakers, theme, voice-match
+  threshold, crash reporting opt-in) · Exit
+- **Tools** → Open Logs Folder · Open Data Folder
+- **Help** → Getting Started · Privacy & Data (see [PRIVACY.md](PRIVACY.md)) ·
+  Feedback & Support (scrubbed diagnostics bundle, report a problem, email,
+  GitHub Discussions, Ko-fi) · About
+
+Theme follows the OS by default and can be forced to dark or light in Settings.
 
 ## Prerequisites
 
 - Windows 10 / 11
-- For the bundled .exe: nothing — Python and the full PyTorch + CUDA runtime
-  are included by PyInstaller.
-- **GPU acceleration**: this build bundles `torch 2.11+cu128` (CUDA 12.8 runtime).
-  CUDA is forward-compatible at the driver level, so any NVIDIA driver
-  supporting CUDA 12.8 or newer (driver 525.x or newer on Windows) will let
-  the app use the GPU. If no compatible GPU/driver is found, the app falls
-  back to CPU automatically and the status bar explains why.
+- Python 3.11 (`py -3.11`) when running from source. The packaged bundle
+  includes Python and the full PyTorch + CUDA runtime.
+- **GPU acceleration**: the pinned stack is `torch 2.11+cu128` (CUDA 12.8
+  runtime). CUDA is forward-compatible at the driver level, so any NVIDIA
+  driver supporting CUDA 12.8 or newer will let the app use the GPU. If no
+  compatible GPU/driver is found, the app falls back to CPU automatically and
+  the status bar explains why.
 - An [Anthropic API key](https://console.anthropic.com/settings/keys).
 - A [HuggingFace token](https://huggingface.co/settings/tokens) AND license
-  acceptance for the diarization model used by whisperx 3.8+ (one click):
+  acceptance for the diarization model (one click):
   - https://huggingface.co/pyannote/speaker-diarization-community-1
 
-  If you have not accepted the license, the app will fail with an opaque
-  pyannote error. Tabs 1 and 5 now check for a HF token before starting and
-  point you here if it's missing.
+  Without the license click pyannote fails with an opaque error. Transcribe
+  and Discover check for a token before starting and point you here if it is
+  missing.
 
 ### GPU status messages
 
@@ -54,50 +73,44 @@ The bottom-of-window status bar reports one of:
   compatible GPU and will use it.
 - 🟡 **GPU detected but PyTorch can't use it — falling back to CPU** — an
   NVIDIA GPU is present (`nvidia-smi` sees it) but `torch.cuda.is_available()`
-  returns False. Usually means the NVIDIA driver is too old. Update from
+  returns False. Usually the NVIDIA driver is too old. Update from
   https://www.nvidia.com/Download/index.aspx or install the CUDA toolkit:
   https://developer.nvidia.com/cuda-downloads
 - 🟡 **No NVIDIA GPU detected — CPU mode** — no NVIDIA hardware. Transcription
-  will work but is very slow on multi-hour sessions.
-- 🔴 **PyTorch not available** — the bundle is broken; reinstall.
+  works but is very slow on multi-hour sessions.
+- 🔴 **PyTorch not available** — the environment is broken; re-run
+  `setup_venv.bat` (or reinstall the bundle).
 
-## Running
+## Running from source (current dev loop)
 
-Double-click `CampaignScribe.exe`. On first run:
+```cmd
+setup_venv.bat   :: once — creates .venv and installs the pinned ML stack
+run_dev.bat      :: launch the app from source; edit code, save, relaunch
+```
 
-1. The app creates `%APPDATA%\CampaignScribe\` for its database and config.
-2. A banner reminds you to add API keys via the gear icon (top right).
+`setup_venv.bat` is a two-step install on purpose: whisperx 3.8.5 declares a
+stale `torch~=2.8.0` + `torchvision` dependency, so the script installs the
+app deps first, removes torchvision, then force-reinstalls `torch`/`torchaudio`
+`2.11.0+cu128`. Do **not** `pip install -r requirements.txt` directly into a
+fresh venv; see the comments in `setup_venv.bat` and `requirements.txt`.
+
+First run:
+
+1. The app creates `%APPDATA%\CampaignScribe\` for its database, config,
+   speaker library and logs.
+2. A banner reminds you to add the Anthropic API key via **⚙ Settings**.
 3. The status bar shows GPU detection — green = CUDA, yellow = CPU only.
 
 Recommended workflow for a brand-new campaign:
 
-1. Tab 1: feed in a 30–60 minute sample, get baseline speaker profiles.
-2. Tab 3: name each speaker, write a `speakers.json`.
-3. Tab 5: run the full session(s) using that `speakers.json`.
-4. Tab 6: summarize each transcript and consolidate into one session doc.
-5. Tab 2 (later): refine `speakers.json` from new sessions.
-6. Tab 4: history of every session.
-
-## Running from source
-
-```cmd
-py -3.11 -m venv .venv
-.venv\Scripts\pip install -r requirements.txt
-.venv\Scripts\python main.py
-```
-
-The shipped bundle uses CUDA 12.8 torch. If you want a different CUDA
-version (or CPU-only), install torch first with the matching wheel index:
-
-```cmd
-:: CUDA 12.8 (default, matches the shipped bundle)
-.venv\Scripts\pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
-
-:: CPU-only (smaller bundle, no GPU)
-.venv\Scripts\pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
-
-.venv\Scripts\pip install -r requirements.txt
-```
+1. **Home** → ＋ New campaign.
+2. **Home** → ＋ New session → add the recording → ① confirm who's here →
+   start transcription. With no roster yet, accept the Discover prompt and
+   review the proposed speakers in Edit profile.
+3. ② Review speakers → save changes to the profile.
+4. **Summarize** the transcript(s) and consolidate into one session doc.
+5. Later sessions: voice auto-match pre-fills ②; **Refine** keeps the roster
+   improving.
 
 ## Building the .exe
 
@@ -106,24 +119,49 @@ build.bat
 ```
 
 Output lands in `dist\CampaignScribe\` (folder bundle — keep all files
-together; the .exe will not work alone). The CUDA build is ~4–5 GB because
-it bundles CUDA + cuDNN + cuBLAS DLLs alongside `torch`, `whisperx`,
-`pyannote`, and `ffmpeg.exe`.
+together; the .exe will not work alone). The CUDA build is ~4–5 GB because it
+bundles CUDA + cuDNN + cuBLAS DLLs alongside `torch`, `whisperx`, `pyannote`,
+and `ffmpeg.exe`. A slim installer and auto-update are on the roadmap
+(Phase 5).
+
+## Development
+
+- Tests: `pytest` (full, including Tk GUI tests) or `pytest -m "not gui"`.
+- Lint/format: `ruff check .` and `ruff format .` (CI enforces both).
+- CI (`.github/workflows/ci.yml`): ruff, mypy (non-blocking), bandit, semgrep,
+  pip-audit, pytest on Linux (non-gui) and Windows (full). CodeQL runs
+  separately. Branch protection on `main` requires both CI jobs.
+- Dependabot bumps tooling weekly; the ML stack (torch / whisperx / pyannote
+  and friends) is hand-pinned and excluded from Dependabot. Bump it manually
+  and verify with a real transcription run.
+- Design specs, plans and spike notes live under `docs/superpowers/`.
+- Every PR names its roadmap item in the **Roadmap** section of the PR
+  template.
 
 ## Storage
 
-- App data: `%APPDATA%\CampaignScribe\data.db`, `config.json`
+- App data: `%APPDATA%\CampaignScribe\data.db`, `config.json`, `errors.log`
+- Speaker library: `%APPDATA%\CampaignScribe\library\<campaign-slug>\`
+  (`manifest.json` + immutable timestamped roster versions; per-campaign
+  voice fingerprints in `fingerprints.npz`, never uploaded)
 - API key + HF token: Windows Credential Manager (via `keyring`), never on
   disk.
 - Audio files, transcripts, summaries: wherever you point the output folder.
 
+Privacy details, including exactly what leaves the machine and when, are in
+[PRIVACY.md](PRIVACY.md). Crash reporting is opt-in, default off, and scrubbed.
+
 ## Troubleshooting
 
-- **"PyTorch not available" in status bar** — you launched a build with no
-  bundled torch, or a CUDA build on a machine without a matching driver.
-  Re-run `build.bat` from a clean venv.
+- **"PyTorch not available" in status bar** — the venv or bundle has no
+  working torch, or a CUDA build is on a machine without a matching driver.
+  Delete `.venv` and re-run `setup_venv.bat`, or rebuild with `build.bat`.
 - **HuggingFace 403 / cannot download diarization model** — accept the
-  license on both pyannote model pages and verify your HF token is set in
+  license on the pyannote model page and verify your HF token is set in
   Settings.
 - **Claude 401** — the API key in Settings was rejected; re-paste it.
-- **CUDA out of memory** — try a smaller Whisper model (medium / small).
+- **CUDA out of memory** — pick a smaller Whisper model (medium / small) in
+  Settings.
+- **Something else broke** — Help → Feedback & Support → Report a problem
+  attaches a scrubbed diagnostics bundle; Tools → Open Logs Folder has
+  `errors.log`.
