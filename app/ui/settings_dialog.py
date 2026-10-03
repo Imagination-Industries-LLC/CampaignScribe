@@ -178,6 +178,8 @@ class SettingsDialog(tk.Toplevel):
                 "base_url": cfg.get("llm_base_url_custom", "") if preset.needs_base_url else "",
                 "detected": [],
                 "detected_once": False,
+                "detecting": False,
+                "caveat": "",
             }
         self._detect_queue: queue.Queue = queue.Queue()
         self._llm_current = cfg.get("llm_provider", "anthropic")
@@ -213,8 +215,7 @@ class SettingsDialog(tk.Toplevel):
             self, textvariable=self.llm_model_var, width=52, state="normal", values=[]
         )
         self.llm_model_combo.grid(row=row, column=1, **pad)
-        self.llm_model_combo.bind("<<ComboboxSelected>>", lambda _e: self._refresh_badges())
-        self.llm_model_combo.bind("<KeyRelease>", lambda _e: self._refresh_badges())
+        self.llm_model_var.trace_add("write", lambda *_: self._refresh_badges())
         model_btns = ttk.Frame(self)
         model_btns.grid(row=row, column=2, sticky="w", **pad)
         ttk.Button(model_btns, text="Default", command=self._reset_model).pack(side="left")
@@ -290,6 +291,8 @@ class SettingsDialog(tk.Toplevel):
             self.llm_key_row.grid_remove()
         if preset.local_runtime:
             self.llm_detect_btn.pack(side="left", padx=(6, 0))
+            self.llm_local_label.config(text=st["caveat"])
+            self.llm_detect_btn.config(state="disabled" if st["detecting"] else "normal")
         else:
             self.llm_detect_btn.pack_forget()
             self.llm_local_label.config(text="")
@@ -322,8 +325,11 @@ class SettingsDialog(tk.Toplevel):
         preset = llm.PRESETS[pid]
         if not preset.local_runtime:
             return
-        self._llm_state[pid]["detected_once"] = True
-        self.llm_local_label.config(text=f"Looking for {preset.display_name}…")
+        st = self._llm_state[pid]
+        st["detected_once"] = True
+        st["detecting"] = True
+        st["caveat"] = f"Looking for {preset.display_name}…"
+        self.llm_local_label.config(text=st["caveat"])
         self.llm_detect_btn.config(state="disabled")
         if _sync:
             self._apply_detect_result(local_detect.detect(preset.local_runtime))
@@ -335,7 +341,13 @@ class SettingsDialog(tk.Toplevel):
         runtime = preset.local_runtime
 
         def worker() -> None:
-            q.put(local_detect.detect(runtime))
+            try:
+                result = local_detect.detect(runtime)
+            except Exception as e:  # noqa: BLE001 - the poll loop must always terminate
+                result = local_detect.DetectResult(
+                    runtime, False, [], f"detect failed: {type(e).__name__}: {e}"
+                )
+            q.put(result)
 
         threading.Thread(target=worker, daemon=True).start()
         self.after(100, self._poll_detect)
@@ -380,11 +392,13 @@ class SettingsDialog(tk.Toplevel):
                 f"{len(result.models)} models found. Small models (< 12B) may struggle with "
                 "the strict speaker-ID JSON; summaries are fine."
             )
+        st["detecting"] = False
+        st["caveat"] = text
         if pid == self._llm_current:
             self.llm_model_combo.config(values=[m.model_id for m in st["detected"]])
             if not self.llm_model_var.get().strip():
                 self.llm_model_var.set(st["model"])
-            self.llm_local_label.config(text=text)
+            self.llm_local_label.config(text=st["caveat"])
             self.llm_detect_btn.config(state="normal")
             self._refresh_badges()
 

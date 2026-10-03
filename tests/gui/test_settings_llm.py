@@ -325,3 +325,38 @@ def test_detect_poll_after_destroy_is_quiet(root, monkeypatch):
     root.update()
     dlg._poll_detect()  # must not raise
     dlg._apply_detect_result(_OLLAMA_OK)  # must not raise
+
+
+def test_switching_away_during_detect_restores_button_and_caveat_on_return(root, monkeypatch):
+    _scripted_detect(monkeypatch, {"ollama": _OLLAMA_OK})
+    dlg = _open(root)
+    try:
+        _select(dlg, "Ollama (local)")  # threaded auto-run starts
+        _select(dlg, "Claude")  # moved on before the result is applied
+        assert dlg.llm_local_label.cget("text") == ""
+        for _ in range(100):
+            dlg._poll_detect()
+            dlg.update()
+            if not dlg._llm_state["ollama"]["detecting"]:
+                break
+            threading.Event().wait(0.02)
+        assert dlg._llm_state["ollama"]["detecting"] is False
+        assert dlg._llm_state["ollama"]["model"] == "qwen2.5:14b"
+        _select(dlg, "Ollama (local)")
+        assert str(dlg.llm_detect_btn.cget("state")) == "normal"
+        assert dlg.llm_local_label.cget("text").startswith("2 models found")
+        assert dlg.llm_model_var.get() == "qwen2.5:14b"
+    finally:
+        dlg.destroy()
+
+
+def test_default_button_refreshes_badges(root):
+    dlg = _open(root)
+    try:
+        before = dlg.llm_badge_label.cget("text")
+        dlg.llm_model_var.set("x")
+        dlg._reset_model()
+        assert dlg.llm_badge_label.cget("text") == before
+        assert "Anthropic" in before
+    finally:
+        dlg.destroy()
