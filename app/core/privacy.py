@@ -11,22 +11,35 @@ import sys
 from pathlib import Path
 
 ANTHROPIC_PRIVACY_URL = "https://www.anthropic.com/legal/privacy"
+GEMINI_PRIVACY_URL = "https://ai.google.dev/gemini-api/terms"
+OPENROUTER_PRIVACY_URL = "https://openrouter.ai/privacy"
 PRIVACY_MD_URL = "https://github.com/Imagination-Industries-LLC/CampaignScribe/blob/main/PRIVACY.md"
 
-NOTE_SAMPLES = (
-    "Speaker samples are sent to the Anthropic Claude API for this step. "
-    "Learn more: Help → Privacy & Data."
-)
-NOTE_TRANSCRIPT = (
-    "Transcript text is sent to the Anthropic Claude API for this step. "
-    "Learn more: Help → Privacy & Data."
-)
+
+def note_samples(vendor_label: str) -> str:
+    return (
+        f"Speaker samples are sent to {vendor_label} for this step. "
+        "Learn more: Help → Privacy & Data."
+    )
+
+
+def note_transcript(vendor_label: str) -> str:
+    return (
+        f"Transcript text is sent to {vendor_label} for this step. "
+        "Learn more: Help → Privacy & Data."
+    )
+
+
+# Defaults (the pre-Phase-2 wording) for callers that have no provider context.
+NOTE_SAMPLES = note_samples("Anthropic (Claude)")
+NOTE_TRANSCRIPT = note_transcript("Anthropic (Claude)")
 
 _FALLBACK = (
     "CampaignScribe sends short transcript snippets and full transcript text to "
-    "the Anthropic Claude API to identify speakers and write summaries. Your audio, "
-    "database, saved files, and API keys stay on your computer. No analytics or "
-    "telemetry by default. See Help → Privacy & Data and PRIVACY.md for details."
+    "the AI provider you choose in Settings (Claude by default) to identify speakers "
+    "and write summaries. Your audio, database, saved files, and API keys stay on your "
+    "computer. No analytics or telemetry by default. See Help → Privacy & Data and "
+    "PRIVACY.md for details."
 )
 
 

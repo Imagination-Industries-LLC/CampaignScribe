@@ -153,12 +153,15 @@ class TranscribeTab(ttk.Frame):
         self.active_slug: str | None = None
         self.refresh_sessions()
 
-        self._privacy_note = add_privacy_note(body, privacy.NOTE_SAMPLES)
+        self._privacy_note = add_privacy_note(
+            body, privacy.note_samples(llm.active_preset().vendor_label)
+        )
 
     def on_settings_changed(self):
         cfg = config.load_config()
         self.spk_var.set(int(cfg.get("default_num_speakers", 5)))
         self.model_var.set(cfg.get("default_whisper_model", "large-v3"))
+        self._privacy_note.config(text=privacy.note_samples(llm.active_preset().vendor_label))
 
     def on_show(self):
         self.refresh_sessions()

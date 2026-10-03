@@ -170,10 +170,12 @@ class SummarizeTab(ttk.Frame):
         self.refresh_prompts()
         self.refresh_sessions()
 
-        self._privacy_note = add_privacy_note(body, privacy.NOTE_TRANSCRIPT)
+        self._privacy_note = add_privacy_note(
+            body, privacy.note_transcript(llm.active_preset().vendor_label)
+        )
 
     def on_settings_changed(self):
-        pass
+        self._privacy_note.config(text=privacy.note_transcript(llm.active_preset().vendor_label))
 
     def on_show(self):
         self.refresh_sessions()

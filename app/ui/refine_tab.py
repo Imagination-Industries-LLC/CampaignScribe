@@ -99,10 +99,12 @@ class RefineTab(ttk.Frame):
         # Per-suggestion accepted state, keyed by index/type
         self._accept_vars: dict[str, tk.BooleanVar] = {}
 
-        self._privacy_note = add_privacy_note(body, privacy.NOTE_SAMPLES)
+        self._privacy_note = add_privacy_note(
+            body, privacy.note_samples(llm.active_preset().vendor_label)
+        )
 
     def on_settings_changed(self):
-        pass
+        self._privacy_note.config(text=privacy.note_samples(llm.active_preset().vendor_label))
 
     def on_show(self):
         pass

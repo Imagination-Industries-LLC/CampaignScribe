@@ -5,15 +5,22 @@ CampaignScribe is built to collect as little as possible and to be honest and ex
 ## Stays on your computer (never sent anywhere)
 - **Your audio recordings** — converted and transcribed locally; audio never leaves your machine.
 - **The local database** (session metadata) and your saved **transcripts, summaries, and `speakers.json`**.
-- **Your Anthropic API key and HuggingFace token** — stored in Windows Credential Manager; sent only to the respective service to authenticate.
+- **Your AI-provider API keys and HuggingFace token** — stored in Windows Credential Manager; each is sent only to its own service to authenticate.
 - **Voice fingerprints (optional, local only).** To recognize returning players across sessions, CampaignScribe can derive a compact numeric "voice fingerprint" for each tracked speaker from your audio and store it **on your device only**, alongside that campaign's speaker profiles. Fingerprints are never uploaded or shared, are used only to pre-fill speaker assignments for you to confirm, and can be disabled in Settings.
 
-## Sent to the Anthropic Claude API (and why)
+## Sent to your chosen AI provider (and why)
+CampaignScribe uses one AI provider at a time — chosen in **Settings → AI model** (Claude by default). For every provider the same three things are sent, and nothing else:
 - **Transcript excerpts** (speaker samples) — to identify who is speaking (Discover, Transcribe, Refine).
 - **Full transcript text** — to write session summaries (Summarize).
 - **Your campaign/speaker context** from `speakers.json` — as context for the above.
 
-Anthropic states that API inputs are not used to train their models (commercial terms); API logs are retained briefly (~7–30 days) for abuse monitoring. See Anthropic's privacy policy: https://www.anthropic.com/legal/privacy
+Where that data goes depends on the provider you pick:
+- **Claude (Anthropic Claude API, default)** — Anthropic states that API inputs are not used to train their models (commercial terms); API logs are retained briefly (~7–30 days) for abuse monitoring. https://www.anthropic.com/legal/privacy
+- **Google Gemini** — sent to Google's Gemini API under the Gemini API terms (paid-tier data is not used to improve Google's products; check your tier). https://ai.google.dev/gemini-api/terms
+- **OpenRouter** — sent to OpenRouter, which **forwards it to the model vendor you selected** (an extra routing hop; that vendor's own policy then applies). https://openrouter.ai/privacy
+- **Custom endpoint** — sent to whatever OpenAI-compatible server you configured. If that is a local server (for example Ollama on your own PC), your transcripts stay on your machine.
+
+The in-app notes on the Transcribe, Summarize and Refine screens always name the provider currently in use.
 
 ## Sent to HuggingFace
 - **Only your HuggingFace token**, to authenticate and download the speaker-diarization model. No audio or transcripts are sent — diarization runs locally on your machine.

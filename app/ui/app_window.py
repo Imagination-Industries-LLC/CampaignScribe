@@ -688,18 +688,20 @@ class PrivacyDialog(tk.Toplevel):
 
         links = ttk.Frame(self)
         links.pack(fill="x", padx=S_4, pady=S_3)
-        ttk.Button(
-            links,
-            text="Anthropic Privacy Policy",
-            style=BTN_LINK,
-            command=lambda: open_url(privacy.ANTHROPIC_PRIVACY_URL),
-        ).pack(side="left")
+        for label, url in (
+            ("Anthropic policy", privacy.ANTHROPIC_PRIVACY_URL),
+            ("Gemini terms", privacy.GEMINI_PRIVACY_URL),
+            ("OpenRouter policy", privacy.OPENROUTER_PRIVACY_URL),
+        ):
+            ttk.Button(links, text=label, style=BTN_LINK, command=lambda u=url: open_url(u)).pack(
+                side="left", padx=(0, S_3)
+            )
         ttk.Button(
             links,
             text="View PRIVACY.md on GitHub",
             style=BTN_LINK,
             command=lambda: open_url(privacy.PRIVACY_MD_URL),
-        ).pack(side="left", padx=(S_3, 0))
+        ).pack(side="left")
         ttk.Button(links, text="Close", style=BTN_GHOST, command=self.destroy).pack(side="right")
 
         self.update_idletasks()

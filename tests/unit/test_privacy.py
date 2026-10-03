@@ -38,7 +38,19 @@ def test_urls_are_https():
     assert privacy.PRIVACY_MD_URL.startswith("https://")
 
 
-def test_inline_note_strings_reference_anthropic_and_help():
-    for note in (privacy.NOTE_SAMPLES, privacy.NOTE_TRANSCRIPT):
-        assert "Anthropic Claude API" in note
+def test_inline_note_functions_name_vendor_and_help():
+    for fn in (privacy.note_samples, privacy.note_transcript):
+        note = fn("Google (Gemini)")
+        assert "Google (Gemini)" in note
         assert "Privacy & Data" in note
+    assert privacy.NOTE_SAMPLES == privacy.note_samples("Anthropic (Claude)")
+    assert privacy.NOTE_TRANSCRIPT == privacy.note_transcript("Anthropic (Claude)")
+
+
+def test_all_provider_privacy_urls_are_https():
+    for url in (
+        privacy.ANTHROPIC_PRIVACY_URL,
+        privacy.GEMINI_PRIVACY_URL,
+        privacy.OPENROUTER_PRIVACY_URL,
+    ):
+        assert url.startswith("https://")
