@@ -10,7 +10,7 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
 from app import config
-from app.core import library, privacy, speakers_io, summarizer
+from app.core import library, llm, privacy, speakers_io, summarizer
 from app.data import db
 from app.prompts.default_prompt import DEFAULT_PROMPT_NAME, DEFAULT_SUMMARY_PROMPT
 from app.ui.common import (
@@ -391,8 +391,8 @@ class SummarizeTab(ttk.Frame):
         if not self.transcript_files:
             messagebox.showerror("CampaignScribe", "Add at least one transcript file.")
             return
-        if not config.get_anthropic_key():
-            messagebox.showerror("CampaignScribe", "Add your Anthropic API key in Settings (⚙).")
+        if not llm.provider_ready():
+            messagebox.showerror("CampaignScribe", llm.not_ready_message())
             return
         out = (self.out_var.get() or "").strip()
         if not out:
@@ -420,7 +420,12 @@ class SummarizeTab(ttk.Frame):
         threading.Thread(target=self._worker, args=(prompt_text,), daemon=True).start()
 
     def _worker(self, prompt_text: str):
-        api_key = config.get_anthropic_key()
+        try:
+            provider = llm.get_provider()
+        except llm.LLMError as e:
+            self._set_status(str(e))
+            self.after(0, lambda: self._set_busy(False))
+            return
         try:
             speakers_doc = speakers_io.load_speakers_json(self.speakers_path)
         except Exception as e:
@@ -443,7 +448,7 @@ class SummarizeTab(ttk.Frame):
                     transcript,
                     speakers_doc,
                     prompt_text,
-                    api_key,
+                    provider,
                     part_number=i,
                     known_npcs=known_npcs,
                 )
@@ -471,9 +476,13 @@ class SummarizeTab(ttk.Frame):
     def _consolidate(self):
         if not self.part_summaries:
             return
-        api_key = config.get_anthropic_key()
-        if not api_key:
-            messagebox.showerror("CampaignScribe", "API key missing.")
+        if not llm.provider_ready():
+            messagebox.showerror("CampaignScribe", llm.not_ready_message())
+            return
+        try:
+            provider = llm.get_provider()
+        except llm.LLMError as e:
+            messagebox.showerror("CampaignScribe", str(e))
             return
         try:
             speakers_doc = speakers_io.load_speakers_json(self.speakers_path)
@@ -484,14 +493,14 @@ class SummarizeTab(ttk.Frame):
         if not out:
             return
         self._set_busy(True)
-        self._set_status("Consolidating with Claude…")
+        self._set_status(f"Consolidating with {provider.display_name}…")
 
         known_npcs = self._campaign_npcs()
 
         def worker():
             try:
                 result = summarizer.consolidate_summaries(
-                    self.part_summaries, speakers_doc, api_key, known_npcs=known_npcs
+                    self.part_summaries, speakers_doc, provider, known_npcs=known_npcs
                 )
                 session_name = result.get("session_name") or "Session_Summary"
                 fname = summarizer.safe_filename(session_name) + ".docx"
@@ -503,6 +512,7 @@ class SummarizeTab(ttk.Frame):
                     result.get("body", ""),
                     self.part_summaries,
                     campaign_name=campaign,
+                    model_used=summarizer.model_label(provider),
                 )
                 self.consolidated_path = out_path
                 self._add_output(out_path)

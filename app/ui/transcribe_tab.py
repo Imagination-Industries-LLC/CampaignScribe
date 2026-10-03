@@ -12,7 +12,7 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
 from app import config
-from app.core import audio, library, privacy, speaker_id, speakers_io, transcriber
+from app.core import audio, library, llm, privacy, speaker_id, speakers_io, transcriber
 from app.data import db
 from app.ui.common import (
     ScrollableFrame,
@@ -356,9 +356,8 @@ class TranscribeTab(ttk.Frame):
         if not self.audio_files:
             messagebox.showerror("CampaignScribe", "Add at least one audio file.")
             return
-        api_key = config.get_anthropic_key()
-        if not api_key:
-            messagebox.showerror("CampaignScribe", "Add your Anthropic API key in Settings (⚙).")
+        if not llm.provider_ready():
+            messagebox.showerror("CampaignScribe", llm.not_ready_message())
             return
         if not config.get_huggingface_token():
             messagebox.showerror(
@@ -397,7 +396,12 @@ class TranscribeTab(ttk.Frame):
         threading.Thread(target=self._worker, daemon=True).start()
 
     def _worker(self):
-        api_key = config.get_anthropic_key()
+        try:
+            provider = llm.get_provider()
+        except llm.LLMError as e:
+            self._set_status(str(e))
+            self.after(0, lambda: self._set_busy(False))
+            return
         hf = config.get_huggingface_token()
         try:
             speakers_doc = speakers_io.load_speakers_json(self.speakers_path)
@@ -446,8 +450,8 @@ class TranscribeTab(ttk.Frame):
                 transcriber.save_segments_json(segments, json_path)
                 self._add_output(json_path)
 
-                self._set_row(ap, "identifying", "Claude speaker mapping")
-                mapping = speaker_id.identify_speakers(segments, speakers_doc, api_key)
+                self._set_row(ap, "identifying", f"{provider.display_name} speaker mapping")
+                mapping = speaker_id.identify_speakers(segments, speakers_doc, provider)
                 map_path = os.path.join(self.output_dir, f"speaker_mapping_{run_ts}_{i}.json")
                 with open(map_path, "w", encoding="utf-8") as f:
                     json.dump(mapping, f, indent=2, ensure_ascii=False)
@@ -484,7 +488,7 @@ class TranscribeTab(ttk.Frame):
         if all_segments and not self._cancel.is_set():
             try:
                 self._set_status("Generating speaker improvement suggestions…")
-                imp = speaker_id.refine_speakers(all_segments, speakers_doc, api_key)
+                imp = speaker_id.refine_speakers(all_segments, speakers_doc, provider)
                 ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                 imp_path = os.path.join(self.output_dir, f"speakers_improvements_{ts}.json")
                 with open(imp_path, "w", encoding="utf-8") as f:

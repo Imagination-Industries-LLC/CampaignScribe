@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from app import __version__, config
-from app.core import library, privacy
+from app.core import library, llm, privacy
 from app.core.transcriber import check_gpu
 from app.ui.common import add_tooltip, make_readonly, open_path_native, open_url, reveal_in_folder
 from app.ui.edit_profile_window import EditProfileWindow
@@ -110,11 +110,8 @@ class AppWindow(tk.Tk):
         banner_inner = tk.Frame(self.banner, background=color("BG_CHROME"))
         banner_inner.pack(fill="x", padx=S_4, pady=S_2)
 
-        ttk.Label(
-            banner_inner,
-            text="⚠  No Anthropic API key stored. Click Settings (⚙) to add it.",
-            style=LBL_STATUS_WARN,
-        ).pack(side="left")
+        self.banner_text = ttk.Label(banner_inner, text="", style=LBL_STATUS_WARN)
+        self.banner_text.pack(side="left")
 
         self.banner_label = banner_inner  # backwards-compatible attribute
 
@@ -273,9 +270,11 @@ class AppWindow(tk.Tk):
     # ----------------------------------------------------------------------
 
     def _refresh_banner(self):
-        if config.get_anthropic_key():
+        msg = llm.not_ready_message()
+        if not msg:
             self.banner.pack_forget()
         else:
+            self.banner_text.config(text=f"⚠  {msg}")
             # Insert above notebook, below topbar
             self.banner.pack(side="top", fill="x", before=self.notebook)
 

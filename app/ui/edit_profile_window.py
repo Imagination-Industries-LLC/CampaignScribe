@@ -330,7 +330,7 @@ class EditProfileWindow(tk.Toplevel):
         # retired Discover tab): convert -> TranscriptionPipeline.transcribe_file ->
         # speaker_id.discover_speakers, then APPEND the returned profiles to the
         # editor list (no DB session is created here — this only seeds the roster).
-        from app.core import audio, speaker_id, transcriber
+        from app.core import audio, llm, speaker_id, transcriber
 
         if path is None:
             path = filedialog.askopenfilename(
@@ -340,12 +340,12 @@ class EditProfileWindow(tk.Toplevel):
             )
         if not path:
             return
-        api_key = config.get_anthropic_key()
         hf = config.get_huggingface_token()
-        if not api_key or not hf:
+        if not llm.provider_ready() or not hf:
             messagebox.showerror(
                 "CampaignScribe",
-                "Discover needs an Anthropic API key and a HuggingFace token (Settings ⚙).",
+                "Discover needs an AI provider key and a HuggingFace token (Settings ⚙).\n"
+                + (llm.not_ready_message() or "HuggingFace token is missing."),
             )
             return
         config.set_last_dir("audio", path)
@@ -360,6 +360,7 @@ class EditProfileWindow(tk.Toplevel):
         def worker() -> None:
             wav = None
             try:
+                provider = llm.get_provider()
                 wav = audio.convert_to_wav(path, max_seconds=max_seconds)
                 pipeline = transcriber.TranscriptionPipeline(
                     model_size=config.load_config().get("discover_whisper_model", "small"),
@@ -370,7 +371,7 @@ class EditProfileWindow(tk.Toplevel):
                         wav,
                         num_speakers=int(config.load_config().get("default_num_speakers", 5)),
                     )
-                    result = speaker_id.discover_speakers(segments, api_key)
+                    result = speaker_id.discover_speakers(segments, provider)
                 finally:
                     try:
                         pipeline.close()
