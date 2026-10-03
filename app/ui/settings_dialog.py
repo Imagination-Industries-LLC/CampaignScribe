@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import queue
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from app import config
 from app.core import llm
+from app.core.llm import local_detect
 
 # Room for Gemini thinking tokens / reasoning models; the probe reply is still one word.
 _TEST_PROBE_MAX_TOKENS = 64
@@ -165,7 +167,7 @@ class SettingsDialog(tk.Toplevel):
     # ---- AI model section ----
     def _build_llm_section(self, row: int, pad: dict) -> int:
         cfg = config.load_config()
-        self._llm_state: dict[str, dict[str, str]] = {}
+        self._llm_state: dict[str, dict] = {}
         self._llm_loaded_keys: dict[str, str] = {}
         for pid, preset in llm.PRESETS.items():
             key = config.get_provider_key(pid)
@@ -174,7 +176,10 @@ class SettingsDialog(tk.Toplevel):
                 "model": cfg.get(f"llm_model_{pid}", "") or preset.default_model,
                 "key": key,
                 "base_url": cfg.get("llm_base_url_custom", "") if preset.needs_base_url else "",
+                "detected": [],
+                "detected_once": False,
             }
+        self._detect_queue: queue.Queue = queue.Queue()
         self._llm_current = cfg.get("llm_provider", "anthropic")
         if self._llm_current not in llm.PRESETS:
             self._llm_current = "anthropic"
@@ -198,10 +203,27 @@ class SettingsDialog(tk.Toplevel):
         self.llm_provider_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_provider_change())
         row += 1
 
+        self.llm_badge_label = ttk.Label(self, text="", wraplength=520, justify="left")
+        self.llm_badge_label.grid(row=row, column=1, columnspan=2, sticky="w", padx=10, pady=(0, 2))
+        row += 1
+
         ttk.Label(self, text="Model:").grid(row=row, column=0, sticky="w", **pad)
         self.llm_model_var = tk.StringVar()
-        ttk.Entry(self, textvariable=self.llm_model_var, width=55).grid(row=row, column=1, **pad)
-        ttk.Button(self, text="Default", command=self._reset_model).grid(row=row, column=2, **pad)
+        self.llm_model_combo = ttk.Combobox(
+            self, textvariable=self.llm_model_var, width=52, state="normal", values=[]
+        )
+        self.llm_model_combo.grid(row=row, column=1, **pad)
+        self.llm_model_combo.bind("<<ComboboxSelected>>", lambda _e: self._refresh_badges())
+        self.llm_model_combo.bind("<KeyRelease>", lambda _e: self._refresh_badges())
+        model_btns = ttk.Frame(self)
+        model_btns.grid(row=row, column=2, sticky="w", **pad)
+        ttk.Button(model_btns, text="Default", command=self._reset_model).pack(side="left")
+        self.llm_detect_btn = ttk.Button(model_btns, text="Detect", command=self._run_detect)
+        # packed/unpacked by _load_llm_fields
+        row += 1
+
+        self.llm_local_label = ttk.Label(self, text="", wraplength=520, justify="left")
+        self.llm_local_label.grid(row=row, column=1, columnspan=2, sticky="w", padx=10, pady=(0, 4))
         row += 1
 
         self.llm_key_row = ttk.Frame(self)
@@ -255,15 +277,26 @@ class SettingsDialog(tk.Toplevel):
         preset = llm.PRESETS[self._llm_current]
         st = self._llm_state[self._llm_current]
         self.llm_model_var.set(st["model"])
+        self.llm_model_combo.config(values=[m.model_id for m in st["detected"]])
         self.api_var.set(st["key"])
         self.llm_base_url_var.set(st["base_url"])
         if preset.needs_base_url:
             self.llm_base_url_row.grid()
         else:
             self.llm_base_url_row.grid_remove()
-        # The key row stays visible for every v1 preset (custom accepts an optional key).
-        self.llm_key_row.grid()
+        if preset.needs_key or preset.provider_id == "custom":
+            self.llm_key_row.grid()
+        else:
+            self.llm_key_row.grid_remove()
+        if preset.local_runtime:
+            self.llm_detect_btn.pack(side="left", padx=(6, 0))
+        else:
+            self.llm_detect_btn.pack_forget()
+            self.llm_local_label.config(text="")
         self.llm_test_label.config(text="")
+        self._refresh_badges()
+        if preset.local_runtime and not st["detected_once"]:
+            self._run_detect()
 
     def _on_provider_change(self) -> None:
         new_id = self._display_to_id.get(self.llm_provider_var.get(), "anthropic")
@@ -272,6 +305,88 @@ class SettingsDialog(tk.Toplevel):
         self._stash_llm_fields()
         self._llm_current = new_id
         self._load_llm_fields()
+
+    def _refresh_badges(self) -> None:
+        preset = llm.PRESETS[self._llm_current]
+        model = self.llm_model_var.get().strip()
+        size = ""
+        for m in self._llm_state[self._llm_current]["detected"]:
+            if m.model_id == model:
+                size = m.parameter_size
+                break
+        self.llm_badge_label.config(text=" · ".join(llm.badges_for(preset, model, size)))
+
+    # ---- local runtime detection ----
+    def _run_detect(self, _sync: bool = False) -> None:
+        pid = self._llm_current
+        preset = llm.PRESETS[pid]
+        if not preset.local_runtime:
+            return
+        self._llm_state[pid]["detected_once"] = True
+        self.llm_local_label.config(text=f"Looking for {preset.display_name}…")
+        self.llm_detect_btn.config(state="disabled")
+        if _sync:
+            self._apply_detect_result(local_detect.detect(preset.local_runtime))
+            return
+
+        # Capture only plain values: if the worker held `self`, the Tk variables could be
+        # garbage-collected on the worker thread and raise "main thread is not in main loop".
+        q = self._detect_queue
+        runtime = preset.local_runtime
+
+        def worker() -> None:
+            q.put(local_detect.detect(runtime))
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.after(100, self._poll_detect)
+
+    def _poll_detect(self) -> None:
+        try:
+            if not self.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        try:
+            result = self._detect_queue.get_nowait()
+        except queue.Empty:
+            self.after(100, self._poll_detect)
+            return
+        self._apply_detect_result(result)
+
+    def _apply_detect_result(self, result) -> None:
+        try:
+            if not self.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        pid = result.runtime_id  # preset ids equal runtime ids for the two local presets
+        preset = llm.PRESETS[pid]
+        st = self._llm_state[pid]
+        st["detected"] = list(result.models)
+        if result.running and result.models and not st["model"].strip():
+            st["model"] = result.models[0].model_id
+        if not result.running:
+            text = (
+                f"{preset.display_name} not running — start it, then press Detect. ({result.error})"
+            )
+        elif not result.models:
+            text = (
+                "0 models found — run `ollama pull <model>` (e.g. qwen2.5:14b), then press Detect."
+                if pid == "ollama"
+                else "0 models found — load a model in LM Studio, then press Detect."
+            )
+        else:
+            text = (
+                f"{len(result.models)} models found. Small models (< 12B) may struggle with "
+                "the strict speaker-ID JSON; summaries are fine."
+            )
+        if pid == self._llm_current:
+            self.llm_model_combo.config(values=[m.model_id for m in st["detected"]])
+            if not self.llm_model_var.get().strip():
+                self.llm_model_var.set(st["model"])
+            self.llm_local_label.config(text=text)
+            self.llm_detect_btn.config(state="normal")
+            self._refresh_badges()
 
     def _reset_model(self) -> None:
         self.llm_model_var.set(llm.PRESETS[self._llm_current].default_model)
@@ -344,7 +459,8 @@ class SettingsDialog(tk.Toplevel):
             cfg = config.load_config()
             cfg["llm_provider"] = self._llm_current
             for pid, st in self._llm_state.items():
-                cfg[f"llm_model_{pid}"] = st["model"].strip() or llm.PRESETS[pid].default_model
+                model = st["model"].strip()
+                cfg[f"llm_model_{pid}"] = "" if model == llm.PRESETS[pid].default_model else model
             cfg["llm_base_url_custom"] = self._llm_state["custom"]["base_url"].strip().rstrip("/")
             cfg["default_output_folder"] = self.out_var.get().strip()
             cfg["default_whisper_model"] = self.model_var.get()
