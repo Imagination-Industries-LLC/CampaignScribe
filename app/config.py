@@ -34,6 +34,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "summaries_completed": 0,  # count of completed consolidated summaries (drives the one-time support nudge)
     "support_nudge_shown": False,  # the gentle one-time support nudge has been shown
     "crash_reporting_enabled": False,  # opt-in (default off) Sentry crash reporting
+    # ---- LLM provider (Multi-Provider LLM, Phase 2) ----
+    "llm_provider": "anthropic",  # one of app.core.llm.PRESETS
+    "llm_model_anthropic": "claude-sonnet-5-5",
+    "llm_model_gemini": "gemini-2.5-flash",
+    "llm_model_openrouter": "anthropic/claude-sonnet-4.5",
+    "llm_model_custom": "",
+    "llm_base_url_custom": "",
 }
 
 
@@ -103,12 +110,34 @@ def set_last_dir(kind: str, path: str) -> None:
         save_config(cfg)
 
 
+_LEGACY_ANTHROPIC_USERNAME = "anthropic_api_key"
+
+
+def _provider_key_username(provider_id: str) -> str:
+    return f"llm_key_{provider_id}"
+
+
+def save_provider_key(provider_id: str, key: str) -> None:
+    """Store an LLM provider's API key in Credential Manager (stripped; '' clears)."""
+    keyring.set_password(SERVICE_NAME, _provider_key_username(provider_id), (key or "").strip())
+
+
+def get_provider_key(provider_id: str) -> str:
+    """Read an LLM provider's key. For 'anthropic', fall back to the pre-Phase-2
+    'anthropic_api_key' entry so existing installs keep working; that legacy
+    entry is read-only (never written or deleted here)."""
+    val = keyring.get_password(SERVICE_NAME, _provider_key_username(provider_id)) or ""
+    if not val and provider_id == "anthropic":
+        val = keyring.get_password(SERVICE_NAME, _LEGACY_ANTHROPIC_USERNAME) or ""
+    return val
+
+
 def save_anthropic_key(key: str) -> None:
-    keyring.set_password(SERVICE_NAME, "anthropic_api_key", key or "")
+    save_provider_key("anthropic", key)
 
 
 def get_anthropic_key() -> str:
-    return keyring.get_password(SERVICE_NAME, "anthropic_api_key") or ""
+    return get_provider_key("anthropic")
 
 
 def save_huggingface_token(token: str) -> None:
