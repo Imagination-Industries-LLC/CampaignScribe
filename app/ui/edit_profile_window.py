@@ -379,7 +379,7 @@ class EditProfileWindow(tk.Toplevel):
                         pass
             except Exception as e:  # noqa: BLE001 - surfaced to the user below
                 config.log_exception("edit_profile.discover", e)
-                self.after(0, lambda msg=str(e): messagebox.showerror("CampaignScribe", msg))
+                self._after_if_alive(lambda msg=str(e): messagebox.showerror("CampaignScribe", msg))
                 return
             finally:
                 import os
@@ -391,6 +391,8 @@ class EditProfileWindow(tk.Toplevel):
                         pass
 
             def apply() -> None:
+                if not self._alive():
+                    return  # window closed while discovery ran; nothing to apply to
                 for prof in result.get("profiles", []):
                     sp = {
                         "source_speaker_id": prof.get("source_speaker_id", ""),
@@ -411,9 +413,30 @@ class EditProfileWindow(tk.Toplevel):
                     self.editors.append(ed)
                 self._refresh_npc_label()
 
-            self.after(0, apply)
+            self._after_if_alive(apply)
 
         threading.Thread(target=worker, daemon=True).start()
+
+    def _alive(self) -> bool:
+        """True while this Toplevel still exists (safe to call from any thread)."""
+        try:
+            return bool(self.winfo_exists())
+        except tk.TclError:
+            return False
+
+    def _after_if_alive(self, fn) -> None:
+        """Schedule fn on the Tk thread only if the window is still open.
+
+        Discover runs for minutes on a worker thread; the user may have hit
+        "◂ Home" (destroy) meanwhile. after() on a destroyed widget still
+        registers the callback, which then blows up on the dead frame
+        (errors.log 2026-06-15). Drop the result instead."""
+        if not self._alive():
+            return
+        try:
+            self.after(0, fn)
+        except (tk.TclError, RuntimeError):
+            pass  # destroyed between the check and the call, or interpreter shutting down
 
     def start_discover(self, audio_path: str) -> None:
         """Kick off speaker discovery on a specific audio file (used by the
