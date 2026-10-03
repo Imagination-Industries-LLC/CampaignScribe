@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import gc
+import threading
 import tkinter as tk
 
 import pytest
 
 from app import config
 from app.core import llm
+from app.core.llm import local_detect
 
 pytestmark = pytest.mark.gui
 
@@ -22,6 +25,7 @@ def root():
     try:
         yield r
     finally:
+        gc.collect()  # free dialog Tk variables on the Tk thread, not a detect worker
         r.destroy()
 
 
@@ -94,14 +98,44 @@ def test_save_persists_every_touched_provider_and_strips_base_url(root):
     assert config.get_provider_key("custom") == ""
 
 
-def test_blank_model_saves_preset_default(root):
+def test_model_equal_to_default_saves_blank_and_blank_saves_blank(root):
+    dlg = _open(root)
+    assert dlg.llm_model_var.get() == "claude-sonnet-5-5"  # field shows the default
+    try:
+        dlg._save()
+    except tk.TclError:
+        pass
+    assert config.load_config()["llm_model_anthropic"] == ""  # not pinned
     dlg = _open(root)
     dlg.llm_model_var.set("   ")
     try:
         dlg._save()
     except tk.TclError:
         pass
-    assert config.load_config()["llm_model_anthropic"] == "claude-sonnet-5-5"
+    assert config.load_config()["llm_model_anthropic"] == ""
+
+
+def test_custom_model_id_still_saved(root):
+    dlg = _open(root)
+    dlg.llm_model_var.set("claude-opus-5-5")
+    try:
+        dlg._save()
+    except tk.TclError:
+        pass
+    assert config.load_config()["llm_model_anthropic"] == "claude-opus-5-5"
+
+
+def test_default_button_is_noop_for_local(root, monkeypatch):
+    _scripted_detect(monkeypatch, {"ollama": _OLLAMA_OK})
+    dlg = _open(root)
+    try:
+        _select(dlg, "Ollama (local)")
+        dlg._run_detect(_sync=True)
+        assert dlg.llm_model_var.get() == "qwen2.5:14b"
+        dlg._reset_model()
+        assert dlg.llm_model_var.get() == "qwen2.5:14b"
+    finally:
+        dlg.destroy()
 
 
 def test_test_connection_reports_success_and_error(root, monkeypatch):
@@ -119,11 +153,18 @@ def test_test_connection_reports_success_and_error(root, monkeypatch):
     monkeypatch.setattr(llm, "make_provider", lambda *a, **k: good)
     import app.ui.settings_dialog as sd
 
-    monkeypatch.setattr(sd.llm, "make_provider", lambda *a, **k: good)
+    made = []
+
+    def _record(*a, **k):
+        made.append(k)
+        return good
+
+    monkeypatch.setattr(sd.llm, "make_provider", _record)
     dlg = _open(root)
     try:
         dlg.api_var.set("k")
         dlg._test_connection(_sync=True)
+        assert made[-1]["timeout_s"] == 30.0
         dlg.update_idletasks()
         assert dlg.llm_test_label.cget("text").startswith("✓ Connected")
         assert "claude-sonnet-5-5" in dlg.llm_test_label.cget("text")
@@ -148,3 +189,194 @@ def test_test_connection_result_after_destroy_is_ignored(root, monkeypatch):
     root.update_idletasks()
     # Simulate the worker's completion callback arriving after the dialog is gone.
     dlg._report_test_result("✓ Connected (x)")  # must not raise TclError
+
+
+def _scripted_detect(monkeypatch, result_by_runtime):
+    calls = []
+
+    def _detect(runtime_id, *, base_url=None, timeout_s=1.5):
+        calls.append(runtime_id)
+        return result_by_runtime[runtime_id]
+
+    import app.ui.settings_dialog as sd
+
+    monkeypatch.setattr(sd.local_detect, "detect", _detect)
+    return calls
+
+
+_OLLAMA_OK = local_detect.DetectResult(
+    "ollama",
+    True,
+    [
+        local_detect.LocalModel("qwen2.5:14b", "14.8B"),
+        local_detect.LocalModel("llama3.1:8b", "8.0B"),
+    ],
+)
+_OLLAMA_DOWN = local_detect.DetectResult("ollama", False, [], "URLError: [WinError 10061] refused")
+_OLLAMA_EMPTY = local_detect.DetectResult("ollama", True, [])
+
+
+def test_badge_row_for_cloud_and_local(root, monkeypatch):
+    _scripted_detect(monkeypatch, {"ollama": _OLLAMA_OK})
+    dlg = _open(root)
+    try:
+        assert dlg.llm_badge_label.cget("text") == (
+            "API key required · $$ per token · Sent to Anthropic (Claude) · Frontier"
+        )
+        _select(dlg, "Ollama (local)")
+        dlg._run_detect(_sync=True)
+        assert dlg.llm_badge_label.cget("text") == (
+            "No key needed · Free · local compute · Stays on your device · Good"
+        )
+        dlg.llm_model_var.set("llama3.1:8b")
+        dlg._refresh_badges()
+        assert dlg.llm_badge_label.cget("text").endswith("· Basic")
+    finally:
+        dlg.destroy()
+
+
+def test_local_preset_hides_key_and_url_rows_and_shows_detect(root, monkeypatch):
+    _scripted_detect(monkeypatch, {"ollama": _OLLAMA_OK})
+    dlg = _open(root)
+    try:
+        assert dlg.llm_detect_btn.winfo_manager() == ""
+        _select(dlg, "Ollama (local)")
+        assert dlg.llm_key_row.winfo_manager() == ""
+        assert dlg.llm_base_url_row.winfo_manager() == ""
+        assert dlg.llm_detect_btn.winfo_manager() == "pack"
+        _select(dlg, "Claude")
+        assert dlg.llm_key_row.winfo_manager() == "grid"
+        assert dlg.llm_detect_btn.winfo_manager() == ""
+    finally:
+        dlg.destroy()
+
+
+def test_detect_fills_combobox_and_selects_first_when_blank(root, monkeypatch):
+    calls = _scripted_detect(monkeypatch, {"ollama": _OLLAMA_OK})
+    dlg = _open(root)
+    try:
+        _select(dlg, "Ollama (local)")
+        dlg._run_detect(_sync=True)
+        assert calls and all(c == "ollama" for c in calls)  # auto-run on select + explicit run
+        assert list(dlg.llm_model_combo.cget("values")) == ["qwen2.5:14b", "llama3.1:8b"]
+        assert dlg.llm_model_var.get() == "qwen2.5:14b"
+        assert "2 models found" in dlg.llm_local_label.cget("text")
+        assert "speaker-ID JSON" in dlg.llm_local_label.cget("text")
+        try:
+            dlg._save()
+        except tk.TclError:
+            pass
+        cfg = config.load_config()
+        assert cfg["llm_provider"] == "ollama" and cfg["llm_model_ollama"] == "qwen2.5:14b"
+    finally:
+        try:
+            dlg.destroy()
+        except tk.TclError:
+            pass
+
+
+def test_detect_runtime_down_shows_start_hint(root, monkeypatch):
+    _scripted_detect(monkeypatch, {"ollama": _OLLAMA_DOWN})
+    dlg = _open(root)
+    try:
+        _select(dlg, "Ollama (local)")
+        dlg._run_detect(_sync=True)
+        text = dlg.llm_local_label.cget("text")
+        assert text.startswith("Ollama (local) not running — start it, then press Detect.")
+        assert "10061" in text
+        assert dlg.llm_model_var.get() == ""
+        assert str(dlg.llm_detect_btn.cget("state")) == "normal"
+    finally:
+        dlg.destroy()
+
+
+def test_detect_with_no_models_explains_pull(root, monkeypatch):
+    _scripted_detect(monkeypatch, {"ollama": _OLLAMA_EMPTY})
+    dlg = _open(root)
+    try:
+        _select(dlg, "Ollama (local)")
+        dlg._run_detect(_sync=True)
+        assert dlg.llm_local_label.cget("text") == (
+            "0 models found — run `ollama pull <model>` (e.g. qwen2.5:14b), then press Detect."
+        )
+        assert list(dlg.llm_model_combo.cget("values")) == []
+    finally:
+        dlg.destroy()
+
+
+def test_detect_result_for_other_provider_does_not_touch_current_fields(root, monkeypatch):
+    _scripted_detect(monkeypatch, {"ollama": _OLLAMA_DOWN})
+    dlg = _open(root)
+    try:
+        _select(dlg, "Ollama (local)")
+        _select(dlg, "Claude")  # user moved on before a (late) Ollama result arrives
+        dlg.llm_model_var.set("claude-opus-5-5")
+        dlg._apply_detect_result(_OLLAMA_OK)
+        assert dlg.llm_model_var.get() == "claude-opus-5-5"
+        assert dlg._llm_state["ollama"]["detected"] == _OLLAMA_OK.models
+        assert dlg._llm_state["ollama"]["model"] == "qwen2.5:14b"
+        _select(dlg, "Ollama (local)")
+        assert dlg.llm_model_var.get() == "qwen2.5:14b"
+        assert list(dlg.llm_model_combo.cget("values")) == ["qwen2.5:14b", "llama3.1:8b"]
+    finally:
+        dlg.destroy()
+
+
+def test_detect_threaded_path_applies_via_queue(root, monkeypatch):
+    _scripted_detect(monkeypatch, {"ollama": _OLLAMA_OK})
+    dlg = _open(root)
+    try:
+        _select(dlg, "Ollama (local)")  # auto-runs the threaded detect
+        for _ in range(100):
+            dlg.update()
+            if dlg.llm_model_var.get():
+                break
+            threading.Event().wait(0.02)
+        assert dlg.llm_model_var.get() == "qwen2.5:14b"
+    finally:
+        dlg.destroy()
+
+
+def test_detect_poll_after_destroy_is_quiet(root, monkeypatch):
+    _scripted_detect(monkeypatch, {"ollama": _OLLAMA_OK})
+    dlg = _open(root)
+    _select(dlg, "Ollama (local)")
+    dlg.destroy()
+    root.update()
+    dlg._poll_detect()  # must not raise
+    dlg._apply_detect_result(_OLLAMA_OK)  # must not raise
+
+
+def test_switching_away_during_detect_restores_button_and_caveat_on_return(root, monkeypatch):
+    _scripted_detect(monkeypatch, {"ollama": _OLLAMA_OK})
+    dlg = _open(root)
+    try:
+        _select(dlg, "Ollama (local)")  # threaded auto-run starts
+        _select(dlg, "Claude")  # moved on before the result is applied
+        assert dlg.llm_local_label.cget("text") == ""
+        for _ in range(100):
+            dlg._poll_detect()
+            dlg.update()
+            if not dlg._llm_state["ollama"]["detecting"]:
+                break
+            threading.Event().wait(0.02)
+        assert dlg._llm_state["ollama"]["detecting"] is False
+        assert dlg._llm_state["ollama"]["model"] == "qwen2.5:14b"
+        _select(dlg, "Ollama (local)")
+        assert str(dlg.llm_detect_btn.cget("state")) == "normal"
+        assert dlg.llm_local_label.cget("text").startswith("2 models found")
+        assert dlg.llm_model_var.get() == "qwen2.5:14b"
+    finally:
+        dlg.destroy()
+
+
+def test_default_button_refreshes_badges(root):
+    dlg = _open(root)
+    try:
+        before = dlg.llm_badge_label.cget("text")
+        dlg.llm_model_var.set("x")
+        dlg._reset_model()
+        assert dlg.llm_badge_label.cget("text") == before
+        assert "Anthropic" in before
+    finally:
+        dlg.destroy()

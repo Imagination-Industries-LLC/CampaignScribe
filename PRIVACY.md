@@ -19,6 +19,7 @@ Where that data goes depends on the provider you pick:
 - **Google Gemini** — sent to Google's Gemini API under the Gemini API terms (on the **paid** tier Google states prompts are not used to improve its products; on the **free** tier they may be — check which tier your key is on). https://ai.google.dev/gemini-api/terms
 - **OpenRouter** — sent to OpenRouter, which **forwards it to the model vendor you selected** (an extra routing hop; that vendor's own policy then applies). https://openrouter.ai/privacy
 - **Custom endpoint** — sent to whatever OpenAI-compatible server you configured. If that is a local server (for example Ollama on your own PC), your transcripts stay on your machine.
+- **Ollama / LM Studio (local)** — nothing is sent anywhere. The model runs on your own computer and your transcripts never leave it. CampaignScribe only talks to the runtime on `localhost`.
 
 The in-app notes on the Transcribe, Summarize and Refine screens always name the provider currently in use.
 

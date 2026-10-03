@@ -160,3 +160,57 @@ def test_status_error_maps_to_generic_with_code(fake_openai):
         p.complete("x", max_tokens=5)
     assert ei.value.kind == "error"
     assert "429" in str(ei.value)
+
+
+def test_local_status_error_includes_server_message(fake_openai):
+    import openai
+
+    req = httpx.Request("POST", "http://localhost:11434/v1/chat/completions")
+    exc = openai.APIStatusError(
+        "x",
+        response=httpx.Response(400, request=req),
+        body={"error": {"message": '"nomic-embed-text:latest" does not support chat'}},
+    )
+    fake_openai(exc)
+    p = _make(fake_openai, local_runtime="ollama")
+    with pytest.raises(base.LLMError) as ei:
+        p.complete("x", max_tokens=5)
+    assert ei.value.kind == "error"
+    assert "does not support chat" in str(ei.value)
+    assert "HTTP 400" in str(ei.value)
+
+
+def test_timeout_s_reaches_client(fake_openai):
+    _make(fake_openai, timeout_s=600.0)
+    assert fake_openai.captured["timeout"] == 600.0
+
+
+def test_local_runtime_network_error_asks_if_runtime_is_running(fake_openai):
+    import openai
+
+    req = httpx.Request("POST", "http://localhost:11434/v1/chat/completions")
+    fake_openai(openai.APIConnectionError(request=req))
+    p = _make(
+        fake_openai,
+        api_key="",
+        base_url="http://localhost:11434/v1",
+        provider_id="ollama",
+        display_name="Ollama (local)",
+        local_runtime="ollama",
+    )
+    with pytest.raises(base.LLMError) as ei:
+        p.complete("x", max_tokens=5)
+    assert ei.value.kind == "network"
+    assert (
+        str(ei.value) == "Could not reach Ollama (local) (APIConnectionError) — is Ollama running?"
+    )
+
+
+def test_cloud_network_error_unchanged(fake_openai):
+    import openai
+
+    req = httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions")
+    fake_openai(openai.APIConnectionError(request=req))
+    with pytest.raises(base.LLMError) as ei:
+        _make(fake_openai).complete("x", max_tokens=5)
+    assert str(ei.value) == "Could not reach OpenRouter (APIConnectionError)."

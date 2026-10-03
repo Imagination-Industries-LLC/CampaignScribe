@@ -20,6 +20,8 @@ def test_new_llm_defaults_merge_into_old_config_json():
     assert cfg["llm_model_openrouter"] == "anthropic/claude-sonnet-4.5"
     assert cfg["llm_model_custom"] == ""
     assert cfg["llm_base_url_custom"] == ""
+    assert cfg["llm_model_ollama"] == ""
+    assert cfg["llm_model_lmstudio"] == ""
 
 
 def test_provider_key_roundtrip_per_provider():

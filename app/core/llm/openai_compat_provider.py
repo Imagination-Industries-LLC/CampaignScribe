@@ -1,7 +1,6 @@
 """OpenAI-compatible adapter (openai SDK + configurable base_url). Tk-free.
 
-Serves OpenRouter in v1 and is the bridge to OpenAI / Groq / DeepSeek and local
-servers (Ollama, LM Studio) later: same code, different base_url and model.
+Serves OpenRouter, the Ollama / LM Studio local presets, and custom endpoints: same code, different base_url, model and timeout.
 """
 
 from __future__ import annotations
@@ -13,6 +12,7 @@ from app.core.llm.base import (
     generic_error,
     network_error,
 )
+from app.core.llm.local_detect import RUNTIME_NAMES
 
 _TIMEOUT_TOTAL = 120.0
 _MAX_RETRIES = 3
@@ -29,11 +29,14 @@ class OpenAICompatProvider:
         provider_id: str,
         display_name: str,
         supports_json_mode: bool,
+        timeout_s: float = _TIMEOUT_TOTAL,
+        local_runtime: str = "",
     ) -> None:
         self.provider_id = provider_id
         self.display_name = display_name
         self.supports_json_mode = supports_json_mode
         self.model = model
+        self._local_runtime = local_runtime
         base_url = (base_url or "").strip().rstrip("/")
         if not base_url:
             raise LLMError(
@@ -52,7 +55,7 @@ class OpenAICompatProvider:
             api_key=api_key
             or "sk-none",  # the SDK insists on a non-empty key; local servers ignore it
             base_url=base_url,
-            timeout=_TIMEOUT_TOTAL,
+            timeout=timeout_s,
             max_retries=_MAX_RETRIES,
             default_headers=headers,
         )
@@ -71,9 +74,28 @@ class OpenAICompatProvider:
         except (o.AuthenticationError, o.PermissionDeniedError) as e:
             raise auth_error(self.provider_id, self.display_name) from e
         except o.APIConnectionError as e:
+            if self._local_runtime:
+                raise LLMError(
+                    self.provider_id,
+                    f"Could not reach {self.display_name} ({type(e).__name__}) — "
+                    f"is {RUNTIME_NAMES.get(self._local_runtime, self.display_name)} running?",
+                    kind="network",
+                ) from e
             raise network_error(self.provider_id, self.display_name, type(e).__name__) from e
         except o.APIStatusError as e:
-            raise generic_error(self.provider_id, self.display_name, f"HTTP {e.status_code}") from e
+            detail = f"HTTP {e.status_code}"
+            if self._local_runtime:
+                body = e.body if isinstance(e.body, dict) else {}
+                err = body.get("error")
+                if isinstance(err, dict):
+                    msg = str(err.get("message") or "")
+                elif isinstance(err, str):
+                    msg = err
+                else:
+                    msg = str(getattr(e, "message", "") or "")
+                if msg:
+                    detail += f": {msg}"
+            raise generic_error(self.provider_id, self.display_name, detail) from e
         choices = getattr(resp, "choices", None) or []
         content = choices[0].message.content if choices else None
         if not content or not content.strip():

@@ -59,6 +59,7 @@ def test_privacy_dialog_builds_and_shows_statement(app):
         assert text_widgets, "PrivacyDialog should contain a Text widget"
         assert "Anthropic Claude API" in text_widgets[0].get("1.0", "end")
         assert "OpenRouter" in text_widgets[0].get("1.0", "end")
+        assert "Ollama / LM Studio (local)" in text_widgets[0].get("1.0", "end")
     finally:
         if dlg is not None:
             dlg.destroy()

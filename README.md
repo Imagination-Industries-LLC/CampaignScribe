@@ -37,10 +37,10 @@ The window has four tabs plus a menu bar.
 Menu bar:
 
 - **File** → Settings (AI provider, model and API key — Claude, Google
-  Gemini, OpenRouter or a custom OpenAI-compatible endpoint — plus
-  HuggingFace token, default and discovery Whisper models, output folder,
-  expected speakers, theme, voice-match threshold, crash reporting opt-in)
-  · Exit
+  Gemini, OpenRouter, a local Ollama / LM Studio model, or a custom
+  OpenAI-compatible endpoint — plus HuggingFace token, default and
+  discovery Whisper models, output folder, expected speakers, theme,
+  voice-match threshold, crash reporting opt-in) · Exit
 - **Tools** → Open Logs Folder · Open Data Folder
 - **Help** → Getting Started · Privacy & Data (see [PRIVACY.md](PRIVACY.md)) ·
   Feedback & Support (scrubbed diagnostics bundle, report a problem, email,
@@ -62,8 +62,13 @@ Theme follows the OS by default and can be forced to dark or light in Settings.
   [Anthropic](https://console.anthropic.com/settings/keys) (default),
   [Google Gemini](https://aistudio.google.com/apikey), or
   [OpenRouter](https://openrouter.ai/keys). A custom OpenAI-compatible
-  endpoint (for example a local Ollama server) needs a base URL and model
-  instead; a key is optional there.
+  endpoint (for example Ollama on another machine, or a self-hosted
+  vLLM) needs a base URL and model instead; a key is optional there. To run with no API cost and no data
+  leaving your PC, install [Ollama](https://ollama.com) (or LM Studio),
+  pull a model such as `ollama pull qwen2.5:14b`, and pick **Ollama
+  (local)** in Settings → AI model; **Detect** lists the models you have
+  installed. Models of 12B parameters and up give the best results for
+  speaker identification.
 - A [HuggingFace token](https://huggingface.co/settings/tokens) AND license
   acceptance for the diarization model (one click):
   - https://huggingface.co/pyannote/speaker-diarization-community-1

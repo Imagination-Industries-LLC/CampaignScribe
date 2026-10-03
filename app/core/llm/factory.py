@@ -7,6 +7,7 @@ from typing import Any
 
 from app import config
 from app.core.llm.base import LLMError, Provider, missing_key_error
+from app.core.llm.local_detect import RUNTIME_NAMES, RUNTIMES, quality_label
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,11 @@ class Preset:
     needs_base_url: bool
     supports_json_mode: bool
     privacy_url: str
+    key_label: str = "API key required"
+    cost_label: str = "Varies by model"
+    quality_label: str = "Varies by model"  # local presets: derived per model instead
+    timeout_s: float = 120.0
+    local_runtime: str = ""  # "" for cloud/custom; "ollama" | "lmstudio" for local presets
 
 
 PRESETS: dict[str, Preset] = {
@@ -31,6 +37,8 @@ PRESETS: dict[str, Preset] = {
         False,
         False,
         "https://www.anthropic.com/legal/privacy",
+        cost_label="$$ per token",
+        quality_label="Frontier",
     ),
     "gemini": Preset(
         "gemini",
@@ -41,6 +49,8 @@ PRESETS: dict[str, Preset] = {
         False,
         True,
         "https://ai.google.dev/gemini-api/terms",
+        cost_label="¢ per token",
+        quality_label="Strong",
     ),
     "openrouter": Preset(
         "openrouter",
@@ -52,6 +62,36 @@ PRESETS: dict[str, Preset] = {
         True,
         "https://openrouter.ai/privacy",
     ),
+    "ollama": Preset(
+        "ollama",
+        "Ollama (local)",
+        "your own computer (Ollama)",
+        "",
+        False,
+        False,
+        True,
+        "",
+        key_label="No key needed",
+        cost_label="Free · local compute",
+        quality_label="",
+        timeout_s=600.0,
+        local_runtime="ollama",
+    ),
+    "lmstudio": Preset(
+        "lmstudio",
+        "LM Studio (local)",
+        "your own computer (LM Studio)",
+        "",
+        False,
+        False,
+        False,
+        "",
+        key_label="No key needed",
+        cost_label="Free · local compute",
+        quality_label="",
+        timeout_s=600.0,
+        local_runtime="lmstudio",
+    ),
     "custom": Preset(
         "custom",
         "Custom endpoint",
@@ -61,20 +101,51 @@ PRESETS: dict[str, Preset] = {
         True,
         False,
         "",
+        key_label="Key optional",
     ),
 }
 
-BASE_URLS = {"openrouter": "https://openrouter.ai/api/v1"}
+BASE_URLS = {"openrouter": "https://openrouter.ai/api/v1", **RUNTIMES}
 
 
-def make_provider(provider_id: str, *, model: str, api_key: str, base_url: str = "") -> Provider:
-    """Build an adapter from explicit values (Settings → Test connection uses unsaved ones)."""
+def badges_for(preset: Preset, model_id: str = "", parameter_size: str = "") -> list[str]:
+    """[Key, Cost, Privacy, Quality] for the Settings badge row."""
+    if preset.local_runtime:
+        privacy = "Stays on your device"
+        quality = quality_label(parameter_size)
+    else:
+        privacy = f"Sent to {preset.vendor_label}"
+        quality = preset.quality_label
+    return [preset.key_label, preset.cost_label, privacy, quality]
+
+
+def _local_pick_message(preset: Preset) -> str:
+    return (
+        f"Pick an {preset.display_name} model in Settings (⚙): "
+        f"start {RUNTIME_NAMES[preset.local_runtime]} and press Detect."
+    )
+
+
+def make_provider(
+    provider_id: str,
+    *,
+    model: str,
+    api_key: str,
+    base_url: str = "",
+    timeout_s: float | None = None,
+) -> Provider:
+    """Build an adapter from explicit values (Settings → Test connection uses unsaved ones).
+
+    ``timeout_s`` overrides the preset's request timeout (OpenAI-compatible adapters only).
+    """
     preset = PRESETS.get(provider_id)
     if preset is None:
         raise ValueError(f"unknown LLM provider: {provider_id!r}")
     if preset.needs_key and not (api_key or "").strip():
         raise missing_key_error(provider_id, preset.display_name)
     model = (model or "").strip() or preset.default_model
+    if preset.local_runtime and not model:
+        raise LLMError(provider_id, _local_pick_message(preset), kind="missing_key")
     if provider_id == "anthropic":
         from app.core.llm.anthropic_provider import AnthropicProvider
 
@@ -92,6 +163,8 @@ def make_provider(provider_id: str, *, model: str, api_key: str, base_url: str =
         provider_id=provider_id,
         display_name=preset.display_name,
         supports_json_mode=preset.supports_json_mode,
+        timeout_s=timeout_s if timeout_s is not None else preset.timeout_s,
+        local_runtime=preset.local_runtime,
     )
 
 
@@ -144,6 +217,10 @@ def not_ready_message(cfg: dict[str, Any] | None = None) -> str:
         model = (c.get(f"llm_model_{preset.provider_id}", "") or "").strip()
         if not base_url or not model:
             return f"Set the {preset.display_name} base URL and model in Settings (⚙)."
+    if preset.local_runtime:
+        model = (c.get(f"llm_model_{preset.provider_id}", "") or "").strip()
+        if not model:
+            return _local_pick_message(preset)
     if preset.needs_key and not config.get_provider_key(preset.provider_id):
         return f"Add your {preset.display_name} API key in Settings (⚙)."
     return ""
@@ -155,6 +232,7 @@ __all__ = [
     "PRESETS",
     "Preset",
     "active_preset",
+    "badges_for",
     "get_provider",
     "make_provider",
     "not_ready_message",
