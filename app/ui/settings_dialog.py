@@ -1,11 +1,13 @@
-"""Settings dialog: API key, HF token, default model, output folder, # speakers."""
+"""Settings dialog: AI model/provider, HF token, default model, output folder, # speakers."""
 
 from __future__ import annotations
 
+import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from app import config
+from app.core import llm
 
 
 class SettingsDialog(tk.Toplevel):
@@ -21,18 +23,7 @@ class SettingsDialog(tk.Toplevel):
         pad = {"padx": 10, "pady": 6}
         row = 0
 
-        ttk.Label(self, text="Anthropic API key:").grid(row=row, column=0, sticky="w", **pad)
-        self.api_var = tk.StringVar(value=config.get_anthropic_key())
-        self.api_entry = ttk.Entry(self, textvariable=self.api_var, width=55, show="•")
-        self.api_entry.grid(row=row, column=1, **pad)
-        self.api_show_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(
-            self,
-            text="Show",
-            variable=self.api_show_var,
-            command=self._toggle_api_visibility,
-        ).grid(row=row, column=2, sticky="w", **pad)
-        row += 1
+        row = self._build_llm_section(row, pad)
 
         ttk.Label(self, text="HuggingFace token:").grid(row=row, column=0, sticky="w", **pad)
         self.hf_var = tk.StringVar(value=config.get_huggingface_token())
@@ -166,7 +157,162 @@ class SettingsDialog(tk.Toplevel):
         x = master.winfo_rootx() + (master.winfo_width() - self.winfo_width()) // 2
         y = master.winfo_rooty() + 60
         self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
-        self.api_entry.focus_set()
+        self.llm_provider_combo.focus_set()
+
+    # ---- AI model section ----
+    def _build_llm_section(self, row: int, pad: dict) -> int:
+        cfg = config.load_config()
+        self._llm_state: dict[str, dict[str, str]] = {}
+        self._llm_loaded_keys: dict[str, str] = {}
+        for pid, preset in llm.PRESETS.items():
+            key = config.get_provider_key(pid)
+            self._llm_loaded_keys[pid] = key
+            self._llm_state[pid] = {
+                "model": cfg.get(f"llm_model_{pid}", "") or preset.default_model,
+                "key": key,
+                "base_url": cfg.get("llm_base_url_custom", "") if preset.needs_base_url else "",
+            }
+        self._llm_current = cfg.get("llm_provider", "anthropic")
+        if self._llm_current not in llm.PRESETS:
+            self._llm_current = "anthropic"
+        self._display_to_id = {p.display_name: pid for pid, p in llm.PRESETS.items()}
+
+        ttk.Label(self, text="— AI model —").grid(
+            row=row, column=0, columnspan=3, sticky="w", padx=10, pady=(6, 0)
+        )
+        row += 1
+
+        ttk.Label(self, text="Provider:").grid(row=row, column=0, sticky="w", **pad)
+        self.llm_provider_var = tk.StringVar(value=llm.PRESETS[self._llm_current].display_name)
+        self.llm_provider_combo = ttk.Combobox(
+            self,
+            textvariable=self.llm_provider_var,
+            state="readonly",
+            width=28,
+            values=[p.display_name for p in llm.PRESETS.values()],
+        )
+        self.llm_provider_combo.grid(row=row, column=1, sticky="w", **pad)
+        self.llm_provider_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_provider_change())
+        row += 1
+
+        ttk.Label(self, text="Model:").grid(row=row, column=0, sticky="w", **pad)
+        self.llm_model_var = tk.StringVar()
+        ttk.Entry(self, textvariable=self.llm_model_var, width=55).grid(row=row, column=1, **pad)
+        ttk.Button(self, text="Default", command=self._reset_model).grid(row=row, column=2, **pad)
+        row += 1
+
+        self.llm_key_row = ttk.Frame(self)
+        self.llm_key_row.grid(row=row, column=0, columnspan=3, sticky="ew")
+        ttk.Label(self.llm_key_row, text="API key:").grid(row=0, column=0, sticky="w", **pad)
+        self.api_var = tk.StringVar()
+        self.api_entry = ttk.Entry(self.llm_key_row, textvariable=self.api_var, width=55, show="•")
+        self.api_entry.grid(row=0, column=1, **pad)
+        self.api_show_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            self.llm_key_row,
+            text="Show",
+            variable=self.api_show_var,
+            command=self._toggle_api_visibility,
+        ).grid(row=0, column=2, sticky="w", **pad)
+        self.llm_key_row.columnconfigure(1, weight=1)
+        row += 1
+
+        self.llm_base_url_row = ttk.Frame(self)
+        self.llm_base_url_row.grid(row=row, column=0, columnspan=3, sticky="ew")
+        ttk.Label(self.llm_base_url_row, text="Base URL:").grid(row=0, column=0, sticky="w", **pad)
+        self.llm_base_url_var = tk.StringVar()
+        ttk.Entry(self.llm_base_url_row, textvariable=self.llm_base_url_var, width=55).grid(
+            row=0, column=1, **pad
+        )
+        self.llm_base_url_row.columnconfigure(1, weight=1)
+        row += 1
+
+        self.llm_test_btn = ttk.Button(self, text="Test connection", command=self._test_connection)
+        self.llm_test_btn.grid(row=row, column=0, sticky="w", **pad)
+        self.llm_test_label = ttk.Label(self, text="", wraplength=420, justify="left")
+        self.llm_test_label.grid(row=row, column=1, columnspan=2, sticky="w", **pad)
+        row += 1
+
+        ttk.Separator(self, orient="horizontal").grid(
+            row=row, column=0, columnspan=3, sticky="ew", padx=10, pady=(2, 6)
+        )
+        row += 1
+
+        self._load_llm_fields()
+        return row
+
+    def _stash_llm_fields(self) -> None:
+        st = self._llm_state[self._llm_current]
+        st["model"] = self.llm_model_var.get()
+        st["key"] = self.api_var.get()
+        if llm.PRESETS[self._llm_current].needs_base_url:
+            st["base_url"] = self.llm_base_url_var.get()
+
+    def _load_llm_fields(self) -> None:
+        preset = llm.PRESETS[self._llm_current]
+        st = self._llm_state[self._llm_current]
+        self.llm_model_var.set(st["model"])
+        self.api_var.set(st["key"])
+        self.llm_base_url_var.set(st["base_url"])
+        if preset.needs_base_url:
+            self.llm_base_url_row.grid()
+        else:
+            self.llm_base_url_row.grid_remove()
+        # The key row stays visible for every v1 preset (custom accepts an optional key).
+        self.llm_key_row.grid()
+        self.llm_test_label.config(text="")
+
+    def _on_provider_change(self) -> None:
+        new_id = self._display_to_id.get(self.llm_provider_var.get(), "anthropic")
+        if new_id == self._llm_current:
+            return
+        self._stash_llm_fields()
+        self._llm_current = new_id
+        self._load_llm_fields()
+
+    def _reset_model(self) -> None:
+        self.llm_model_var.set(llm.PRESETS[self._llm_current].default_model)
+
+    def _test_connection(self, _sync: bool = False) -> None:
+        self._stash_llm_fields()
+        pid = self._llm_current
+        st = self._llm_state[pid]
+        self.llm_test_label.config(text="Testing…")
+        self.llm_test_btn.config(state="disabled")
+
+        def run() -> str:
+            try:
+                provider = llm.make_provider(
+                    pid, model=st["model"], api_key=st["key"].strip(), base_url=st["base_url"]
+                )
+                provider.complete("Reply with the single word OK.", max_tokens=5)
+                return f"✓ Connected ({provider.display_name} · {provider.model})"
+            except llm.LLMError as e:
+                return f"✗ {e}"
+            except Exception as e:  # noqa: BLE001 - surfaced inline, never crashes the dialog
+                return f"✗ {type(e).__name__}: {e}"
+
+        if _sync:
+            self._report_test_result(run())
+            return
+
+        def worker() -> None:
+            result = run()
+            try:
+                self.after(0, lambda: self._report_test_result(result))
+            except tk.TclError:
+                pass  # dialog already destroyed
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _report_test_result(self, text: str) -> None:
+        try:
+            if not self.winfo_exists():
+                return
+            self.llm_test_label.config(text=text)
+            self.llm_test_btn.config(state="normal")
+        except tk.TclError:
+            pass
 
     def _toggle_api_visibility(self):
         self.api_entry.config(show="" if self.api_show_var.get() else "•")
@@ -184,9 +330,17 @@ class SettingsDialog(tk.Toplevel):
 
     def _save(self):
         try:
-            config.save_anthropic_key(self.api_var.get().strip())
+            self._stash_llm_fields()
+            for pid, st in self._llm_state.items():
+                key = st["key"].strip()
+                if key != self._llm_loaded_keys.get(pid, ""):
+                    config.save_provider_key(pid, key)
             config.save_huggingface_token(self.hf_var.get().strip())
             cfg = config.load_config()
+            cfg["llm_provider"] = self._llm_current
+            for pid, st in self._llm_state.items():
+                cfg[f"llm_model_{pid}"] = st["model"].strip() or llm.PRESETS[pid].default_model
+            cfg["llm_base_url_custom"] = self._llm_state["custom"]["base_url"].strip().rstrip("/")
             cfg["default_output_folder"] = self.out_var.get().strip()
             cfg["default_whisper_model"] = self.model_var.get()
             cfg["default_num_speakers"] = int(self.spk_var.get() or 5)
