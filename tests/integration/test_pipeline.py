@@ -17,14 +17,15 @@ SPEAKERS_REF = {
 }
 
 
-def test_identify_then_format(monkeypatch, fake_claude):
+def test_identify_then_format(monkeypatch, fake_provider):
     monkeypatch.setattr(
         "app.core.transcriber.collect_speaker_samples",
         lambda segments, max_lines=15: {"SPEAKER_00": ["a"], "SPEAKER_01": ["b"]},
     )
-    fake_claude(['{"SPEAKER_00": "Josh (DM)", "SPEAKER_01": "Mike (Wellbrix)"}'])
+    provider = fake_provider(['{"SPEAKER_00": "Josh (DM)", "SPEAKER_01": "Mike (Wellbrix)"}'])
 
-    mapping = speaker_id.identify_speakers(SEGMENTS, SPEAKERS_REF, api_key="sk-x")
+    mapping = speaker_id.identify_speakers(SEGMENTS, SPEAKERS_REF, provider)
+    assert provider.calls[0]["json_mode"] is True
     assert mapping["SPEAKER_00"] == "Josh (DM)"
 
     transcript = speaker_id.format_segments_to_text(SEGMENTS, mapping)
@@ -32,29 +33,30 @@ def test_identify_then_format(monkeypatch, fake_claude):
     assert "Mike (Wellbrix): I rolled a 17." in transcript
 
 
-def test_identify_falls_back_on_bad_llm_json(monkeypatch, fake_claude):
+def test_identify_falls_back_on_bad_llm_json(monkeypatch, fake_provider):
     monkeypatch.setattr(
         "app.core.transcriber.collect_speaker_samples",
         lambda segments, max_lines=15: {"SPEAKER_00": ["a"]},
     )
-    fake_claude(["the model rambled and returned no json"])
-    mapping = speaker_id.identify_speakers(SEGMENTS, SPEAKERS_REF, api_key="sk-x")
+    provider = fake_provider(["the model rambled and returned no json"])
+    mapping = speaker_id.identify_speakers(SEGMENTS, SPEAKERS_REF, provider)
     assert mapping == {"SPEAKER_00": "SPEAKER_00"}
 
 
-def test_summarize_then_consolidate(fake_claude):
-    client = fake_claude(
+def test_summarize_then_consolidate(fake_provider):
+    provider = fake_provider(
         [
             "## Part 1\nThe party entered the crypt.",
             "SESSION NAME: The Crypt\n\n## Recap\nAll survived.",
         ]
     )
     transcript = "DM: You enter a crypt.\n\nMike: I draw my sword."
-    part = summarizer.summarize_part(transcript, SPEAKERS_REF, "Summarize this.", "sk-x", 1)
+    part = summarizer.summarize_part(transcript, SPEAKERS_REF, "Summarize this.", provider, 1)
     assert "crypt" in part.lower()
 
-    result = summarizer.consolidate_summaries([part], SPEAKERS_REF, api_key="sk-x")
+    result = summarizer.consolidate_summaries([part], SPEAKERS_REF, provider)
     assert result["session_name"] == "The Crypt"
-    assert len(client.calls) == 2, (
-        f"Expected 2 API calls (summarize_part + consolidate_summaries), got {len(client.calls)}"
+    assert len(provider.calls) == 2, (
+        f"Expected 2 LLM calls (summarize_part + consolidate_summaries), got {len(provider.calls)}"
     )
+    assert all(c["json_mode"] is False for c in provider.calls)

@@ -1,4 +1,4 @@
-"""Claude API summarization + .docx export."""
+"""LLM summarization + .docx export (provider-agnostic)."""
 
 from __future__ import annotations
 
@@ -8,13 +8,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-CLAUDE_MODEL = "claude-sonnet-4-20250514"
+from app.core.llm.base import Provider
 
 
-def _client(api_key: str):
-    from app.core.claude_api import make_client
-
-    return make_client(api_key)
+def model_label(provider: Provider) -> str:
+    """'<display name> · <model id>' for the .docx footer."""
+    return f"{provider.display_name} · {provider.model}"
 
 
 def _npc_line(known_npcs: list[str] | None) -> str:
@@ -29,12 +28,11 @@ def summarize_part(
     transcript_text: str,
     speakers_reference: dict[str, Any],
     summary_prompt: str,
-    api_key: str,
+    provider: Provider,
     part_number: int = 1,
     known_npcs: list[str] | None = None,
 ) -> str:
-    """Run a single transcript part through Claude with the user's chosen prompt."""
-    client = _client(api_key)
+    """Run a single transcript part through the active LLM provider with the user's chosen prompt."""
     campaign_context_block = json.dumps(
         {
             "campaign": speakers_reference.get("campaign", ""),
@@ -58,22 +56,16 @@ def summarize_part(
         f"{transcript_text}\n"
     )
 
-    resp = client.messages.create(
-        model=CLAUDE_MODEL,
-        max_tokens=4000,
-        messages=[{"role": "user", "content": full_prompt}],
-    )
-    return resp.content[0].text
+    return provider.complete(full_prompt, max_tokens=4000, json_mode=False)
 
 
 def consolidate_summaries(
     part_summaries: list[str],
     speakers_reference: dict[str, Any],
-    api_key: str,
+    provider: Provider,
     known_npcs: list[str] | None = None,
 ) -> dict[str, str]:
     """Consolidate per-part summaries into a unified session summary."""
-    client = _client(api_key)
     parts_block = "\n\n".join(
         f"--- PART {i + 1} ---\n{summary}" for i, summary in enumerate(part_summaries)
     )
@@ -100,12 +92,7 @@ def consolidate_summaries(
         "SESSION NAME: <thematic session name here>\n\n"
         "Then proceed with the summary sections."
     )
-    resp = client.messages.create(
-        model=CLAUDE_MODEL,
-        max_tokens=4000,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    text = resp.content[0].text
+    text = provider.complete(prompt, max_tokens=4000, json_mode=False)
     name_match = re.search(r"^\s*SESSION NAME:\s*(.+)$", text, flags=re.MULTILINE)
     session_name = name_match.group(1).strip() if name_match else "Session Summary"
     body = text[name_match.end() :].lstrip() if name_match else text
@@ -125,7 +112,7 @@ def write_docx(
     consolidated_body: str,
     part_summaries: list[str],
     campaign_name: str = "",
-    model_used: str = CLAUDE_MODEL,
+    model_used: str = "",
 ) -> None:
     from docx import Document
     from docx.shared import Pt
@@ -136,7 +123,7 @@ def write_docx(
     meta = doc.add_paragraph()
     run = meta.add_run(
         f"Campaign: {campaign_name or 'N/A'} | Generated: "
-        f"{datetime.now().strftime('%Y-%m-%d %H:%M')} | Model: {model_used}"
+        f"{datetime.now().strftime('%Y-%m-%d %H:%M')} | Model: {model_used or 'N/A'}"
     )
     run.italic = True
     run.font.size = Pt(9)
@@ -156,7 +143,7 @@ def write_docx(
 
 
 def _render_summary_body(doc, body: str) -> None:
-    """Convert the Claude response body into Word headings, paragraphs and bullets."""
+    """Convert the LLM response body into Word headings, paragraphs and bullets."""
     lines = body.splitlines()
     for raw in lines:
         line = raw.rstrip()
