@@ -54,8 +54,11 @@ def _is_embedding(details: dict) -> bool:
 
 
 def _get_json(url: str, timeout_s: float):
+    if not url.startswith(("http://", "https://")):
+        raise ValueError(f"local runtime URL must be http(s): {url!r}")
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout_s) as resp:  # noqa: S310 - localhost only
+    # B310: scheme is validated above; this only ever talks to a localhost runtime.
+    with urllib.request.urlopen(req, timeout=timeout_s) as resp:  # nosec B310
         return json.loads(resp.read().decode("utf-8"))
 
 

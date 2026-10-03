@@ -201,3 +201,8 @@ def test_default_base_urls():
 )
 def test_quality_label_table(size, label):
     assert local_detect.quality_label(size) == label
+
+
+def test_non_http_scheme_is_not_running():
+    r = local_detect.detect("ollama", base_url="file:///C:/not-a-runtime/v1")
+    assert r.running is False and "unexpected response: ValueError" in r.error
