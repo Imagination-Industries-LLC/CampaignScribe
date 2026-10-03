@@ -60,7 +60,7 @@ UI worker thread
 class Provider(Protocol):
     provider_id: str      # "anthropic" | "gemini" | "openrouter" | "custom"
     model: str            # editable model id from config
-    display_name: str     # "Claude", "Google Gemini", "OpenRouter", "Custom (OpenAI-compatible)"
+    display_name: str     # "Claude", "Google Gemini", "OpenRouter", "Custom endpoint"
     supports_json_mode: bool
 
     def complete(self, prompt: str, max_tokens: int, json_mode: bool = False) -> str: ...
