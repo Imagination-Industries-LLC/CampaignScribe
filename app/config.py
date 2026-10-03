@@ -39,6 +39,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "llm_model_anthropic": "claude-sonnet-5-5",
     "llm_model_gemini": "gemini-2.5-flash",
     "llm_model_openrouter": "anthropic/claude-sonnet-4.5",
+    "llm_model_ollama": "",  # chosen via Settings → Detect; blank = not picked yet
+    "llm_model_lmstudio": "",
     "llm_model_custom": "",
     "llm_base_url_custom": "",
 }
