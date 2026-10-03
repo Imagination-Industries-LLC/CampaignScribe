@@ -32,6 +32,8 @@ echo.
 echo [setup_venv] Step 1/2: installing app dependencies (whisperx will pull torch 2.8.x temporarily)...
 "%PY%" -m pip install ^
     anthropic ^
+    google-genai ^
+    openai ^
     keyring ^
     ffmpeg-python ^
     python-docx ^

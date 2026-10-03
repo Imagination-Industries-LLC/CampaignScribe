@@ -36,6 +36,9 @@ if not exist "%PY%" (
     --copy-metadata pyannote.audio ^
     --copy-metadata pyannote.core ^
     --hidden-import=anthropic ^
+    --hidden-import=google.genai ^
+    --hidden-import=openai ^
+    --collect-data google.genai ^
     --hidden-import=keyring.backends.Windows ^
     --hidden-import=docx ^
     --hidden-import=ffmpeg ^

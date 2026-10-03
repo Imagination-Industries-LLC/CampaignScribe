@@ -17,6 +17,8 @@
 --extra-index-url https://download.pytorch.org/whl/cu128
 
 anthropic
+google-genai
+openai
 keyring
 ffmpeg-python
 python-docx
