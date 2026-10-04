@@ -330,7 +330,7 @@ class EditProfileWindow(tk.Toplevel):
         # retired Discover tab): convert -> TranscriptionPipeline.transcribe_file ->
         # speaker_id.discover_speakers, then APPEND the returned profiles to the
         # editor list (no DB session is created here — this only seeds the roster).
-        from app.core import audio, llm, speaker_id, transcriber
+        from app.core import audio, llm, models, speaker_id, transcriber
 
         if path is None:
             path = filedialog.askopenfilename(
@@ -340,13 +340,16 @@ class EditProfileWindow(tk.Toplevel):
             )
         if not path:
             return
-        hf = config.get_huggingface_token()
-        if not llm.provider_ready() or not hf:
+        if not llm.provider_ready():
             messagebox.showerror(
                 "CampaignScribe",
-                "Discover needs an AI provider key and a HuggingFace token (Settings ⚙).\n"
-                + (llm.not_ready_message() or "HuggingFace token is missing."),
+                "Discover needs an AI provider set up in Settings (⚙).\n" + llm.not_ready_message(),
             )
+            return
+        try:
+            models.diarization_dir()
+        except models.MissingModelError as e:
+            messagebox.showerror("CampaignScribe", str(e))
             return
         config.set_last_dir("audio", path)
         sample_min = int(config.load_config().get("discover_sample_minutes", 0))
@@ -364,7 +367,6 @@ class EditProfileWindow(tk.Toplevel):
                 wav = audio.convert_to_wav(path, max_seconds=max_seconds)
                 pipeline = transcriber.TranscriptionPipeline(
                     model_size=config.load_config().get("discover_whisper_model", "small"),
-                    hf_token=hf,
                 )
                 try:
                     segments = pipeline.transcribe_file(

@@ -1,4 +1,4 @@
-"""Settings dialog: AI model/provider, HF token, default model, output folder, # speakers."""
+"""Settings dialog: AI model/provider, default model, output folder, # speakers."""
 
 from __future__ import annotations
 
@@ -31,19 +31,6 @@ class SettingsDialog(tk.Toplevel):
         row = 0
 
         row = self._build_llm_section(row, pad)
-
-        ttk.Label(self, text="HuggingFace token:").grid(row=row, column=0, sticky="w", **pad)
-        self.hf_var = tk.StringVar(value=config.get_huggingface_token())
-        self.hf_entry = ttk.Entry(self, textvariable=self.hf_var, width=55, show="•")
-        self.hf_entry.grid(row=row, column=1, **pad)
-        self.hf_show_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(
-            self,
-            text="Show",
-            variable=self.hf_show_var,
-            command=self._toggle_hf_visibility,
-        ).grid(row=row, column=2, sticky="w", **pad)
-        row += 1
 
         ttk.Label(self, text="Default output folder:").grid(row=row, column=0, sticky="w", **pad)
         self.out_var = tk.StringVar(value=cfg.get("default_output_folder", ""))
@@ -508,9 +495,6 @@ class SettingsDialog(tk.Toplevel):
     def _toggle_api_visibility(self):
         self.api_entry.config(show="" if self.api_show_var.get() else "•")
 
-    def _toggle_hf_visibility(self):
-        self.hf_entry.config(show="" if self.hf_show_var.get() else "•")
-
     def _browse_out(self):
         path = filedialog.askdirectory(
             title="Choose default output folder",
@@ -526,7 +510,6 @@ class SettingsDialog(tk.Toplevel):
                 key = st["key"].strip()
                 if key != self._llm_loaded_keys.get(pid, ""):
                     config.save_provider_key(pid, key)
-            config.save_huggingface_token(self.hf_var.get().strip())
             cfg = config.load_config()
             cfg["llm_provider"] = self._llm_current
             for pid, st in self._llm_state.items():

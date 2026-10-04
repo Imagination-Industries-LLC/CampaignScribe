@@ -5,7 +5,7 @@ CampaignScribe is built to collect as little as possible and to be honest and ex
 ## Stays on your computer (never sent anywhere)
 - **Your audio recordings** — converted and transcribed locally; audio never leaves your machine.
 - **The local database** (session metadata) and your saved **transcripts, summaries, and `speakers.json`**.
-- **Your AI-provider API keys and HuggingFace token** — stored in Windows Credential Manager; each is sent only to its own service to authenticate.
+- **Your AI-provider API keys** — stored in Windows Credential Manager; each is sent only to its own service to authenticate.
 - **Voice fingerprints (optional, local only).** To recognize returning players across sessions, CampaignScribe can derive a compact numeric "voice fingerprint" for each tracked speaker from your audio and store it **on your device only**, alongside that campaign's speaker profiles. Fingerprints are never uploaded or shared, are used only to pre-fill speaker assignments for you to confirm, and can be disabled in Settings.
 
 ## Sent to your chosen AI provider (and why)
@@ -23,8 +23,9 @@ Where that data goes depends on the provider you pick:
 
 The in-app notes on the Transcribe, Summarize and Refine screens always name the provider currently in use.
 
-## Sent to HuggingFace
-- **Only your HuggingFace token**, to authenticate and download the speaker-diarization model. No audio or transcripts are sent — diarization runs locally on your machine.
+## Model downloads (first use only)
+- The speech-recognition models (Whisper) are downloaded from Hugging Face's public servers, and a word-alignment model from pytorch.org, the first time they are needed. No account, token, audio, or transcripts are sent.
+- The speaker-diarization model ships with CampaignScribe and never downloads.
 
 ## Sent to GitHub
 - **Update checks** contact GitHub to see whether a newer version exists (and to download it). No personal content.
@@ -43,6 +44,7 @@ The **Help → Feedback & Support** menu can help you share information with us 
 
 ## What CampaignScribe does NOT do
 - No analytics, no tracking, no telemetry by default, and no servers of our own. We collect nothing about you.
+- The speaker-diarization library (pyannote.audio) has built-in usage metrics that report to its developers by default; CampaignScribe switches them off, so nothing is sent.
 
 ---
 

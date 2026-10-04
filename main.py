@@ -6,6 +6,8 @@ import sys
 import traceback
 import types
 
+import app.core.telemetry_off  # noqa: F401  (must precede any torch/whisperx/pyannote import)
+
 
 def _install_optional_dep_stubs() -> None:
     """Inject a stub `k2` module so speechbrain.integrations.k2_fsa imports

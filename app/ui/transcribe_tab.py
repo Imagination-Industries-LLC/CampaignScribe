@@ -12,7 +12,16 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
 from app import config
-from app.core import audio, library, llm, privacy, speaker_id, speakers_io, transcriber
+from app.core import (
+    audio,
+    library,
+    llm,
+    models,
+    privacy,
+    speaker_id,
+    speakers_io,
+    transcriber,
+)
 from app.data import db
 from app.ui.common import (
     ScrollableFrame,
@@ -362,14 +371,10 @@ class TranscribeTab(ttk.Frame):
         if not llm.provider_ready():
             messagebox.showerror("CampaignScribe", llm.not_ready_message())
             return
-        if not config.get_huggingface_token():
-            messagebox.showerror(
-                "CampaignScribe",
-                "Diarization requires a HuggingFace token.\n\n"
-                "1) Create a token at https://huggingface.co/settings/tokens\n"
-                "2) Accept the license on https://huggingface.co/pyannote/speaker-diarization-community-1\n"
-                "3) Paste the token in Settings (⚙).",
-            )
+        try:
+            models.diarization_dir()
+        except models.MissingModelError as e:
+            messagebox.showerror("CampaignScribe", str(e))
             return
         out = (self.out_var.get() or "").strip()
         if not out:
@@ -405,7 +410,6 @@ class TranscribeTab(ttk.Frame):
             self._set_status(str(e))
             self.after(0, lambda: self._set_busy(False))
             return
-        hf = config.get_huggingface_token()
         try:
             speakers_doc = speakers_io.load_speakers_json(self.speakers_path)
             ignored_ids = [
@@ -420,7 +424,6 @@ class TranscribeTab(ttk.Frame):
 
         pipeline = transcriber.TranscriptionPipeline(
             model_size=self.model_var.get(),
-            hf_token=hf,
         )
 
         all_segments: list[dict[str, Any]] = []

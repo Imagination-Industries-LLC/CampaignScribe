@@ -144,14 +144,6 @@ def get_anthropic_key() -> str:
     return get_provider_key("anthropic")
 
 
-def save_huggingface_token(token: str) -> None:
-    keyring.set_password(SERVICE_NAME, "huggingface_token", token or "")
-
-
-def get_huggingface_token() -> str:
-    return keyring.get_password(SERVICE_NAME, "huggingface_token") or ""
-
-
 def get_error_log_path() -> Path:
     return get_app_data_dir() / "errors.log"
 

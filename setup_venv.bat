@@ -60,5 +60,10 @@ rem was built against torch 2.8 and crashes when we upgrade torch to 2.11.
 if errorlevel 1 exit /b 1
 
 echo.
+echo [setup_venv] Fetching bundled diarization weights...
+"%PY%" scripts\fetch_diarization_weights.py
+if errorlevel 1 echo [setup_venv] WARNING: weights not fetched; Transcribe will report missing model files until you run scripts\fetch_diarization_weights.py
+
+echo.
 echo [setup_venv] Done. Run run_dev.bat to launch the app.
 endlocal

@@ -10,7 +10,16 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
 from app import config
-from app.core import audio, library, llm, privacy, speaker_id, speakers_io, transcriber
+from app.core import (
+    audio,
+    library,
+    llm,
+    models,
+    privacy,
+    speaker_id,
+    speakers_io,
+    transcriber,
+)
 from app.ui.common import ScrollableFrame, add_privacy_note
 from app.ui.theme import BTN_ACCENT, LBL_DIM, LBL_EYEBROW, LBL_HEADER
 
@@ -201,13 +210,17 @@ class RefineTab(ttk.Frame):
         if not llm.provider_ready():
             messagebox.showerror("CampaignScribe", llm.not_ready_message())
             return
+        try:
+            models.diarization_dir()
+        except models.MissingModelError as e:
+            messagebox.showerror("CampaignScribe", str(e))
+            return
         self._cancel.clear()
         self._set_busy(True)
         self.save_btn.config(state="disabled")
         threading.Thread(target=self._worker, daemon=True).start()
 
     def _worker(self):
-        hf = config.get_huggingface_token()
         all_segments: list[dict[str, Any]] = []
         wavs: list[str] = []
         pipeline = None
@@ -216,7 +229,6 @@ class RefineTab(ttk.Frame):
             cfg = config.load_config()
             pipeline = transcriber.TranscriptionPipeline(
                 model_size=cfg.get("default_whisper_model", "small"),
-                hf_token=hf,
             )
             for i, ap in enumerate(self.audio_files, start=1):
                 if self._cancel.is_set():

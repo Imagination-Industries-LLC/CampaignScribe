@@ -7,11 +7,20 @@ if not exist "%PY%" (
     echo ERROR: venv not found at %PY%
     exit /b 1
 )
+echo Fetching bundled diarization weights...
+"%PY%" scripts\fetch_diarization_weights.py
+if errorlevel 1 (
+    echo ERROR: diarization weights missing or invalid; see message above.
+    exit /b 1
+)
 "%PY%" -m PyInstaller --noconfirm --onedir --windowed ^
     --icon=assets\icon.ico ^
     --name CampaignScribe ^
     --add-data "ffmpeg\ffmpeg.exe;ffmpeg" ^
     --add-data "assets;assets" ^
+    --add-data "PRIVACY.md;." ^
+    --add-data "THIRD-PARTY-NOTICES.md;." ^
+    --add-data "models\speaker-diarization-community-1;models\speaker-diarization-community-1" ^
     --collect-all torch ^
     --collect-all whisperx ^
     --collect-all pyannote ^

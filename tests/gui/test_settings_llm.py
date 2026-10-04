@@ -479,3 +479,23 @@ def test_precise_rate_override_survives_untouched_save(root):
     except tk.TclError:
         pass
     assert config.load_config()["llm_rates"]["gemini"] == [0.0375, 0.15]
+
+
+def test_settings_has_no_huggingface_row(root):
+    dlg = _open(root)
+    try:
+        assert not hasattr(dlg, "hf_var")
+        labels = []
+
+        def _walk(w):
+            for c in w.winfo_children():
+                try:
+                    labels.append(str(c.cget("text")))
+                except tk.TclError:
+                    pass
+                _walk(c)
+
+        _walk(dlg)
+        assert not any("HuggingFace" in t for t in labels)
+    finally:
+        dlg.destroy()

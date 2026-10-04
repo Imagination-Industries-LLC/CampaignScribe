@@ -42,7 +42,7 @@ Menu bar:
 - **File** → Settings (AI provider, model and API key — Claude, Google
   Gemini, OpenRouter, a local Ollama / LM Studio model, or a custom
   OpenAI-compatible endpoint — with editable per-provider rates, plus
-  HuggingFace token, default and discovery Whisper models, output folder,
+  default and discovery Whisper models, output folder,
   expected speakers, theme,
   voice-match threshold, crash reporting opt-in) · Exit
 - **Tools** → Open Logs Folder · Open Data Folder
@@ -73,13 +73,9 @@ Theme follows the OS by default and can be forced to dark or light in Settings.
   (local)** in Settings → AI model; **Detect** lists the models you have
   installed. Models of 12B parameters and up give the best results for
   speaker identification.
-- A [HuggingFace token](https://huggingface.co/settings/tokens) AND license
-  acceptance for the diarization model (one click):
-  - https://huggingface.co/pyannote/speaker-diarization-community-1
-
-  Without the license click pyannote fails with an opaque error. Transcribe
-  and Discover check for a token before starting and point you here if it is
-  missing.
+- Nothing else: speaker diarization ships with the app (no Hugging Face
+  account needed). The Whisper speech models download automatically the first
+  time you transcribe.
 
 ### GPU status messages
 
@@ -102,6 +98,9 @@ The bottom-of-window status bar reports one of:
 ```cmd
 setup_venv.bat   :: once — creates .venv and installs the pinned ML stack
 run_dev.bat      :: launch the app from source; edit code, save, relaunch
+:: setup_venv also runs scripts\fetch_diarization_weights.py, which needs a
+:: Hugging Face token ONCE (developers only; set HF_TOKEN). End users never
+:: need one.
 ```
 
 `setup_venv.bat` is a two-step install on purpose: whisperx 3.8.5 declares a
@@ -161,7 +160,7 @@ and `ffmpeg.exe`. A slim installer and auto-update are on the roadmap
 - Speaker library: `%APPDATA%\CampaignScribe\library\<campaign-slug>\`
   (`manifest.json` + immutable timestamped roster versions; per-campaign
   voice fingerprints in `fingerprints.npz`, never uploaded)
-- AI-provider API keys + HF token: Windows Credential Manager (via
+- AI-provider API keys: Windows Credential Manager (via
   `keyring`), never on disk.
 - Audio files, transcripts, summaries: wherever you point the output folder.
 
@@ -173,9 +172,9 @@ Privacy details, including exactly what leaves the machine and when, are in
 - **"PyTorch not available" in status bar** — the venv or bundle has no
   working torch, or a CUDA build is on a machine without a matching driver.
   Delete `.venv` and re-run `setup_venv.bat`, or rebuild with `build.bat`.
-- **HuggingFace 403 / cannot download diarization model** — accept the
-  license on the pyannote model page and verify your HF token is set in
-  Settings.
+- **"Speaker-diarization model files are missing"** — the installation is
+  incomplete; reinstall. In a development checkout run
+  `python scripts\fetch_diarization_weights.py`.
 - **"<provider> rejected the API key"** — the key saved for that provider in
   Settings → AI model was rejected; re-paste it and use Test connection.
 - **CUDA out of memory** — pick a smaller Whisper model (medium / small) in
