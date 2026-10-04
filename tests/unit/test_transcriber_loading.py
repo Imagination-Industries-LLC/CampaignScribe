@@ -3,27 +3,41 @@
 from __future__ import annotations
 
 import inspect
+import sys
+import types
 
 import pytest
 
 from app.core import models, transcriber
 
 
-@pytest.fixture
-def stubs(monkeypatch, tmp_path):
-    import whisperx
-    import whisperx.diarize as wd
-
+def _make_stubs(tmp_path):
+    """Create fake whisperx and whisperx.diarize modules with call tracking."""
     calls = {}
-    monkeypatch.setattr(
-        whisperx, "load_model", lambda *a, **k: calls.setdefault("load", (a, k)) or object()
-    )
 
-    class _DP:
+    def fake_load_model(*a, **k):
+        calls["load"] = (a, k)
+        return object()
+
+    class FakeDiarizationPipeline:
         def __init__(self, **k):
             calls["diarize"] = k
 
-    monkeypatch.setattr(wd, "DiarizationPipeline", _DP)
+    fake_wx = types.ModuleType("whisperx")
+    fake_wx.load_model = fake_load_model
+
+    fake_diar = types.ModuleType("whisperx.diarize")
+    fake_diar.DiarizationPipeline = FakeDiarizationPipeline
+    fake_wx.diarize = fake_diar
+
+    return fake_wx, fake_diar, calls
+
+
+@pytest.fixture
+def stubs(monkeypatch, tmp_path):
+    fake_wx, fake_diar, calls = _make_stubs(tmp_path)
+    monkeypatch.setitem(sys.modules, "whisperx", fake_wx)
+    monkeypatch.setitem(sys.modules, "whisperx.diarize", fake_diar)
     monkeypatch.setattr(models, "diarization_dir", lambda: tmp_path / "weights")
     monkeypatch.setattr(transcriber, "check_gpu", lambda: {"cuda_available": False})
     return calls
@@ -48,11 +62,17 @@ def test_load_uses_builtin_vad_and_bundled_diarization(stubs, tmp_path):
     }
 
 
-def test_missing_weights_raise_clear_error(monkeypatch):
-    import whisperx
-
+def test_missing_weights_raise_clear_error(monkeypatch, tmp_path):
+    fake_wx, fake_diar, calls = _make_stubs(tmp_path)
     loaded = []
-    monkeypatch.setattr(whisperx, "load_model", lambda *a, **k: loaded.append(1) or object())
+
+    def tracking_load_model(*a, **k):
+        loaded.append(1)
+        return object()
+
+    fake_wx.load_model = tracking_load_model
+    monkeypatch.setitem(sys.modules, "whisperx", fake_wx)
+    monkeypatch.setitem(sys.modules, "whisperx.diarize", fake_diar)
     monkeypatch.setattr(transcriber, "check_gpu", lambda: {"cuda_available": False})
 
     def _missing():

@@ -5,6 +5,8 @@ from __future__ import annotations
 import importlib
 import os
 
+import pytest
+
 import app.core.telemetry_off as telemetry_off
 
 _KEYS = ("PYANNOTE_METRICS_ENABLED", "OTEL_SDK_DISABLED")
@@ -33,6 +35,7 @@ def test_explicit_user_value_is_kept(monkeypatch):
 
 
 def test_pyannote_metrics_disabled(monkeypatch):
+    pytest.importorskip("pyannote.audio")
     for k in _KEYS:
         monkeypatch.delenv(k, raising=False)
     importlib.reload(telemetry_off)
