@@ -51,3 +51,6 @@ errors.log
 *.db
 *.sqlite
 *.sqlite3
+
+# Bundled model weights (fetched by scripts/fetch_diarization_weights.py; never committed)
+/models/
