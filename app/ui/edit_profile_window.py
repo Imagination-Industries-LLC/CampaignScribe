@@ -330,7 +330,7 @@ class EditProfileWindow(tk.Toplevel):
         # retired Discover tab): convert -> TranscriptionPipeline.transcribe_file ->
         # speaker_id.discover_speakers, then APPEND the returned profiles to the
         # editor list (no DB session is created here — this only seeds the roster).
-        from app.core import audio, llm, speaker_id, transcriber
+        from app.core import audio, llm, models, speaker_id, transcriber
 
         if path is None:
             path = filedialog.askopenfilename(
@@ -345,6 +345,11 @@ class EditProfileWindow(tk.Toplevel):
                 "CampaignScribe",
                 "Discover needs an AI provider set up in Settings (⚙).\n" + llm.not_ready_message(),
             )
+            return
+        try:
+            models.diarization_dir()
+        except models.MissingModelError as e:
+            messagebox.showerror("CampaignScribe", str(e))
             return
         config.set_last_dir("audio", path)
         sample_min = int(config.load_config().get("discover_sample_minutes", 0))

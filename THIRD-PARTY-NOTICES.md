@@ -18,7 +18,7 @@ CampaignScribe includes or downloads the following third-party models and softwa
 
 ### WhisperX
 - License: BSD-2-Clause — https://github.com/m-bain/whisperX
-- Includes a voice-activity-detection model file used by CampaignScribe.
+- Redistributes, and CampaignScribe uses, the pyannote `segmentation` model as its voice-activity detector (`whisperx/assets/pytorch_model.bin`): https://huggingface.co/pyannote/segmentation — MIT License, Copyright (c) CNRS, Hervé Bredin.
 
 ### faster-whisper / CTranslate2
 - faster-whisper: MIT — https://github.com/SYSTRAN/faster-whisper
@@ -33,6 +33,7 @@ CampaignScribe includes or downloads the following third-party models and softwa
 - License: see https://pytorch.org/audio/stable/pipelines.html
 
 ## Citations
+- Bredin, H., Laurent, A. "End-to-end speaker segmentation for overlap-aware resegmentation." Interspeech 2021.
 - Bredin, H. "pyannote.audio 2.1 speaker diarization pipeline: principle, benchmark, and recipe." Interspeech 2023.
 - Wang, H. et al. "Wespeaker: A research and production oriented speaker embedding learning toolkit." ICASSP 2023.
 - Landini, F. et al. "Bayesian HMM clustering of x-vector sequences (VBx) in speaker diarization." Computer Speech & Language, 2022.

@@ -7,6 +7,8 @@ def test_loads_bundled_file():
     text = notices.load_notices_text()
     for needle in (
         "pyannote",
+        "pyannote/segmentation",
+        "Hervé Bredin",
         "CC-BY-4.0",
         "WeSpeaker",
         "VoxCeleb",

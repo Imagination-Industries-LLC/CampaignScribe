@@ -88,3 +88,14 @@ def test_main_hash_mismatch_after_fetch_returns_1(tmp_path, monkeypatch):
     monkeypatch.setattr(fw, "_token", lambda: "hf_x")
     monkeypatch.setattr(fw, "fetch", lambda dest, token: None)  # writes nothing
     assert fw.main([], dest=tmp_path) == 1
+
+
+def test_main_download_failure_returns_1_with_hint(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(fw, "_token", lambda: "hf_x")
+
+    def _boom(dest, token):
+        raise RuntimeError("401")
+
+    monkeypatch.setattr(fw, "fetch", _boom)
+    assert fw.main([], dest=tmp_path) == 1
+    assert "accept the license" in capsys.readouterr().out

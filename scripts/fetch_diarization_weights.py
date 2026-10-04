@@ -79,7 +79,16 @@ def main(argv: list[str] | None = None, *, dest: Path | None = None) -> int:
             "  3) Re-run with:  set HF_TOKEN=hf_...  then  python scripts\\fetch_diarization_weights.py"
         )
         return 2
-    fetch(dest, token)
+    try:
+        fetch(dest, token)
+    except Exception as e:  # noqa: BLE001
+        print(
+            f"[fetch_diarization_weights] Download failed: {type(e).__name__}: {e}\n"
+            "  If this is a 401/403, accept the license at "
+            "https://huggingface.co/pyannote/speaker-diarization-community-1 "
+            "with the same account as your token."
+        )
+        return 1
     bad = verify(dest)
     if bad:
         print(f"[fetch_diarization_weights] Hash check FAILED for: {', '.join(bad)}")

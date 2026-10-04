@@ -10,7 +10,16 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
 from app import config
-from app.core import audio, library, llm, privacy, speaker_id, speakers_io, transcriber
+from app.core import (
+    audio,
+    library,
+    llm,
+    models,
+    privacy,
+    speaker_id,
+    speakers_io,
+    transcriber,
+)
 from app.ui.common import ScrollableFrame, add_privacy_note
 from app.ui.theme import BTN_ACCENT, LBL_DIM, LBL_EYEBROW, LBL_HEADER
 
@@ -200,6 +209,11 @@ class RefineTab(ttk.Frame):
             return
         if not llm.provider_ready():
             messagebox.showerror("CampaignScribe", llm.not_ready_message())
+            return
+        try:
+            models.diarization_dir()
+        except models.MissingModelError as e:
+            messagebox.showerror("CampaignScribe", str(e))
             return
         self._cancel.clear()
         self._set_busy(True)

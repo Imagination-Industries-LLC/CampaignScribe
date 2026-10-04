@@ -52,6 +52,6 @@ def test_notices_dialog_shows_text(app):
                 _walk(c)
 
         _walk(dlg)
-        assert texts and "pyannote" in texts[0]
+        assert texts and "VoxCeleb" in texts[0]
     finally:
         dlg.destroy()

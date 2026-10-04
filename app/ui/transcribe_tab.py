@@ -12,7 +12,16 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
 from app import config
-from app.core import audio, library, llm, privacy, speaker_id, speakers_io, transcriber
+from app.core import (
+    audio,
+    library,
+    llm,
+    models,
+    privacy,
+    speaker_id,
+    speakers_io,
+    transcriber,
+)
 from app.data import db
 from app.ui.common import (
     ScrollableFrame,
@@ -361,6 +370,11 @@ class TranscribeTab(ttk.Frame):
             return
         if not llm.provider_ready():
             messagebox.showerror("CampaignScribe", llm.not_ready_message())
+            return
+        try:
+            models.diarization_dir()
+        except models.MissingModelError as e:
+            messagebox.showerror("CampaignScribe", str(e))
             return
         out = (self.out_var.get() or "").strip()
         if not out:

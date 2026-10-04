@@ -713,7 +713,7 @@ class PrivacyDialog(tk.Toplevel):
 
 
 class NoticesDialog(tk.Toplevel):
-    """Scrollable Help → Third-party notices dialog rendering THIRD-PARTY-NOTICES.md."""
+    """About → Third-party notices dialog rendering THIRD-PARTY-NOTICES.md."""
 
     def __init__(self, master):
         super().__init__(master)
