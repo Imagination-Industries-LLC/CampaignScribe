@@ -51,7 +51,8 @@ def test_load_uses_builtin_vad_and_bundled_diarization(stubs, tmp_path):
 def test_missing_weights_raise_clear_error(monkeypatch):
     import whisperx
 
-    monkeypatch.setattr(whisperx, "load_model", lambda *a, **k: object())
+    loaded = []
+    monkeypatch.setattr(whisperx, "load_model", lambda *a, **k: loaded.append(1) or object())
     monkeypatch.setattr(transcriber, "check_gpu", lambda: {"cuda_available": False})
 
     def _missing():
@@ -60,3 +61,4 @@ def test_missing_weights_raise_clear_error(monkeypatch):
     monkeypatch.setattr(models, "diarization_dir", _missing)
     with pytest.raises(models.MissingModelError):
         transcriber.TranscriptionPipeline(model_size="small")._load_models()
+    assert loaded == []  # failed before the multi-GB Whisper load

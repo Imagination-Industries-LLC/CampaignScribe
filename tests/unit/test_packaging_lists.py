@@ -56,3 +56,12 @@ def test_privacy_and_readme_have_no_token():
         text = _read(name)
         assert "HuggingFace token" not in text and "HF token" not in text, name
     assert "Model downloads (first use only)" in _read("PRIVACY.md")
+
+
+def test_main_imports_telemetry_off_before_ml_libs():
+    import re
+
+    text = _read("main.py")
+    pos = text.index("import app.core.telemetry_off")
+    first = re.search(r"^\s*(?:import|from)\s+(whisperx|pyannote|torch|app\.ui)\b", text, re.M)
+    assert first is None or pos < first.start()

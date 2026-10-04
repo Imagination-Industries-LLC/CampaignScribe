@@ -44,6 +44,7 @@ The **Help → Feedback & Support** menu can help you share information with us 
 
 ## What CampaignScribe does NOT do
 - No analytics, no tracking, no telemetry by default, and no servers of our own. We collect nothing about you.
+- The speaker-diarization library (pyannote.audio) has built-in usage metrics that report to its developers by default; CampaignScribe switches them off, so nothing is sent.
 
 ---
 

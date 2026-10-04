@@ -9,6 +9,8 @@ import json
 from collections.abc import Callable
 from typing import Any
 
+from app.core import telemetry_off  # noqa: F401  (must run before whisperx/pyannote import)
+
 
 def coerce_embeddings(raw: dict | None) -> dict:
     """Convert a raw {label: list[float]} dict from return_embeddings=True to
@@ -170,6 +172,12 @@ class TranscriptionPipeline:
             self.compute_type = "float16"
 
     def _load_models(self) -> None:
+        diar_dir = None
+        if self._diarize is None:
+            from app.core import models
+
+            # Fail fast (before the multi-GB Whisper load) if the bundle is missing.
+            diar_dir = models.diarization_dir()
         if self._model is None:
             import whisperx
 
@@ -181,11 +189,9 @@ class TranscriptionPipeline:
         if self._diarize is None:
             from whisperx.diarize import DiarizationPipeline
 
-            from app.core import models
-
             # Bundled pyannote community-1 weights (CC-BY-4.0); see THIRD-PARTY-NOTICES.md.
             self._diarize = DiarizationPipeline(
-                model_name=str(models.diarization_dir()), token=None, device=self.device
+                model_name=str(diar_dir), token=None, device=self.device
             )
 
     def transcribe_file(
