@@ -127,6 +127,7 @@ def test_start_confirm_no_aborts_yes_proceeds(root, tmp_path, monkeypatch):
     tab._start()
     assert asked and asked[0][0] == "Confirm cost" and "Continue?" in asked[0][1]
     assert started == [] and not tab._busy
+    assert not (tmp_path / "out").exists()
     monkeypatch.setattr(st.messagebox, "askyesno", lambda title, msg, **k: True)
     tab._start()
     assert len(started) == 1
@@ -140,3 +141,44 @@ def test_start_on_local_never_prompts(root, tmp_path, monkeypatch):
     monkeypatch.setattr(st.messagebox, "askyesno", lambda *a, **k: pytest.fail("must not prompt"))
     tab._start()
     assert len(started) == 1
+
+
+def test_two_files_carry_their_own_prompt_and_context(root, tmp_path):
+    tab = _tab(root)
+    p = _transcript(tmp_path)
+    _add(tab, p)
+    a = tab._current_estimate()[0].input_tokens
+    _add(tab, _transcript(tmp_path, "t2.txt"))
+    b = tab._current_estimate()[0].input_tokens
+    assert abs(b - 2 * a) <= 1
+
+
+def test_file_hooks_refresh_estimate_without_manual_call(root, tmp_path, monkeypatch):
+    import app.ui.summarize_tab as st
+
+    tab = _tab(root)
+    empty = "Add transcript files to see an estimate."
+    assert tab.estimate_var.get() == empty
+    path = _transcript(tmp_path)
+    monkeypatch.setattr(st.filedialog, "askopenfilenames", lambda **k: (path,))
+    tab._add_files()
+    assert tab.estimate_var.get() != empty
+    tab.files_box.selection_set(0)
+    tab._remove_files()
+    assert tab.estimate_var.get() == empty
+
+
+def test_start_on_unknown_rates_never_prompts(root, tmp_path, monkeypatch):
+    tab = _tab(root)
+    started = _arm_start(tab, tmp_path, monkeypatch, provider="custom")
+    cfg = config.load_config()
+    cfg["llm_base_url_custom"] = "http://localhost:1/v1"
+    cfg["llm_model_custom"] = "m"
+    config.save_config(cfg)
+    import app.ui.summarize_tab as st
+
+    monkeypatch.setattr(st.messagebox, "askyesno", lambda *a, **k: pytest.fail("must not prompt"))
+    tab._refresh_estimate()
+    tab._start()
+    assert len(started) == 1
+    assert "cost unknown" in tab.estimate_var.get()

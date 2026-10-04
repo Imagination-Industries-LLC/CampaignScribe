@@ -467,3 +467,15 @@ def test_rate_override_for_custom_makes_rates_known(root):
     except tk.TclError:
         pass
     assert config.load_config()["llm_rates"] == {"custom": [1.0, 2.0]}
+
+
+def test_precise_rate_override_survives_untouched_save(root):
+    cfg = config.load_config()
+    cfg["llm_rates"] = {"gemini": [0.0375, 0.15]}
+    config.save_config(cfg)
+    dlg = _open(root)
+    try:
+        dlg._save()
+    except tk.TclError:
+        pass
+    assert config.load_config()["llm_rates"]["gemini"] == [0.0375, 0.15]

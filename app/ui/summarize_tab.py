@@ -191,23 +191,29 @@ class SummarizeTab(ttk.Frame):
 
     # ---- cost estimate ----
     def _current_estimate(self):
-        total = cost.CONTEXT_ALLOWANCE_CHARS
+        total = 0
         for p in self.transcript_files:
             try:
                 total += os.path.getsize(p)
             except OSError:
                 continue  # file vanished since it was added; the run reports it
+        prompt_chars = 0
         idx = self.prompt_combo.current()
         if 0 <= idx < len(self._prompt_options):
-            total += len(self._prompt_options[idx].get("content", ""))
+            prompt_chars = len(self._prompt_options[idx].get("content", ""))
+        num_parts = len(self.transcript_files)
+        # the prompt and context block are sent with every part
+        total += num_parts * (prompt_chars + cost.CONTEXT_ALLOWANCE_CHARS)
         preset = llm.active_preset()
         rates = cost.rates_for(preset)
-        est = cost.estimate(total, len(self.transcript_files), rates)
+        est = cost.estimate(total, num_parts, rates, chars_per_token=preset.chars_per_token)
         return est, preset, rates
 
     def _refresh_estimate(self) -> None:
         est, preset, rates = self._current_estimate()
-        self.estimate_var.set(cost.format_line(est, preset, rates))
+        self.estimate_var.set(
+            cost.format_line(est, preset, rates, hint=cost.model_rate_hint(preset))
+        )
 
     def load_for_session(self, session: dict, run_params: dict | None = None) -> None:
         """Set the active session and derive speakers.json from its campaign_slug
@@ -261,6 +267,7 @@ class SummarizeTab(ttk.Frame):
             messagebox.showinfo("CampaignScribe", "Select a transcript file to edit.")
             return
         open_transcript_editor(self, self.files_box.get(sel[0]))
+        self._refresh_estimate()
 
     def refresh_sessions(self):
         sessions = db.list_sessions()
