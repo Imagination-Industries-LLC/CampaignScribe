@@ -42,7 +42,8 @@ Menu bar:
 - **File** → Settings (AI provider, model and API key — Claude, Google
   Gemini, OpenRouter, a local Ollama / LM Studio model, or a custom
   OpenAI-compatible endpoint — with editable per-provider rates, plus
-  HuggingFace token, default and discovery Whisper models, output folder, expected speakers, theme,
+  HuggingFace token, default and discovery Whisper models, output folder,
+  expected speakers, theme,
   voice-match threshold, crash reporting opt-in) · Exit
 - **Tools** → Open Logs Folder · Open Data Folder
 - **Help** → Getting Started · Privacy & Data (see [PRIVACY.md](PRIVACY.md)) ·
