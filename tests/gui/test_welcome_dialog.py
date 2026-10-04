@@ -51,7 +51,11 @@ def test_copy_matches_spec(root):
         assert d.later_btn.cget("text") == "Later"
         assert w.CLOUD_CAPTION == "Claude, Google Gemini or OpenRouter — needs an API key"
         assert w.LOCAL_CAPTION == "Ollama or LM Studio, runs on your PC"
-        assert w.BODY.startswith("CampaignScribe transcribes your sessions on this PC.")
+        assert w.BODY == (
+            "CampaignScribe transcribes your sessions on this PC. To name speakers and write "
+            "summaries it needs an AI model — pick one to set up now. "
+            "You can change it any time in Settings (⚙)."
+        )
     finally:
         d.destroy()
 

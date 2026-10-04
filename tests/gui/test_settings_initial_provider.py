@@ -75,6 +75,14 @@ def test_cancel_leaves_configured_provider_unchanged(root):
     assert config.load_config()["llm_provider"] == "anthropic"
 
 
+def test_save_after_preselection_persists_provider(root, monkeypatch):
+    monkeypatch.setattr("app.ui.settings_dialog.messagebox.showerror", lambda *a, **k: None)
+    monkeypatch.setattr("app.ui.settings_dialog.messagebox.showinfo", lambda *a, **k: None)
+    dlg = _open(root, initial_provider="gemini")
+    dlg._save()  # destroys the dialog on success
+    assert config.load_config()["llm_provider"] == "gemini"
+
+
 def test_unknown_provider_falls_back_to_configured(root):
     cfg = config.load_config()
     cfg["llm_provider"] = "openrouter"

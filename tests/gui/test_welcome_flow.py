@@ -136,6 +136,18 @@ def test_main_window_closed_during_welcome_does_nothing_more(app, rec, monkeypat
     assert rec["asked"] == []
 
 
+def test_welcome_failure_is_logged_not_raised(app, rec, monkeypatch):
+    def boom(master):
+        raise RuntimeError("welcome exploded")
+
+    monkeypatch.setattr("app.ui.welcome_dialog.ask_setup_choice", boom)
+    app._run_startup_prompts()  # must not raise
+    assert config.load_config()["setup_welcome_shown"] is True
+    log = (config.get_app_data_dir() / "errors.log").read_text(encoding="utf-8")
+    assert "welcome exploded" in log
+    assert rec["settings"] == []
+
+
 def test_startup_timer_targets_run_startup_prompts(app):
     assert app._migration_after_id is not None
     info = app.tk.call("after", "info", app._migration_after_id)

@@ -206,7 +206,13 @@ class HomeTab(ttk.Frame):
         self._set_empty_state(self._library_is_empty())
 
     def _library_is_empty(self) -> bool:
-        return not library.list_campaigns() and not db.list_sessions(campaign_slug=db.UNCATEGORIZED)
+        try:
+            return not library.list_campaigns() and not db.list_sessions(
+                campaign_slug=db.UNCATEGORIZED
+            )
+        except Exception as e:  # noqa: BLE001 — empty-state hint must never block startup
+            config.log_exception("home empty-state check", e)
+            return False
 
     def _set_empty_state(self, empty: bool) -> None:
         if empty:

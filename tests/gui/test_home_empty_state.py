@@ -83,3 +83,19 @@ def test_loose_sessions_mean_not_empty(app):
     home.on_show()
     assert home.title_var.get() != "No campaigns yet"
     assert not _shown(home.first_campaign_btn)
+
+
+def test_empty_check_failure_is_logged_and_treated_as_not_empty(app, monkeypatch):
+    from app import config
+
+    home = app.home_tab
+
+    def boom():
+        raise RuntimeError("library exploded")
+
+    monkeypatch.setattr("app.ui.home_tab.library.list_campaigns", boom)
+    home._clear_detail()  # must not raise
+    assert home.title_var.get() == "Select a campaign"
+    assert not _shown(home.first_campaign_btn)
+    log = (config.get_app_data_dir() / "errors.log").read_text(encoding="utf-8")
+    assert "home empty-state check" in log
