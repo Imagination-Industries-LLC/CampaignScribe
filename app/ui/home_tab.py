@@ -18,6 +18,11 @@ STATUS_CHIP = {
 }
 
 UNCATEGORIZED_LABEL = "▣ Uncategorized (loose sessions)"
+EMPTY_TITLE = "No campaigns yet"
+EMPTY_SUMMARY = (
+    "Create a campaign to hold your speaker profiles and sessions, "
+    "or import an existing speakers .json."
+)
 
 
 class HomeTab(ttk.Frame):
@@ -49,7 +54,7 @@ class HomeTab(ttk.Frame):
         ttk.Button(left, text="Import existing .json…", style=BTN_GHOST, command=self._import).pack(
             side="bottom", fill="x", pady=(S_2, 0)
         )
-        ttk.Button(left, text="＋ New campaign…", style=BTN_GHOST, command=self._new_campaign).pack(
+        ttk.Button(left, text="＋ New campaign…", style=BTN_GHOST, command=self.new_campaign).pack(
             side="bottom", fill="x", pady=(S_2, 0)
         )
         self.campaign_list = tk.Listbox(left, width=30, height=12, exportselection=False)
@@ -80,6 +85,11 @@ class HomeTab(ttk.Frame):
         )
         self.new_session_btn.grid(row=2, column=0, sticky="w", pady=(0, S_2))
         self.new_session_btn.state(["disabled"])
+        self.first_campaign_btn = ttk.Button(
+            right, text="＋ Create your first campaign", style=BTN_ACCENT, command=self.new_campaign
+        )
+        self.first_campaign_btn.grid(row=2, column=0, sticky="w", pady=(0, S_2))
+        self.first_campaign_btn.grid_remove()
 
         cols = ("id", "name", "created", "status")
         self.session_tree = ttk.Treeview(right, columns=cols, show="headings", height=12)
@@ -153,6 +163,7 @@ class HomeTab(ttk.Frame):
             self.select_campaign(target)
 
     def select_campaign(self, slug: str):
+        self._set_empty_state(False)
         self.selected_slug = slug
         self.selected_is_uncat = False
         row = next((r for r in library.list_campaigns() if r["slug"] == slug), None)
@@ -175,6 +186,7 @@ class HomeTab(ttk.Frame):
         self._refresh_sessions(db.list_sessions(campaign_slug=slug))
 
     def select_uncategorized(self):
+        self._set_empty_state(False)
         self.selected_slug = None
         self.selected_is_uncat = True
         self.title_var.set("Uncategorized")
@@ -191,6 +203,26 @@ class HomeTab(ttk.Frame):
         self.session_tree.delete(*self.session_tree.get_children())
         self.edit_btn.state(["disabled"])
         self.new_session_btn.state(["disabled"])
+        self._set_empty_state(self._library_is_empty())
+
+    def _library_is_empty(self) -> bool:
+        try:
+            return not library.list_campaigns() and not db.list_sessions(
+                campaign_slug=db.UNCATEGORIZED
+            )
+        except Exception as e:  # noqa: BLE001 — empty-state hint must never block startup
+            config.log_exception("home empty-state check", e)
+            return False
+
+    def _set_empty_state(self, empty: bool) -> None:
+        if empty:
+            self.title_var.set(EMPTY_TITLE)
+            self.summary_var.set(EMPTY_SUMMARY)
+            self.new_session_btn.grid_remove()
+            self.first_campaign_btn.grid()
+        else:
+            self.first_campaign_btn.grid_remove()
+            self.new_session_btn.grid()
 
     # ---------- sessions ----------
     def _refresh_sessions(self, sessions):
@@ -264,7 +296,7 @@ class HomeTab(ttk.Frame):
             return
         self.app.open_edit_profile(self.selected_slug)
 
-    def _new_campaign(self):
+    def new_campaign(self):
         name = simpledialog.askstring("New campaign", "Campaign name:", parent=self)
         if not name or not name.strip():
             return

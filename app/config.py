@@ -34,6 +34,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "voice_match_threshold": 0.70,  # cosine; below -> cluster stays manual
     "summaries_completed": 0,  # count of completed consolidated summaries (drives the one-time support nudge)
     "support_nudge_shown": False,  # the gentle one-time support nudge has been shown
+    "setup_welcome_shown": False,  # first-launch welcome (pick an AI provider) has been offered
     "crash_reporting_enabled": False,  # opt-in (default off) Sentry crash reporting
     # ---- LLM provider (Multi-Provider LLM, Phase 2) ----
     "llm_provider": "anthropic",  # one of app.core.llm.PRESETS

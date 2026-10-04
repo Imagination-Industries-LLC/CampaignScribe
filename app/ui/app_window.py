@@ -9,8 +9,9 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from app import __version__, config
-from app.core import library, llm, notices, privacy
+from app.core import first_run, library, llm, notices, privacy
 from app.core.transcriber import check_gpu
+from app.ui import welcome_dialog
 from app.ui.common import add_tooltip, make_readonly, open_path_native, open_url, reveal_in_folder
 from app.ui.edit_profile_window import EditProfileWindow
 from app.ui.home_tab import HomeTab
@@ -112,6 +113,13 @@ class AppWindow(tk.Tk):
 
         self.banner_text = ttk.Label(banner_inner, text="", style=LBL_STATUS_WARN)
         self.banner_text.pack(side="left")
+        self.banner_settings_btn = ttk.Button(
+            banner_inner,
+            text="Open Settings",
+            style=BTN_GHOST,
+            command=lambda: self.open_settings(),
+        )
+        self.banner_settings_btn.pack(side="right")
 
         self.banner_label = banner_inner  # backwards-compatible attribute
 
@@ -186,8 +194,8 @@ class AppWindow(tk.Tk):
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
-        # Offer the one-time library migration after the window is shown.
-        self._migration_after_id = self.after(300, self._maybe_offer_library_import)
+        # Startup prompts (library migration, then first-run welcome) after the window shows.
+        self._migration_after_id = self.after(300, self._run_startup_prompts)
 
     # ----------------------------------------------------------------------
     # Status bar
@@ -335,9 +343,53 @@ class AppWindow(tk.Tk):
         cfg["library_import_prompted"] = True
         config.save_config(cfg)
 
-    def open_settings(self):
+    def _run_startup_prompts(self):
+        """One prompt at a time: library import first, then the first-run welcome.
+        A failure in one step is logged and never blocks the next."""
+        for step in (self._maybe_offer_library_import, self._maybe_first_run_setup):
+            if not self._alive():
+                return
+            try:
+                step()
+            except Exception as e:  # noqa: BLE001
+                config.log_exception(f"startup prompt {getattr(step, '__name__', step)}", e)
+
+    def _alive(self) -> bool:
+        try:
+            return bool(self.winfo_exists())
+        except tk.TclError:
+            return False
+
+    def _maybe_first_run_setup(self):
+        if not first_run.should_offer_setup(config.load_config()):
+            return
+        # Mark before showing, so a crash in the dialog cannot repeat it every launch.
+        first_run.mark_setup_offered()
+        choice = welcome_dialog.ask_setup_choice(self)
+        if not self._alive():
+            return  # main window closed while the welcome was open
+        provider = {"cloud": "anthropic", "local": "ollama"}.get(choice or "")
+        if provider is None:
+            return
+        self.open_settings(initial_provider=provider)
+        if self._alive():
+            self._maybe_offer_first_campaign()
+
+    def _maybe_offer_first_campaign(self):
+        if library.list_campaigns():
+            return
+        if messagebox.askyesno(
+            "Create your first campaign?",
+            "A campaign holds your speaker profiles and session history. "
+            "You can also create one later from Home.",
+            parent=self,
+        ):
+            self.open_home()
+            self.home_tab.new_campaign()
+
+    def open_settings(self, initial_provider: str | None = None):
         old_mode = config.load_config().get("theme_mode", "dark")
-        dlg = SettingsDialog(self)
+        dlg = SettingsDialog(self, initial_provider=initial_provider)
         self.wait_window(dlg)
         self._refresh_banner()
         for tab in (

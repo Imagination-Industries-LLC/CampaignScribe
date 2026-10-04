@@ -18,8 +18,9 @@ _TEST_PROBE_TIMEOUT_S = 30.0
 
 
 class SettingsDialog(tk.Toplevel):
-    def __init__(self, master):
+    def __init__(self, master, initial_provider: str | None = None):
         super().__init__(master)
+        self._initial_provider = initial_provider
         self.title("CampaignScribe — Settings")
         self.transient(master)
         self.resizable(False, False)
@@ -180,6 +181,10 @@ class SettingsDialog(tk.Toplevel):
         self._llm_current = cfg.get("llm_provider", "anthropic")
         if self._llm_current not in llm.PRESETS:
             self._llm_current = "anthropic"
+        # First-run welcome can open Settings on a chosen provider. Nothing is
+        # persisted until Save, so Cancel keeps the configured provider.
+        if self._initial_provider in llm.PRESETS:
+            self._llm_current = self._initial_provider
         self._display_to_id = {p.display_name: pid for pid, p in llm.PRESETS.items()}
 
         ttk.Label(self, text="— AI model —").grid(
