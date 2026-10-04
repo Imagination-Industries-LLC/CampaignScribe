@@ -112,6 +112,13 @@ class AppWindow(tk.Tk):
 
         self.banner_text = ttk.Label(banner_inner, text="", style=LBL_STATUS_WARN)
         self.banner_text.pack(side="left")
+        self.banner_settings_btn = ttk.Button(
+            banner_inner,
+            text="Open Settings",
+            style=BTN_GHOST,
+            command=lambda: self.open_settings(),
+        )
+        self.banner_settings_btn.pack(side="right")
 
         self.banner_label = banner_inner  # backwards-compatible attribute
 
@@ -335,9 +342,9 @@ class AppWindow(tk.Tk):
         cfg["library_import_prompted"] = True
         config.save_config(cfg)
 
-    def open_settings(self):
+    def open_settings(self, initial_provider: str | None = None):
         old_mode = config.load_config().get("theme_mode", "dark")
-        dlg = SettingsDialog(self)
+        dlg = SettingsDialog(self, initial_provider=initial_provider)
         self.wait_window(dlg)
         self._refresh_banner()
         for tab in (
