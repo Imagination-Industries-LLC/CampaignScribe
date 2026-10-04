@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import queue
 import threading
 import tkinter as tk
@@ -453,7 +454,7 @@ class SettingsDialog(tk.Toplevel):
             i, o = float(text_in.strip()), float(text_out.strip())
         except ValueError:
             return None
-        if i < 0 or o < 0:
+        if not (math.isfinite(i) and math.isfinite(o)) or i < 0 or o < 0:
             return None
         return i, o
 

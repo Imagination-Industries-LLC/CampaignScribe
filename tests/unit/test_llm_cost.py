@@ -39,7 +39,17 @@ def test_rates_for_custom_unknown_until_set():
 
 @pytest.mark.parametrize(
     "bad",
-    ["3,15", [3.0], [-1.0, 2.0], ["a", "b"], None, {"in": 3}, [3.0, 15.0, 1.0]],
+    [
+        "3,15",
+        [3.0],
+        [-1.0, 2.0],
+        ["a", "b"],
+        None,
+        {"in": 3},
+        [3.0, 15.0, 1.0],
+        [float("inf"), 1.0],
+        [1.0, float("nan")],
+    ],
 )
 def test_rates_for_ignores_bad_override_shapes(bad):
     r = cost.rates_for(ANTH, {"llm_rates": {"anthropic": bad}})
@@ -148,3 +158,8 @@ def test_format_confirm():
         "across 2 part(s).\nEstimated cost: up to ~$0.16 (approximate, at your configured rates)."
         "\n\nContinue?"
     )
+
+
+def test_fmt_dollars_non_finite_never_raises():
+    assert cost.fmt_dollars(float("inf")) == "$?"
+    assert cost.fmt_dollars(float("nan")) == "$?"

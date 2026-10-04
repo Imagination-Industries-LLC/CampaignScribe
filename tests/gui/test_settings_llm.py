@@ -434,7 +434,17 @@ def test_default_rates_remove_override(root):
 
 
 @pytest.mark.parametrize(
-    "bad_in, bad_out", [("2,5", "10"), ("$2", "10"), ("", "10"), ("abc", "xyz"), ("-1", "10")]
+    "bad_in, bad_out",
+    [
+        ("2,5", "10"),
+        ("$2", "10"),
+        ("", "10"),
+        ("abc", "xyz"),
+        ("-1", "10"),
+        ("inf", "10"),
+        ("nan", "10"),
+        ("1e999", "10"),
+    ],
 )
 def test_bad_rate_text_drops_override(root, bad_in, bad_out):
     dlg = _open(root)

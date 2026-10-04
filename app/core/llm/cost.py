@@ -42,7 +42,7 @@ def _valid_pair(value: Any) -> tuple[float, float] | None:
         i, o = float(value[0]), float(value[1])
     except (TypeError, ValueError):
         return None
-    if i < 0 or o < 0 or math.isnan(i) or math.isnan(o):
+    if not (math.isfinite(i) and math.isfinite(o)) or i < 0 or o < 0:
         return None
     return i, o
 
@@ -88,6 +88,8 @@ def fmt_tokens(n: int) -> str:
 
 
 def fmt_dollars(x: float) -> str:
+    if not math.isfinite(x):
+        return "$?"
     if 0 < x < 0.01:
         return "<$0.01"
     # Use round-half-up for proper rounding behavior
