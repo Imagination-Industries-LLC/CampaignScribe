@@ -174,7 +174,7 @@ class TranscriptionPipeline:
             import whisperx
 
             # whisperx 3.8.5's default VAD (pyannote) loads from a file inside the
-            # whisperx package: no HuggingFace token and no network needed.
+            # whisperx package: no Hugging Face login and no network needed.
             self._model = whisperx.load_model(
                 self.model_size, self.device, compute_type=self.compute_type
             )

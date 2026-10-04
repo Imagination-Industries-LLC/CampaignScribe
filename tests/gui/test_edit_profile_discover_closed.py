@@ -79,7 +79,6 @@ def test_discover_result_after_window_closed_is_dropped_without_error(root, monk
     )
     monkeypatch.setattr("app.core.llm.get_provider", lambda cfg=None: object())
     monkeypatch.setattr("app.core.llm.provider_ready", lambda cfg=None: True)
-    monkeypatch.setattr("app.config.get_huggingface_token", lambda: "hf-token")
 
     from app.ui.edit_profile_window import EditProfileWindow
 

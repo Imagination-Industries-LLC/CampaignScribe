@@ -492,10 +492,9 @@ class AppWindow(tk.Tk):
     def _show_getting_started(self):
         messagebox.showinfo(
             "Getting Started",
-            "CampaignScribe needs two free credentials (Settings ⚙):\n\n"
-            "1. Anthropic API key — for speaker identification and summaries.\n"
-            "2. HuggingFace token — for speaker diarization (also accept the "
-            "pyannote model license on huggingface.co).\n\n"
+            "CampaignScribe needs one thing set up (Settings ⚙): an AI provider for "
+            "speaker identification and summaries — Claude, Google Gemini, OpenRouter, "
+            "or a free local model with Ollama / LM Studio.\n\n"
             "Then work left to right: Home → New session → Transcribe → "
             "Summarize. Refine improves your speaker profile from new audio.",
             parent=self,

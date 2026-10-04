@@ -207,7 +207,6 @@ class RefineTab(ttk.Frame):
         threading.Thread(target=self._worker, daemon=True).start()
 
     def _worker(self):
-        hf = config.get_huggingface_token()
         all_segments: list[dict[str, Any]] = []
         wavs: list[str] = []
         pipeline = None
@@ -216,7 +215,6 @@ class RefineTab(ttk.Frame):
             cfg = config.load_config()
             pipeline = transcriber.TranscriptionPipeline(
                 model_size=cfg.get("default_whisper_model", "small"),
-                hf_token=hf,
             )
             for i, ap in enumerate(self.audio_files, start=1):
                 if self._cancel.is_set():
