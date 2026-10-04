@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from app import __version__, config
-from app.core import library, llm, privacy
+from app.core import library, llm, notices, privacy
 from app.core.transcriber import check_gpu
 from app.ui.common import add_tooltip, make_readonly, open_path_native, open_url, reveal_in_folder
 from app.ui.edit_profile_window import EditProfileWindow
@@ -645,6 +645,9 @@ class AboutDialog(tk.Toplevel):
         btnrow = ttk.Frame(self)
         btnrow.pack(pady=12)
         ttk.Button(btnrow, text="❤️ Support", command=_support).pack(side="left", padx=4)
+        ttk.Button(btnrow, text="Third-party notices", command=lambda: NoticesDialog(self)).pack(
+            side="left", padx=4
+        )
         ttk.Button(btnrow, text="Close", command=self.destroy).pack(side="left", padx=4)
 
         self.update_idletasks()
@@ -701,6 +704,48 @@ class PrivacyDialog(tk.Toplevel):
             style=BTN_LINK,
             command=lambda: open_url(privacy.PRIVACY_MD_URL),
         ).pack(side="left")
+        ttk.Button(links, text="Close", style=BTN_GHOST, command=self.destroy).pack(side="right")
+
+        self.update_idletasks()
+        x = master.winfo_rootx() + (master.winfo_width() - self.winfo_width()) // 2
+        y = master.winfo_rooty() + 60
+        self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+
+
+class NoticesDialog(tk.Toplevel):
+    """Scrollable Help → Third-party notices dialog rendering THIRD-PARTY-NOTICES.md."""
+
+    def __init__(self, master):
+        super().__init__(master)
+        self.title("Third-party notices — CampaignScribe")
+        self.transient(master)
+        self.geometry("640x560")
+        self.minsize(520, 420)
+        self.grab_set()
+
+        ttk.Label(self, text="Third-party notices", style=LBL_TITLE).pack(
+            anchor="w", padx=S_4, pady=(S_4, S_2)
+        )
+
+        body = ttk.Frame(self)
+        body.pack(fill="both", expand=True, padx=S_4)
+        text = tk.Text(
+            body,
+            wrap="word",
+            borderwidth=0,
+            highlightthickness=0,
+            background=color("BG_INPUT"),
+            foreground=color("FG"),
+        )
+        scroll = ttk.Scrollbar(body, orient="vertical", command=text.yview)
+        text.configure(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+        text.pack(side="left", fill="both", expand=True)
+        text.insert("1.0", notices.load_notices_text())
+        make_readonly(text)
+
+        links = ttk.Frame(self)
+        links.pack(fill="x", padx=S_4, pady=S_3)
         ttk.Button(links, text="Close", style=BTN_GHOST, command=self.destroy).pack(side="right")
 
         self.update_idletasks()
