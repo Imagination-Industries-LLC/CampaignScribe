@@ -61,3 +61,10 @@ def test_llm_rates_round_trip():
     cfg["llm_rates"] = {"anthropic": [3.0, 15.0]}
     config.save_config(cfg)
     assert config.load_config()["llm_rates"] == {"anthropic": [3.0, 15.0]}
+
+
+def test_load_config_returns_independent_copy_of_defaults():
+    a = config.load_config()
+    a["llm_rates"]["x"] = [1, 2]
+    assert config.DEFAULT_CONFIG["llm_rates"] == {}
+    assert "x" not in config.load_config()["llm_rates"]

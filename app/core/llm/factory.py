@@ -29,6 +29,7 @@ class Preset:
         0.0  # default $ per million input tokens for default_model (0 = unknown/free)
     )
     output_per_mtok: float = 0.0
+    chars_per_token: float = 4.0  # input-size heuristic for the cost estimate
 
 
 PRESETS: dict[str, Preset] = {
@@ -45,6 +46,7 @@ PRESETS: dict[str, Preset] = {
         quality_label="Frontier",
         input_per_mtok=2.0,
         output_per_mtok=10.0,
+        chars_per_token=2.5,  # measured 2.69 on claude-sonnet-5-5; rounded down (upper bound)
     ),
     "gemini": Preset(
         "gemini",
@@ -69,8 +71,9 @@ PRESETS: dict[str, Preset] = {
         False,
         True,
         "https://openrouter.ai/privacy",
-        input_per_mtok=2.0,
-        output_per_mtok=10.0,
+        input_per_mtok=3.0,
+        output_per_mtok=15.0,
+        chars_per_token=3.0,  # older Sonnet tokenizer, unmeasured; conservative
     ),
     "ollama": Preset(
         "ollama",

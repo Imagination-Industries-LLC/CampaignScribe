@@ -288,7 +288,7 @@ def test_preset_rate_defaults():
     expect = {
         "anthropic": (2.0, 10.0),
         "gemini": (0.30, 2.50),
-        "openrouter": (2.0, 10.0),
+        "openrouter": (3.0, 15.0),
         "ollama": (0.0, 0.0),
         "lmstudio": (0.0, 0.0),
         "custom": (0.0, 0.0),
@@ -296,3 +296,10 @@ def test_preset_rate_defaults():
     for pid, (i, o) in expect.items():
         p = llm.PRESETS[pid]
         assert (p.input_per_mtok, p.output_per_mtok) == (i, o), pid
+
+
+def test_preset_chars_per_token():
+    assert llm.PRESETS["anthropic"].chars_per_token == 2.5
+    assert llm.PRESETS["openrouter"].chars_per_token == 3.0
+    for pid in ("gemini", "ollama", "lmstudio", "custom"):
+        assert llm.PRESETS[pid].chars_per_token == 4.0, pid

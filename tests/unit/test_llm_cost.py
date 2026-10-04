@@ -103,7 +103,17 @@ def test_fmt_dollars(x, s):
 
 
 @pytest.mark.parametrize(
-    "x, s", [(2.0, "2"), (10.0, "10"), (0.30, "0.3"), (2.5, "2.5"), (0.075, "0.075")]
+    "x, s",
+    [
+        (2.0, "2"),
+        (10.0, "10"),
+        (0.30, "0.3"),
+        (2.5, "2.5"),
+        (0.075, "0.075"),
+        (0.0375, "0.0375"),
+        (0.0004, "0.0004"),
+        (0.0, "0"),
+    ],
 )
 def test_fmt_rate(x, s):
     assert cost.fmt_rate(x) == s
@@ -122,7 +132,7 @@ def test_format_line_known():
     e = cost.estimate(150_001, 2, r)
     assert cost.format_line(e, ANTH, r) == (
         "Estimate: ~38k input tokens · up to ~8k output · est. up to ~$0.16 "
-        "(Claude @ $2/$10 per M) · + one more call when you consolidate"
+        "(Claude @ $2/$10 per M) · + up to ~$0.06 more when you consolidate"
     )
 
 
@@ -155,11 +165,57 @@ def test_format_confirm():
     e = cost.estimate(150_001, 2, r)
     assert cost.format_confirm(e, ANTH, r) == (
         "This will send ~38k input tokens to Claude and generate up to ~8k output tokens "
-        "across 2 part(s).\nEstimated cost: up to ~$0.16 (approximate, at your configured rates)."
-        "\n\nContinue?"
+        "across 2 part(s).\nEstimated cost: up to ~$0.16 (approximate, at your configured rates).\n"
+        "Consolidating afterwards makes one more call (up to ~$0.06).\n\nContinue?"
     )
 
 
 def test_fmt_dollars_non_finite_never_raises():
     assert cost.fmt_dollars(float("inf")) == "$?"
     assert cost.fmt_dollars(float("nan")) == "$?"
+
+
+def test_estimate_uses_chars_per_token():
+    r = cost.Rates(2.0, 10.0, known=True, free=False)
+    assert cost.estimate(10_000, 1, r, chars_per_token=2.5).input_tokens == 4000
+
+
+def test_consolidate_upper():
+    r = cost.Rates(2.0, 10.0, known=True, free=False)
+    assert cost.consolidate_upper(2, r) == pytest.approx(0.057)
+    assert cost.consolidate_upper(2, cost.Rates(0, 0, known=True, free=True)) == 0.0
+    assert cost.consolidate_upper(2, cost.Rates(0, 0, known=False, free=False)) is None
+    assert cost.consolidate_upper(0, r) == 0.0
+
+
+def test_explicit_zero_override_is_known_free_of_charge():
+    gem = llm.PRESETS["gemini"]
+    r = cost.rates_for(gem, {"llm_rates": {"gemini": [0, 0]}})
+    assert r.known and not r.free
+    e = cost.estimate(1000, 1, r)
+    assert e.cost_upper == 0.0
+    assert "est. up to ~$0.00" in cost.format_line(e, gem, r)
+
+
+def test_cloud_default_zero_rates_unknown_without_override():
+    assert cost.rates_for(CUSTOM, {"llm_rates": {}}).known is False
+
+
+def test_model_rate_hint():
+    anth_cfg = {"llm_model_anthropic": "claude-opus-5-5", "llm_rates": {}}
+    h = cost.model_rate_hint(ANTH, anth_cfg)
+    assert h.startswith(" · rates shown are for claude-sonnet-5-5;")
+    assert cost.model_rate_hint(ANTH, {"llm_model_anthropic": "", "llm_rates": {}}) == ""
+    same = {"llm_model_anthropic": "claude-sonnet-5-5", "llm_rates": {}}
+    assert cost.model_rate_hint(ANTH, same) == ""
+    over = {**anth_cfg, "llm_rates": {"anthropic": [5.0, 25.0]}}
+    assert cost.model_rate_hint(ANTH, over) == ""
+    assert cost.model_rate_hint(OLLAMA, {"llm_model_ollama": "x", "llm_rates": {}}) == ""
+    assert cost.model_rate_hint(CUSTOM, {"llm_model_custom": "m", "llm_rates": {}}) == ""
+
+
+def test_format_line_appends_hint_to_known_variant():
+    r = cost.rates_for(ANTH, {"llm_rates": {}})
+    e = cost.estimate(150_001, 2, r)
+    h = cost.model_rate_hint(ANTH, {"llm_model_anthropic": "claude-opus-5-5", "llm_rates": {}})
+    assert cost.format_line(e, ANTH, r, hint=h).endswith(h)

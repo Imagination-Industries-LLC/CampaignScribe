@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 from pathlib import Path
@@ -71,16 +72,16 @@ def load_config() -> dict[str, Any]:
     p = get_config_path()
     if not p.exists():
         save_config(DEFAULT_CONFIG)
-        return dict(DEFAULT_CONFIG)
+        return copy.deepcopy(DEFAULT_CONFIG)
     try:
         with open(p, encoding="utf-8") as f:
             data = json.load(f)
-        merged = dict(DEFAULT_CONFIG)
+        merged = copy.deepcopy(DEFAULT_CONFIG)
         merged.update({k: v for k, v in data.items() if k in DEFAULT_CONFIG})
         return merged
     except Exception as e:
         log_exception("config.load_config: corrupt config.json, using defaults", e)
-        return dict(DEFAULT_CONFIG)
+        return copy.deepcopy(DEFAULT_CONFIG)
 
 
 def save_config(cfg: dict[str, Any]) -> None:
