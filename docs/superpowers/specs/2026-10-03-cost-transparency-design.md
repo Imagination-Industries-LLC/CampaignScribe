@@ -21,10 +21,14 @@ Success criteria:
 | # | Decision | Rationale |
 |---|---|---|
 | 1 | **Per-provider rates**, not per-model: each preset carries default input/output $ per million tokens for its default model; Settings lets the user override per provider. | Mirrors the picker's per-provider state; model churn is handled by the user editing two numbers. A per-model table is a second thing to maintain with no second consumer yet. |
-| 2 | Estimate = `chars / 4` input tokens (plus prompt and a fixed context allowance) and `parts × 4000` output tokens as an **upper bound**; wording always says "up to ~" and "approximate". | The May spec's heuristic; exact tokenization is out of scope. |
+| 2 | Estimate = `chars / chars_per_token` input tokens (default 4; see #5; plus prompt and a fixed context allowance, per part) and `parts × 4000` output tokens as an **upper bound**; wording always says "up to ~" and "approximate". | The May spec's heuristic; exact tokenization is out of scope. |
 | 3 | Confirmation dialog only when the estimate carries a dollar figure above zero. Local presets and unknown-rate providers never prompt. | The gate exists to prevent surprise spend; a free run has none, and an unknown-rate run already warns in the line. |
 | 4 | Rates live in one config key `llm_rates: dict[str, list[float]]` (`{pid: [in, out]}`), blank = preset default. | One key, nested JSON, merges cleanly through the existing `load_config` top-level merge. |
-| 5 | Estimates on Transcribe/Refine, actual usage read back from responses, and exact token counting are **out of scope** (follow-ups). | Per the May spec; usage read-back needs adapter changes. |
+| 5 | Input tokens = `chars / chars_per_token`, a per-preset `Preset.chars_per_token`: anthropic `2.5` (measured 2.69 on claude-sonnet-5-5, rounded down so it stays an upper bound), openrouter `3.0` (older Sonnet tokenizer, unmeasured), all others `4.0`. The prompt and a `CONTEXT_ALLOWANCE_CHARS = 3_000` context block are counted once **per part**, since each part's request carries them. | A measured ratio showed `chars / 4` ran low for the default model; the dollar figure must be conservative. |
+| 6 | The consolidation call is priced: `consolidate_upper` = part summaries in (`parts × 4000 + 500` prompt tokens) plus one 4000-token summary out. The label shows "+ up to ~$X more when you consolidate" and the confirm dialog adds a line. | Disclosed-but-unpriced was a review finding. |
+| 7 | An explicit valid `[0, 0]` override on a cloud provider means **known** zero cost (e.g. Gemini free tier): label shows `~$0.00`, no gate. Without an override, 0/0 defaults stay unknown. | The user said it, so it is not "unknown". |
+| 8 | If the configured model differs from the preset's default model and no rate override exists, the known label appends a hint (`model_rate_hint`) that the rates shown are for the default model. | Default rates would otherwise silently apply to a different model. |
+| 9 | Estimates on Transcribe/Refine, actual usage read back from responses, and exact token counting are **out of scope** (follow-ups). | Per the May spec; usage read-back needs adapter changes. |
 
 ## Architecture
 
@@ -41,7 +45,8 @@ app/ui/summarize_tab.py     MOD  estimate label above Start; recompute hooks; co
 
 ```python
 CHARS_PER_TOKEN = 4.0
-CONTEXT_ALLOWANCE_CHARS = 2_000     # campaign/speaker context block + prompt framing
+CONTEXT_ALLOWANCE_CHARS = 3_000     # context block + prompt framing, counted per part
+CONSOLIDATE_PROMPT_TOKENS = 500
 DEFAULT_MAX_OUTPUT_TOKENS = 4000    # summarizer's per-part max_tokens
 
 @dataclass(frozen=True)
@@ -60,24 +65,26 @@ class Estimate:
     free: bool
 
 def rates_for(preset: Preset, cfg: dict | None = None) -> Rates
-def estimate(total_chars: int, num_parts: int, rates: Rates, max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS) -> Estimate
-def format_line(est: Estimate, preset: Preset, rates: Rates) -> str
+def estimate(total_chars: int, num_parts: int, rates: Rates, max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS, chars_per_token: float = CHARS_PER_TOKEN) -> Estimate
+def consolidate_upper(num_parts: int, rates: Rates, max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS) -> float | None
+def model_rate_hint(preset: Preset, cfg: dict | None = None) -> str
+def format_line(est: Estimate, preset: Preset, rates: Rates, hint: str = "") -> str
 def format_confirm(est: Estimate, preset: Preset, rates: Rates) -> str
 ```
 
-- `rates_for`: local preset → `Rates(0, 0, known=True, free=True)`. Else read `cfg["llm_rates"].get(pid)`; a valid `[in, out]` pair of non-negative floats overrides; otherwise the preset defaults. For non-local presets `known = not (input == 0 and output == 0)`, so custom (defaults 0/0) is unknown until the user sets rates.
-- `estimate`: `input_tokens = ceil(total_chars / CHARS_PER_TOKEN)`, `output_tokens_upper = num_parts * max_output_tokens`, `cost_upper = None if not known else (input/1e6)*in + (output/1e6)*out` (0.0 when free). `num_parts = 0` → zeros.
+- `rates_for`: local preset → `Rates(0, 0, known=True, free=True)`. Else read `cfg["llm_rates"].get(pid)`; a valid `[in, out]` pair of non-negative floats overrides (and is always `known`, even `[0, 0]`); otherwise the preset defaults. Without an override `known = not (input == 0 and output == 0)`, so custom (defaults 0/0) is unknown until the user sets rates.
+- `estimate`: `input_tokens = ceil(total_chars / chars_per_token)`, `output_tokens_upper = num_parts * max_output_tokens`, `cost_upper = None if not known else (input/1e6)*in + (output/1e6)*out` (0.0 when free). `num_parts = 0` → zeros.
 - `format_line` (the label):
   - no files: `"Add transcript files to see an estimate."`
   - free: `"Estimate: ~38k input tokens · up to ~8k output · Free · local compute (Ollama (local))"`
   - unknown: `"Estimate: ~38k input tokens · up to ~8k output · cost unknown — set Custom endpoint rates in Settings (⚙)"`
-  - known: `"Estimate: ~38k input tokens · up to ~8k output · est. up to ~$0.16 (Claude @ $2/$10 per M) · + one more call when you consolidate"`
+  - known: `"Estimate: ~38k input tokens · up to ~8k output · est. up to ~$0.16 (Claude @ $2/$10 per M) · + up to ~$0.06 more when you consolidate"` (`hint` from `model_rate_hint` is appended to this variant only)
   - Token counts render as `~Nk` for ≥ 1000 else `~N`; dollars as `$0.16` (two decimals, `< $0.01` shown as `"<$0.01"`).
-- `format_confirm`: `"This will send ~38k input tokens to Claude and generate up to ~8k output tokens across 2 part(s).\nEstimated cost: up to ~$0.16 (approximate, at your configured rates).\n\nContinue?"`.
+- `format_confirm`: `"This will send ~38k input tokens to Claude and generate up to ~8k output tokens across 2 part(s).\nEstimated cost: up to ~$0.16 (approximate, at your configured rates).\nConsolidating afterwards makes one more call (up to ~$0.06).\n\nContinue?"`.
 
 ### `factory.py`
 
-`Preset` gains `input_per_mtok: float = 0.0`, `output_per_mtok: float = 0.0`. Defaults: anthropic `2.0 / 10.0` (Claude Sonnet 5.5 list), gemini `0.30 / 2.50` (Gemini 2.5 Flash list), openrouter `2.0 / 10.0` (its default model is a Sonnet; "varies"), ollama/lmstudio `0 / 0` (free), custom `0 / 0` (unknown).
+`Preset` gains `input_per_mtok: float = 0.0`, `output_per_mtok: float = 0.0`, `chars_per_token: float = 4.0`. Defaults: anthropic `2.0 / 10.0` (Claude Sonnet 5.5 list), gemini `0.30 / 2.50` (Gemini 2.5 Flash list), openrouter `3.0 / 15.0` (its default model is `anthropic/claude-sonnet-4.5`, a 4.x Sonnet), ollama/lmstudio `0 / 0` (free), custom `0 / 0` (unknown).
 
 ### Config
 
@@ -90,7 +97,7 @@ Under the badge row, a new **Rates** row (`llm_rates_row` Frame) for non-local p
 ## Summarize tab
 
 - New `self.estimate_var` + `ttk.Label(style=LBL_DIM, wraplength=760)` at **row 6**; Start → row 7, Cancel/status → row 8, output frame → row 9 (and the trailing `rowconfigure`, if any, follows).
-- `_refresh_estimate()`: `total_chars = sum(os.path.getsize(p) for p in self.transcript_files if exists) + len(selected prompt content) + CONTEXT_ALLOWANCE_CHARS`; `num_parts = len(self.transcript_files)`; `preset = llm.active_preset()`; `rates = cost.rates_for(preset)`; `self.estimate_var.set(cost.format_line(...))`. Called at the end of `__init__`, from `_add_files`, `_remove_selected`, `_clear_files`, `_on_prompt_select`, `load_for_session`, and `on_settings_changed`.
+- `_refresh_estimate()`: `total_chars = sum(file sizes) + num_parts * (len(selected prompt content) + CONTEXT_ALLOWANCE_CHARS)`; `num_parts = len(self.transcript_files)`; `preset = llm.active_preset()`; `rates = cost.rates_for(preset)`; `self.estimate_var.set(cost.format_line(..., hint=cost.model_rate_hint(preset)))`. Called at the end of `__init__`, from `_add_files`, `_remove_selected`, `_clear_files`, `_on_prompt_select`, `load_for_session`, `on_settings_changed`, and after Edit Selected returns.
 - `_start`: after the existing validations (profile, files, provider ready, output folder) and before any UI reset, compute the same estimate; if `est.cost_upper` is a number `> 0` → `messagebox.askyesno("Confirm cost", cost.format_confirm(...))`; `False` → `return`. Free / unknown → no dialog.
 - No change to the worker, consolidation, or docx code.
 

@@ -31,19 +31,18 @@ The window has four tabs plus a menu bar.
    prompt (or any custom prompt), plus optional consolidation into a
    thematically named `.docx` session summary. An estimate line above Start
    shows the approximate input size, the output upper bound, and the cost at
-   your configured rates (free for local models); paid runs ask for
-   confirmation first.
+   your configured rates (free for local models); runs with a known
+   cost ask for confirmation first.
 4. **Refine** — analyze new audio against the campaign's current roster and
    accept/reject per-speaker improvements. Accepting appends a new roster
    version (history is never overwritten).
 
 Menu bar:
 
-- **File** → Settings (AI provider, model and API key, per-provider rates —
-  Claude, Google
+- **File** → Settings (AI provider, model and API key — Claude, Google
   Gemini, OpenRouter, a local Ollama / LM Studio model, or a custom
-  OpenAI-compatible endpoint — plus HuggingFace token, default and
-  discovery Whisper models, output folder, expected speakers, theme,
+  OpenAI-compatible endpoint — with editable per-provider rates, plus
+  HuggingFace token, default and discovery Whisper models, output folder, expected speakers, theme,
   voice-match threshold, crash reporting opt-in) · Exit
 - **Tools** → Open Logs Folder · Open Data Folder
 - **Help** → Getting Started · Privacy & Data (see [PRIVACY.md](PRIVACY.md)) ·
