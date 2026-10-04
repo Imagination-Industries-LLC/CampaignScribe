@@ -22,6 +22,7 @@ def test_new_llm_defaults_merge_into_old_config_json():
     assert cfg["llm_base_url_custom"] == ""
     assert cfg["llm_model_ollama"] == ""
     assert cfg["llm_model_lmstudio"] == ""
+    assert cfg["llm_rates"] == {}
 
 
 def test_provider_key_roundtrip_per_provider():
@@ -53,3 +54,17 @@ def test_explicitly_blank_new_key_falls_back_to_legacy():
     keyring.set_password(config.SERVICE_NAME, "anthropic_api_key", "legacy-key")
     config.save_provider_key("anthropic", "")
     assert config.get_provider_key("anthropic") == "legacy-key"
+
+
+def test_llm_rates_round_trip():
+    cfg = config.load_config()
+    cfg["llm_rates"] = {"anthropic": [3.0, 15.0]}
+    config.save_config(cfg)
+    assert config.load_config()["llm_rates"] == {"anthropic": [3.0, 15.0]}
+
+
+def test_load_config_returns_independent_copy_of_defaults():
+    a = config.load_config()
+    a["llm_rates"]["x"] = [1, 2]
+    assert config.DEFAULT_CONFIG["llm_rates"] == {}
+    assert "x" not in config.load_config()["llm_rates"]

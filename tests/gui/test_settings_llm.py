@@ -380,3 +380,102 @@ def test_default_button_refreshes_badges(root):
         assert "Anthropic" in before
     finally:
         dlg.destroy()
+
+
+def test_rate_row_defaults_and_hidden_for_local(root, monkeypatch):
+    _scripted_detect(monkeypatch, {"ollama": _OLLAMA_OK})
+    dlg = _open(root)
+    try:
+        assert dlg.llm_rates_row.winfo_manager() == "grid"
+        assert dlg.llm_rate_in_var.get() == "2" and dlg.llm_rate_out_var.get() == "10"
+        _select(dlg, "Google Gemini")
+        assert dlg.llm_rate_in_var.get() == "0.3" and dlg.llm_rate_out_var.get() == "2.5"
+        _select(dlg, "Ollama (local)")
+        assert dlg.llm_rates_row.winfo_manager() == ""
+        _select(dlg, "Custom endpoint")
+        assert dlg.llm_rates_row.winfo_manager() == "grid"
+        assert dlg.llm_rate_in_var.get() == "0" and dlg.llm_rate_out_var.get() == "0"
+    finally:
+        dlg.destroy()
+
+
+def test_rate_override_persists_and_survives_switch(root):
+    dlg = _open(root)
+    dlg.llm_rate_in_var.set("3")
+    dlg.llm_rate_out_var.set("15")
+    _select(dlg, "Google Gemini")
+    _select(dlg, "Claude")
+    assert dlg.llm_rate_in_var.get() == "3" and dlg.llm_rate_out_var.get() == "15"
+    try:
+        dlg._save()
+    except tk.TclError:
+        pass
+    assert config.load_config()["llm_rates"] == {"anthropic": [3.0, 15.0]}
+    dlg = _open(root)
+    try:
+        assert dlg.llm_rate_in_var.get() == "3" and dlg.llm_rate_out_var.get() == "15"
+    finally:
+        dlg.destroy()
+
+
+def test_default_rates_remove_override(root):
+    cfg = config.load_config()
+    cfg["llm_rates"] = {"anthropic": [3.0, 15.0]}
+    config.save_config(cfg)
+    dlg = _open(root)
+    assert dlg.llm_rate_in_var.get() == "3"
+    dlg._reset_rates()
+    assert dlg.llm_rate_in_var.get() == "2" and dlg.llm_rate_out_var.get() == "10"
+    try:
+        dlg._save()
+    except tk.TclError:
+        pass
+    assert config.load_config()["llm_rates"] == {}
+
+
+@pytest.mark.parametrize(
+    "bad_in, bad_out",
+    [
+        ("2,5", "10"),
+        ("$2", "10"),
+        ("", "10"),
+        ("abc", "xyz"),
+        ("-1", "10"),
+        ("inf", "10"),
+        ("nan", "10"),
+        ("1e999", "10"),
+    ],
+)
+def test_bad_rate_text_drops_override(root, bad_in, bad_out):
+    dlg = _open(root)
+    dlg.llm_rate_in_var.set(bad_in)
+    dlg.llm_rate_out_var.set(bad_out)
+    try:
+        dlg._save()
+    except tk.TclError:
+        pass
+    assert "anthropic" not in config.load_config()["llm_rates"]
+
+
+def test_rate_override_for_custom_makes_rates_known(root):
+    dlg = _open(root)
+    _select(dlg, "Custom endpoint")
+    dlg.llm_rate_in_var.set("1")
+    dlg.llm_rate_out_var.set("2")
+    try:
+        dlg._save()
+    except tk.TclError:
+        pass
+    assert config.load_config()["llm_rates"] == {"custom": [1.0, 2.0]}
+
+
+def test_precise_rate_override_survives_untouched_save(root):
+    cfg = config.load_config()
+    cfg["llm_rates"] = {"gemini": [0.0375, 0.15]}
+    config.save_config(cfg)
+    dlg = _open(root)
+    try:
+        dlg._save()
+    except tk.TclError:
+        pass
+    assert config.load_config()["llm_rates"]["gemini"] == [0.0375, 0.15]

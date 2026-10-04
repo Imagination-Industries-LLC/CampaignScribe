@@ -11,6 +11,7 @@ from typing import Any
 
 from app import config
 from app.core import library, llm, privacy, speakers_io, summarizer
+from app.core.llm import cost
 from app.data import db
 from app.prompts.default_prompt import DEFAULT_PROMPT_NAME, DEFAULT_SUMMARY_PROMPT
 from app.ui.common import (
@@ -125,22 +126,27 @@ class SummarizeTab(ttk.Frame):
             row=5, column=3, sticky="w", **pad
         )
 
+        self.estimate_var = tk.StringVar(value="")
+        ttk.Label(
+            body, textvariable=self.estimate_var, style=LBL_DIM, wraplength=760, justify="left"
+        ).grid(row=6, column=0, columnspan=4, sticky="w", **pad)
+
         self.go_btn = ttk.Button(
             body, text="Start Summarization", style=BTN_ACCENT, command=self._start
         )
-        self.go_btn.grid(row=6, column=0, columnspan=4, sticky="ew", **pad)
+        self.go_btn.grid(row=7, column=0, columnspan=4, sticky="ew", **pad)
 
         self.cancel_btn = ttk.Button(
             body, text="Cancel", command=self._cancel_run, state="disabled"
         )
-        self.cancel_btn.grid(row=7, column=0, sticky="w", **pad)
+        self.cancel_btn.grid(row=8, column=0, sticky="w", **pad)
         self.status_var = tk.StringVar(value="")
         ttk.Label(body, textvariable=self.status_var, style=LBL_DIM).grid(
-            row=7, column=1, columnspan=3, sticky="w", **pad
+            row=8, column=1, columnspan=3, sticky="w", **pad
         )
 
         out_frame = ttk.LabelFrame(body, text="Output files")
-        out_frame.grid(row=8, column=0, columnspan=4, sticky="ew", **pad)
+        out_frame.grid(row=9, column=0, columnspan=4, sticky="ew", **pad)
         self.out_box = tk.Listbox(out_frame, height=4)
         self.out_box.pack(side="left", fill="both", expand=True, padx=4, pady=4)
         self.out_box.bind("<Double-Button-1>", lambda _e: self._reveal_selected())
@@ -173,13 +179,41 @@ class SummarizeTab(ttk.Frame):
         self._privacy_note = add_privacy_note(
             body, privacy.note_transcript(llm.active_preset().vendor_label)
         )
+        self._refresh_estimate()
 
     def on_settings_changed(self):
         self._privacy_note.config(text=privacy.note_transcript(llm.active_preset().vendor_label))
+        self._refresh_estimate()
 
     def on_show(self):
         self.refresh_sessions()
         self.refresh_prompts()
+
+    # ---- cost estimate ----
+    def _current_estimate(self):
+        total = 0
+        for p in self.transcript_files:
+            try:
+                total += os.path.getsize(p)
+            except OSError:
+                continue  # file vanished since it was added; the run reports it
+        prompt_chars = 0
+        idx = self.prompt_combo.current()
+        if 0 <= idx < len(self._prompt_options):
+            prompt_chars = len(self._prompt_options[idx].get("content", ""))
+        num_parts = len(self.transcript_files)
+        # the prompt and context block are sent with every part
+        total += num_parts * (prompt_chars + cost.CONTEXT_ALLOWANCE_CHARS)
+        preset = llm.active_preset()
+        rates = cost.rates_for(preset)
+        est = cost.estimate(total, num_parts, rates, chars_per_token=preset.chars_per_token)
+        return est, preset, rates
+
+    def _refresh_estimate(self) -> None:
+        est, preset, rates = self._current_estimate()
+        self.estimate_var.set(
+            cost.format_line(est, preset, rates, hint=cost.model_rate_hint(preset))
+        )
 
     def load_for_session(self, session: dict, run_params: dict | None = None) -> None:
         """Set the active session and derive speakers.json from its campaign_slug
@@ -218,6 +252,7 @@ class SummarizeTab(ttk.Frame):
             )
             self._set_transcript_files(txts)
         self.session_id = sid
+        self._refresh_estimate()
 
     def _set_transcript_files(self, files: list[str]) -> None:
         self.transcript_files = []
@@ -232,6 +267,7 @@ class SummarizeTab(ttk.Frame):
             messagebox.showinfo("CampaignScribe", "Select a transcript file to edit.")
             return
         open_transcript_editor(self, self.files_box.get(sel[0]))
+        self._refresh_estimate()
 
     def refresh_sessions(self):
         sessions = db.list_sessions()
@@ -275,6 +311,7 @@ class SummarizeTab(ttk.Frame):
         self.prompt_preview.delete("1.0", "end")
         self.prompt_preview.insert("1.0", sel["content"])
         self.prompt_preview.config(state="disabled")
+        self._refresh_estimate()
 
     def _new_prompt(self):
         dlg = PromptDialog(self, title="New Prompt")
@@ -327,6 +364,7 @@ class SummarizeTab(ttk.Frame):
             if p not in self.transcript_files:
                 self.transcript_files.append(p)
                 self.files_box.insert("end", p)
+        self._refresh_estimate()
 
     def _remove_files(self):
         if self._busy:
@@ -337,12 +375,14 @@ class SummarizeTab(ttk.Frame):
                 del self.transcript_files[i]
             except IndexError:
                 pass
+        self._refresh_estimate()
 
     def _clear_files(self):
         if self._busy:
             return
         self.transcript_files.clear()
         self.files_box.delete(0, "end")
+        self._refresh_estimate()
 
     def _browse_out(self):
         if self._busy:
@@ -400,6 +440,10 @@ class SummarizeTab(ttk.Frame):
         if not out:
             messagebox.showerror("CampaignScribe", "Choose an output folder.")
             return
+        est, preset, rates = self._current_estimate()
+        if est.cost_upper is not None and est.cost_upper > 0:
+            if not messagebox.askyesno("Confirm cost", cost.format_confirm(est, preset, rates)):
+                return
         Path(out).mkdir(parents=True, exist_ok=True)
         cfg = config.load_config()
         cfg["last_output_folder"] = out
