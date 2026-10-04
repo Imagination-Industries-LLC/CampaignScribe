@@ -153,9 +153,8 @@ def check_gpu() -> dict[str, Any]:
 class TranscriptionPipeline:
     """Holds long-lived WhisperX models so they are loaded once per run."""
 
-    def __init__(self, model_size: str = "large-v3", hf_token: str = "", force_cpu: bool = False):
+    def __init__(self, model_size: str = "large-v3", force_cpu: bool = False):
         self.model_size = model_size
-        self.hf_token = hf_token or ""
         self.force_cpu = force_cpu
         self._model = None
         self._diarize = None
@@ -174,26 +173,20 @@ class TranscriptionPipeline:
         if self._model is None:
             import whisperx
 
-            # whisperx defaults vad_method='pyannote' which needs an HF token.
-            # If no token is set, fall back to silero VAD which is bundled.
-            load_kwargs: dict[str, Any] = {
-                "compute_type": self.compute_type,
-            }
-            if self.hf_token:
-                load_kwargs["use_auth_token"] = self.hf_token
-            else:
-                load_kwargs["vad_method"] = "silero"
-            self._model = whisperx.load_model(self.model_size, self.device, **load_kwargs)
+            # whisperx 3.8.5's default VAD (pyannote) loads from a file inside the
+            # whisperx package: no HuggingFace token and no network needed.
+            self._model = whisperx.load_model(
+                self.model_size, self.device, compute_type=self.compute_type
+            )
         if self._diarize is None:
             from whisperx.diarize import DiarizationPipeline
 
-            # whisperx 3.8+ uses `token=`, not `use_auth_token=`. Default model is
-            # `pyannote/speaker-diarization-community-1`, which needs a HuggingFace
-            # token AND license acceptance on huggingface.co.
-            kwargs: dict[str, Any] = {"device": self.device}
-            if self.hf_token:
-                kwargs["token"] = self.hf_token
-            self._diarize = DiarizationPipeline(**kwargs)
+            from app.core import models
+
+            # Bundled pyannote community-1 weights (CC-BY-4.0); see THIRD-PARTY-NOTICES.md.
+            self._diarize = DiarizationPipeline(
+                model_name=str(models.diarization_dir()), token=None, device=self.device
+            )
 
     def transcribe_file(
         self,
