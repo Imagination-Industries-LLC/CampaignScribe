@@ -9,7 +9,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from app import config
 from app.core import llm
-from app.core.llm import local_detect
+from app.core.llm import cost, local_detect
 
 # Room for Gemini thinking tokens / reasoning models; the probe reply is still one word.
 _TEST_PROBE_MAX_TOKENS = 64
@@ -181,7 +181,13 @@ class SettingsDialog(tk.Toplevel):
                 "detected_once": False,
                 "detecting": False,
                 "caveat": "",
+                "rate_in": "",
+                "rate_out": "",
             }
+        for pid, preset in llm.PRESETS.items():
+            r = cost.rates_for(preset, cfg)
+            self._llm_state[pid]["rate_in"] = cost.fmt_rate(r.input_per_mtok)
+            self._llm_state[pid]["rate_out"] = cost.fmt_rate(r.output_per_mtok)
         self._detect_queue: queue.Queue = queue.Queue()
         self._llm_current = cfg.get("llm_provider", "anthropic")
         if self._llm_current not in llm.PRESETS:
@@ -208,6 +214,26 @@ class SettingsDialog(tk.Toplevel):
 
         self.llm_badge_label = ttk.Label(self, text="", wraplength=520, justify="left")
         self.llm_badge_label.grid(row=row, column=1, columnspan=2, sticky="w", padx=10, pady=(0, 2))
+        row += 1
+
+        self.llm_rates_row = ttk.Frame(self)
+        self.llm_rates_row.grid(row=row, column=0, columnspan=3, sticky="ew")
+        ttk.Label(self.llm_rates_row, text="Rates ($ per M tokens):").grid(
+            row=0, column=0, sticky="w", **pad
+        )
+        rates_inner = ttk.Frame(self.llm_rates_row)
+        rates_inner.grid(row=0, column=1, sticky="w", **pad)
+        ttk.Label(rates_inner, text="in").pack(side="left")
+        self.llm_rate_in_var = tk.StringVar()
+        ttk.Entry(rates_inner, textvariable=self.llm_rate_in_var, width=8).pack(
+            side="left", padx=(4, 12)
+        )
+        ttk.Label(rates_inner, text="out").pack(side="left")
+        self.llm_rate_out_var = tk.StringVar()
+        ttk.Entry(rates_inner, textvariable=self.llm_rate_out_var, width=8).pack(
+            side="left", padx=(4, 12)
+        )
+        ttk.Button(rates_inner, text="Default", command=self._reset_rates).pack(side="left")
         row += 1
 
         ttk.Label(self, text="Model:").grid(row=row, column=0, sticky="w", **pad)
@@ -274,6 +300,8 @@ class SettingsDialog(tk.Toplevel):
         st["key"] = self.api_var.get()
         if llm.PRESETS[self._llm_current].needs_base_url:
             st["base_url"] = self.llm_base_url_var.get()
+        st["rate_in"] = self.llm_rate_in_var.get()
+        st["rate_out"] = self.llm_rate_out_var.get()
 
     def _load_llm_fields(self) -> None:
         preset = llm.PRESETS[self._llm_current]
@@ -282,6 +310,12 @@ class SettingsDialog(tk.Toplevel):
         self.llm_model_combo.config(values=[m.model_id for m in st["detected"]])
         self.api_var.set(st["key"])
         self.llm_base_url_var.set(st["base_url"])
+        self.llm_rate_in_var.set(st["rate_in"])
+        self.llm_rate_out_var.set(st["rate_out"])
+        if preset.local_runtime:
+            self.llm_rates_row.grid_remove()
+        else:
+            self.llm_rates_row.grid()
         if preset.needs_base_url:
             self.llm_base_url_row.grid()
         else:
@@ -408,6 +442,21 @@ class SettingsDialog(tk.Toplevel):
         if default:  # blank for local presets: keep the user's chosen model
             self.llm_model_var.set(default)
 
+    def _reset_rates(self) -> None:
+        preset = llm.PRESETS[self._llm_current]
+        self.llm_rate_in_var.set(cost.fmt_rate(preset.input_per_mtok))
+        self.llm_rate_out_var.set(cost.fmt_rate(preset.output_per_mtok))
+
+    @staticmethod
+    def _parse_rates(text_in: str, text_out: str) -> tuple[float, float] | None:
+        try:
+            i, o = float(text_in.strip()), float(text_out.strip())
+        except ValueError:
+            return None
+        if i < 0 or o < 0:
+            return None
+        return i, o
+
     def _test_connection(self, _sync: bool = False) -> None:
         self._stash_llm_fields()
         pid = self._llm_current
@@ -482,6 +531,20 @@ class SettingsDialog(tk.Toplevel):
             for pid, st in self._llm_state.items():
                 model = st["model"].strip()
                 cfg[f"llm_model_{pid}"] = "" if model == llm.PRESETS[pid].default_model else model
+            rates = (
+                dict(cfg.get("llm_rates") or {}) if isinstance(cfg.get("llm_rates"), dict) else {}
+            )
+            for pid, st in self._llm_state.items():
+                preset = llm.PRESETS[pid]
+                if preset.local_runtime:
+                    rates.pop(pid, None)
+                    continue
+                pair = self._parse_rates(st["rate_in"], st["rate_out"])
+                if pair is None or pair == (preset.input_per_mtok, preset.output_per_mtok):
+                    rates.pop(pid, None)
+                else:
+                    rates[pid] = [pair[0], pair[1]]
+            cfg["llm_rates"] = rates
             cfg["llm_base_url_custom"] = self._llm_state["custom"]["base_url"].strip().rstrip("/")
             cfg["default_output_folder"] = self.out_var.get().strip()
             cfg["default_whisper_model"] = self.model_var.get()
