@@ -43,6 +43,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "llm_model_lmstudio": "",
     "llm_model_custom": "",
     "llm_base_url_custom": "",
+    "llm_rates": {},  # {provider_id: [input_$_per_M, output_$_per_M]} user overrides; blank = preset default
 }
 
 

@@ -25,6 +25,10 @@ class Preset:
     quality_label: str = "Varies by model"  # local presets: derived per model instead
     timeout_s: float = 120.0
     local_runtime: str = ""  # "" for cloud/custom; "ollama" | "lmstudio" for local presets
+    input_per_mtok: float = (
+        0.0  # default $ per million input tokens for default_model (0 = unknown/free)
+    )
+    output_per_mtok: float = 0.0
 
 
 PRESETS: dict[str, Preset] = {
@@ -39,6 +43,8 @@ PRESETS: dict[str, Preset] = {
         "https://www.anthropic.com/legal/privacy",
         cost_label="$$ per token",
         quality_label="Frontier",
+        input_per_mtok=2.0,
+        output_per_mtok=10.0,
     ),
     "gemini": Preset(
         "gemini",
@@ -51,6 +57,8 @@ PRESETS: dict[str, Preset] = {
         "https://ai.google.dev/gemini-api/terms",
         cost_label="¢ per token",
         quality_label="Strong",
+        input_per_mtok=0.30,
+        output_per_mtok=2.50,
     ),
     "openrouter": Preset(
         "openrouter",
@@ -61,6 +69,8 @@ PRESETS: dict[str, Preset] = {
         False,
         True,
         "https://openrouter.ai/privacy",
+        input_per_mtok=2.0,
+        output_per_mtok=10.0,
     ),
     "ollama": Preset(
         "ollama",

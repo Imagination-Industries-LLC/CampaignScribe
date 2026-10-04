@@ -282,3 +282,17 @@ def test_lmstudio_not_ready_names_lm_studio():
     assert llm.not_ready_message() == (
         "Pick an LM Studio (local) model in Settings (⚙): start LM Studio and press Detect."
     )
+
+
+def test_preset_rate_defaults():
+    expect = {
+        "anthropic": (2.0, 10.0),
+        "gemini": (0.30, 2.50),
+        "openrouter": (2.0, 10.0),
+        "ollama": (0.0, 0.0),
+        "lmstudio": (0.0, 0.0),
+        "custom": (0.0, 0.0),
+    }
+    for pid, (i, o) in expect.items():
+        p = llm.PRESETS[pid]
+        assert (p.input_per_mtok, p.output_per_mtok) == (i, o), pid
