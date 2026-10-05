@@ -17,6 +17,7 @@ from app.core import (
     library,
     llm,
     models,
+    multitrack,
     privacy,
     speaker_id,
     speakers_io,
@@ -47,6 +48,7 @@ class TranscribeTab(ttk.Frame):
         super().__init__(master)
         self.app = app_window
         self.audio_files: list[str] = []
+        self.track_meta: dict[str, dict] = {}  # path -> {speaker, shared_mic}
         self.speakers_path: str | None = None
         self.output_dir: str | None = None
         self.session_id: int | None = None
@@ -75,15 +77,45 @@ class TranscribeTab(ttk.Frame):
         )
 
         ttk.Label(body, text="Audio files:").grid(row=2, column=0, sticky="nw", **pad)
+        self.mode_var = tk.StringVar(value="mixed")
+        mode_frame = ttk.Frame(body)
+        mode_frame.grid(row=2, column=1, columnspan=3, sticky="w", **pad)
+        ttk.Radiobutton(
+            mode_frame,
+            text="Mixed recording",
+            variable=self.mode_var,
+            value="mixed",
+            command=self._apply_mode,
+        ).pack(side="left", padx=(0, 12))
+        ttk.Radiobutton(
+            mode_frame,
+            text="One file per speaker",
+            variable=self.mode_var,
+            value="tracks",
+            command=self._apply_mode,
+        ).pack(side="left")
         self.files_box = tk.Listbox(body, height=4, selectmode="extended")
-        self.files_box.grid(row=2, column=1, columnspan=2, sticky="nsew", **pad)
+        self.files_box.grid(row=3, column=1, columnspan=2, sticky="nsew", **pad)
+        self.tracks_table = ttk.Treeview(
+            body, columns=("file", "speaker", "shared"), show="headings", height=4
+        )
+        self.tracks_table.heading("file", text="File")
+        self.tracks_table.heading("speaker", text="Speaker")
+        self.tracks_table.heading("shared", text="Shared mic")
+        self.tracks_table.column("file", width=300, anchor="w")
+        self.tracks_table.column("speaker", width=140, anchor="w")
+        self.tracks_table.column("shared", width=80, anchor="center")
+        self.tracks_table.grid(row=3, column=1, columnspan=2, sticky="nsew", **pad)
+        self.tracks_table.grid_remove()
+        self.tracks_table.bind("<Double-1>", lambda _e: self._edit_track())
         bcol = ttk.Frame(body)
-        bcol.grid(row=2, column=3, sticky="nw", **pad)
+        bcol.grid(row=3, column=3, sticky="nw", **pad)
         ttk.Button(bcol, text="Add Files…", command=self._add_files).pack(fill="x", pady=2)
         ttk.Button(bcol, text="Remove Selected", command=self._remove_files).pack(fill="x", pady=2)
         ttk.Button(bcol, text="Clear All", command=self._clear_files).pack(fill="x", pady=2)
+        self.edit_track_btn = ttk.Button(bcol, text="Edit track…", command=self._edit_track)
 
-        ttk.Label(body, text="Whisper model:").grid(row=3, column=0, sticky="w", **pad)
+        ttk.Label(body, text="Whisper model:").grid(row=4, column=0, sticky="w", **pad)
         self.model_var = tk.StringVar(value=cfg.get("default_whisper_model", "large-v3"))
         ttk.Combobox(
             body,
@@ -91,35 +123,36 @@ class TranscribeTab(ttk.Frame):
             state="readonly",
             width=12,
             values=["tiny", "base", "small", "medium", "large-v3"],
-        ).grid(row=3, column=1, sticky="w", **pad)
+        ).grid(row=4, column=1, sticky="w", **pad)
 
-        ttk.Label(body, text="# speakers:").grid(row=3, column=2, sticky="e", **pad)
+        self.spk_label = ttk.Label(body, text="# speakers:")
+        self.spk_label.grid(row=4, column=2, sticky="e", **pad)
         self.spk_var = tk.IntVar(value=int(cfg.get("default_num_speakers", 5)))
         ttk.Spinbox(body, from_=1, to=20, textvariable=self.spk_var, width=8).grid(
-            row=3, column=3, sticky="w", **pad
+            row=4, column=3, sticky="w", **pad
         )
 
-        ttk.Label(body, text="Output folder:").grid(row=4, column=0, sticky="w", **pad)
+        ttk.Label(body, text="Output folder:").grid(row=5, column=0, sticky="w", **pad)
         self.out_var = tk.StringVar(value=cfg.get("last_output_folder", ""))
         ttk.Entry(body, textvariable=self.out_var, width=60).grid(
-            row=4, column=1, columnspan=2, sticky="ew", **pad
+            row=5, column=1, columnspan=2, sticky="ew", **pad
         )
         ttk.Button(body, text="Browse…", command=self._browse_out).grid(
-            row=4, column=3, sticky="w", **pad
+            row=5, column=3, sticky="w", **pad
         )
 
         self.go_btn = ttk.Button(
             body, text="Start Transcription", style=BTN_ACCENT, command=self._start
         )
-        self.go_btn.grid(row=5, column=0, columnspan=4, sticky="ew", **pad)
+        self.go_btn.grid(row=6, column=0, columnspan=4, sticky="ew", **pad)
 
         self.cancel_btn = ttk.Button(
             body, text="Cancel", command=self._cancel_run, state="disabled"
         )
-        self.cancel_btn.grid(row=6, column=0, sticky="w", **pad)
+        self.cancel_btn.grid(row=7, column=0, sticky="w", **pad)
         self.status_var = tk.StringVar(value="")
         ttk.Label(body, textvariable=self.status_var, style=LBL_DIM).grid(
-            row=6, column=1, columnspan=3, sticky="w", **pad
+            row=7, column=1, columnspan=3, sticky="w", **pad
         )
 
         cols = ("file", "state", "detail")
@@ -130,10 +163,10 @@ class TranscribeTab(ttk.Frame):
         self.tree.column("file", width=380, anchor="w")
         self.tree.column("state", width=120, anchor="w")
         self.tree.column("detail", width=300, anchor="w")
-        self.tree.grid(row=7, column=0, columnspan=4, sticky="nsew", **pad)
+        self.tree.grid(row=8, column=0, columnspan=4, sticky="nsew", **pad)
 
         out_label = ttk.LabelFrame(body, text="Output files")
-        out_label.grid(row=8, column=0, columnspan=4, sticky="ew", **pad)
+        out_label.grid(row=9, column=0, columnspan=4, sticky="ew", **pad)
         self.out_box = tk.Listbox(out_label, height=4)
         self.out_box.pack(side="left", fill="both", expand=True, padx=4, pady=4)
         self.out_box.bind("<Double-Button-1>", lambda _e: self._reveal_selected_output())
@@ -157,7 +190,7 @@ class TranscribeTab(ttk.Frame):
 
         body.columnconfigure(1, weight=1)
         body.columnconfigure(2, weight=1)
-        body.rowconfigure(7, weight=1)
+        body.rowconfigure(8, weight=1)
 
         self.active_slug: str | None = None
         self.refresh_sessions()
@@ -236,9 +269,12 @@ class TranscribeTab(ttk.Frame):
     def _set_audio_files(self, files: list[str]) -> None:
         self.audio_files = []
         self.files_box.delete(0, "end")
+        self.track_meta.clear()
+        self.tracks_table.delete(*self.tracks_table.get_children())
         missing = []
         for p in files:
             self.audio_files.append(p)
+            self._track_row_add(p)
             exists = os.path.exists(p)
             self.files_box.insert("end", p if exists else f"{p}   [missing]")
             if not exists:
@@ -269,13 +305,23 @@ class TranscribeTab(ttk.Frame):
             if p not in self.audio_files:
                 self.audio_files.append(p)
                 self.files_box.insert("end", p)
+                self._track_row_add(p)
 
     def _remove_files(self):
         if self._busy:
             return
-        for i in reversed(list(self.files_box.curselection())):
+        if self.mode_var.get() == "tracks":
+            picked = [
+                self.audio_files.index(p)
+                for p in self.tracks_table.selection()
+                if p in self.audio_files
+            ]
+        else:
+            picked = list(self.files_box.curselection())
+        for i in sorted(picked, reverse=True):
             self.files_box.delete(i)
             try:
+                self._track_row_remove(self.audio_files[i])
                 del self.audio_files[i]
             except IndexError:
                 pass
@@ -285,6 +331,110 @@ class TranscribeTab(ttk.Frame):
             return
         self.audio_files.clear()
         self.files_box.delete(0, "end")
+        self.track_meta.clear()
+        self.tracks_table.delete(*self.tracks_table.get_children())
+
+    # ---------- multi-track mode ----------
+
+    def _apply_mode(self):
+        """Show the list or the track table; never touches audio_files."""
+        if self.mode_var.get() == "tracks":
+            self.files_box.grid_remove()
+            self.tracks_table.grid()
+            self.edit_track_btn.pack(fill="x", pady=2)
+            self.spk_label.config(text="# speakers per shared mic")
+        else:
+            self.tracks_table.grid_remove()
+            self.files_box.grid()
+            self.edit_track_btn.pack_forget()
+            self.spk_label.config(text="# speakers:")
+
+    @staticmethod
+    def _shared_glyph(shared: bool) -> str:
+        return "☑" if shared else "☐"
+
+    def _track_values(self, path: str) -> tuple[str, str, str]:
+        meta = self.track_meta[path]
+        return (os.path.basename(path), meta["speaker"], self._shared_glyph(meta["shared_mic"]))
+
+    def _track_row_add(self, path: str) -> None:
+        """Keep track_meta and tracks_table in step with audio_files."""
+        self.track_meta.setdefault(
+            path, {"speaker": multitrack.name_from_filename(path), "shared_mic": False}
+        )
+        if not self.tracks_table.exists(path):
+            self.tracks_table.insert("", "end", iid=path, values=self._track_values(path))
+
+    def _track_row_remove(self, path: str) -> None:
+        self.track_meta.pop(path, None)
+        if self.tracks_table.exists(path):
+            self.tracks_table.delete(path)
+
+    def _tracks(self) -> list[multitrack.Track]:
+        return [
+            multitrack.Track(
+                p, self.track_meta[p]["speaker"].strip(), self.track_meta[p]["shared_mic"]
+            )
+            for p in self.audio_files
+        ]
+
+    def _set_track(self, path: str, speaker: str | None = None, shared_mic: bool | None = None):
+        meta = self.track_meta.get(path)
+        if meta is None:
+            return
+        if speaker is not None:
+            meta["speaker"] = speaker
+        if shared_mic is not None:
+            meta["shared_mic"] = bool(shared_mic)
+        if self.tracks_table.exists(path):
+            self.tracks_table.item(path, values=self._track_values(path))
+
+    def _player_names(self) -> list[str]:
+        try:
+            doc = library.get_current_doc(self.active_slug) if self.active_slug else {}
+            names = [p.get("player_name", "") for p in doc.get("players", [])]
+            return [n for n in names if n]
+        except Exception:
+            return []
+
+    def _edit_track(self):
+        sel = self.tracks_table.selection()
+        if sel:
+            self._open_track_dialog(sel[0])
+
+    def _open_track_dialog(self, path: str) -> tk.Toplevel:
+        meta = self.track_meta[path]
+        dlg = tk.Toplevel(self)
+        dlg.title("Edit track")
+        dlg.transient(self.winfo_toplevel())
+        speaker_var = tk.StringVar(value=meta["speaker"])
+        shared_var = tk.BooleanVar(value=bool(meta["shared_mic"]))
+        ttk.Label(dlg, text=os.path.basename(path)).grid(
+            row=0, column=0, columnspan=2, padx=10, pady=(10, 4), sticky="w"
+        )
+        ttk.Label(dlg, text="Speaker:").grid(row=1, column=0, padx=10, pady=4, sticky="w")
+        ttk.Combobox(dlg, textvariable=speaker_var, values=self._player_names(), width=28).grid(
+            row=1, column=1, padx=10, pady=4, sticky="ew"
+        )
+        ttk.Checkbutton(dlg, text="Shared mic", variable=shared_var).grid(
+            row=2, column=1, padx=10, pady=4, sticky="w"
+        )
+
+        def ok():
+            self._set_track(path, speaker=speaker_var.get(), shared_mic=shared_var.get())
+            dlg.destroy()
+
+        btns = ttk.Frame(dlg)
+        btns.grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="e")
+        ok_btn = ttk.Button(btns, text="OK", command=ok)
+        ok_btn.pack(side="left", padx=4)
+        ttk.Button(btns, text="Cancel", command=dlg.destroy).pack(side="left", padx=4)
+        # Exposed for tests (they never wait on the dialog).
+        dlg.speaker_var = speaker_var  # type: ignore[attr-defined]
+        dlg.shared_var = shared_var  # type: ignore[attr-defined]
+        dlg.ok_btn = ok_btn  # type: ignore[attr-defined]
+        dlg.grab_set()
+        return dlg
 
     def _browse_out(self):
         if self._busy:
@@ -368,6 +518,16 @@ class TranscribeTab(ttk.Frame):
         if not self.audio_files:
             messagebox.showerror("CampaignScribe", "Add at least one audio file.")
             return
+        if self.mode_var.get() == "tracks":
+            if len(self.audio_files) < 2:
+                messagebox.showerror(
+                    "CampaignScribe",
+                    "Add at least two files (one per speaker), or switch to Mixed recording.",
+                )
+                return
+            if any(not t.speaker for t in self._tracks()):
+                messagebox.showerror("CampaignScribe", "Give every track a speaker name.")
+                return
         if not llm.provider_ready():
             messagebox.showerror("CampaignScribe", llm.not_ready_message())
             return
