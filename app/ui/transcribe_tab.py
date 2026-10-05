@@ -236,6 +236,9 @@ class TranscribeTab(ttk.Frame):
         self.load_session(self.session_id)
         # store run_params AFTER load_session (which resets _run_params to {})
         self._run_params = run_params or {}
+        if self._run_params.get("mode") == "tracks":
+            self.mode_var.set("tracks")
+            self._apply_mode()
 
     def _resolve_speakers_path(self, session: dict) -> str | None:
         slug = session.get("campaign_slug")

@@ -57,6 +57,7 @@ class AppWindow(tk.Tk):
     def __init__(self):
         super().__init__()
         self._rebuild_requested = False
+        self.discord_recorder_dialog = None
         self.title(f"CampaignScribe v{__version__}")
 
         # 🎨 MDMT theme — must run BEFORE any widget is constructed.

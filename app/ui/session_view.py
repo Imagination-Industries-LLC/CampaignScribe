@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from app import config
-from app.core import library, speakers_io
+from app.core import discord_recorder, library, speakers_io
 from app.data import db
 from app.ui.common import ScrollableFrame
 from app.ui.theme import BTN_ACCENT, BTN_GHOST, LBL_DIM, S_2, S_3
@@ -59,6 +59,13 @@ class SessionView(tk.Toplevel):
         ttk.Button(audio_lf, text="＋ add track", style=BTN_GHOST, command=self._add_track).pack(
             side="left", padx=4
         )
+        self.record_btn = ttk.Button(
+            audio_lf,
+            text="🔴 Record from Discord",
+            style=BTN_GHOST,
+            command=self._record_from_discord,
+        )
+        self.record_btn.pack(side="left", padx=4)
         for f in json.loads(self.session.get("source_audio_files") or "[]"):
             self.audio_box.insert("end", f)
 
@@ -406,6 +413,10 @@ class SessionView(tk.Toplevel):
         )
         if not paths:
             return
+        self.attach_audio(list(paths))
+
+    def attach_audio(self, paths: list[str]) -> None:
+        """Append audio files to the session (JSON + list box), skipping duplicates."""
         existing = json.loads(self.session.get("source_audio_files") or "[]")
         for p in paths:
             if p not in existing:
@@ -413,6 +424,28 @@ class SessionView(tk.Toplevel):
                 self.audio_box.insert("end", p)
         db.update_session(self.session_id, source_audio_files=json.dumps(existing))
         self.session["source_audio_files"] = json.dumps(existing)
+
+    def _record_from_discord(self) -> None:
+        dlg = getattr(self.app, "discord_recorder_dialog", None)
+        try:
+            alive = dlg is not None and bool(dlg.winfo_exists())
+        except tk.TclError:
+            alive = False
+        if alive:
+            dlg.deiconify()
+            dlg.lift()
+            return
+        if not discord_recorder.get_token():
+            if messagebox.askyesno(
+                "Discord recording",
+                "Set up the Discord bot in Settings (\u2699) first.\n\nOpen Settings now?",
+                parent=self,
+            ):
+                self.app.open_settings()
+            return
+        from app.ui.discord_record_dialog import DiscordRecordDialog
+
+        DiscordRecordDialog(self, self.app, self.session_id)
 
     def _rename(self) -> None:
         new = self.name_var.get().strip()
