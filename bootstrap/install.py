@@ -53,6 +53,7 @@ class Installer:
         self._cancelled = False
         self._proc = None
         self._lock = threading.Lock()
+        self._state_lock = threading.Lock()  # makes the final cancel-check + write_state atomic
 
     # --- paths -------------------------------------------------------------
 
@@ -75,13 +76,19 @@ class Installer:
 
     # --- hooks -------------------------------------------------------------
 
+    def reset(self) -> None:
+        """Clear a previous cancel. Callers do this BEFORE spawning the worker so a
+        cancel that lands before the worker starts is never lost."""
+        self._cancelled = False
+
     def cancel(self) -> None:
         """Flag cancellation and kill the running process tree.
 
         Only the worker deletes files (it runs cleanup itself once the process is
         gone), so cancel never races a step that is still writing.
         """
-        self._cancelled = True
+        with self._state_lock:
+            self._cancelled = True
         with self._lock:
             proc = self._proc
         if proc is not None:
@@ -156,7 +163,6 @@ class Installer:
     # --- the install -------------------------------------------------------
 
     def __call__(self, profile, log_cb, progress_cb) -> InstallResult:
-        self._cancelled = False
         try:
             return self._install(profile, log_cb, progress_cb)
         except Exception as exc:  # noqa: BLE001 - any failure becomes a failure result
@@ -260,13 +266,16 @@ class Installer:
             emit(f"Verify output not understood: {exc}")
             return InstallResult(False, False, f"Verifying failed: {exc}")
 
-        if self._cancelled:  # never record success after a cancel
+        with self._state_lock:  # cancel() takes this too: never cancelled-but-state-exists
+            cancelled = self._cancelled
+            if not cancelled:
+                core.write_state(
+                    profile,
+                    core.lock_sha256(lock_file),
+                    f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+                )
+        if cancelled:
             return self._cancelled_result()
-        core.write_state(
-            profile,
-            core.lock_sha256(lock_file),
-            f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
-        )
         progress_cb(total, total, None)
         return InstallResult(True, cuda_ok, "")
 

@@ -243,6 +243,7 @@ def _wait_dead(pid, limit=8.0):
     return False
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows process-tree kill")
 def test_stream_run_timeout_kills_whole_tree(home):
     inst = install.Installer(home, base_python="b")
     pids = []
@@ -253,6 +254,7 @@ def test_stream_run_timeout_kills_whole_tree(home):
         assert _wait_dead(int(pids[0]))
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows process-tree kill")
 def test_cancel_kills_whole_tree_and_read_loop_returns(home):
     inst = install.Installer(home, base_python="b")
     pids = []
@@ -273,3 +275,37 @@ def test_cancel_kills_whole_tree_and_read_loop_returns(home):
     assert not th.is_alive()
     if sys.platform == "win32":
         assert _wait_dead(int(pids[0]))
+
+
+def test_cancel_before_call_is_not_lost(home):
+    inst = install.Installer(home, base_python="b")
+    cmds = []
+    inst._run = lambda cmd, line_cb, timeout=None: cmds.append(cmd) or (0, "")
+    inst.cancel()  # lands after spawn, before the worker's __call__
+    res = inst("cpu", lambda s: None, lambda *a: None)
+    assert cmds == [] and not res.ok and res.message.startswith("Cancelled")
+    assert core.read_state() is None
+    inst.reset()  # the window does this before spawning the next attempt
+    assert inst._cancelled is False
+
+
+def test_cancel_during_write_state_is_atomic(home, monkeypatch):
+    inst = install.Installer(home, base_python="b")
+    inst._run = FakeRun()
+    real = core.write_state
+    started = threading.Event()
+    th = []
+
+    def racing_write(*a):
+        t = threading.Thread(target=lambda: (started.set(), inst.cancel()))
+        t.start()
+        th.append(t)
+        started.wait(5)
+        t.join(0.3)
+        assert t.is_alive()  # cancel() is blocked on the lock while state is written
+        real(*a)
+
+    monkeypatch.setattr(core, "write_state", racing_write)
+    res = inst("cpu", lambda s: None, lambda *a: None)
+    th[0].join(5)
+    assert res.ok and core.read_state() is not None  # never "cancelled but state exists"

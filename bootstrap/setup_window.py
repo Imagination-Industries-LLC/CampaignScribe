@@ -255,6 +255,9 @@ class SetupWindow:
         self.installing = True
         self._attempt += 1
         attempt = self._attempt
+        reset = getattr(self.installer, "reset", None)
+        if reset:  # before spawning, so an early cancel is never wiped by the worker
+            reset()
         self.log_lines.clear()
         self.bar.configure(value=0)
         self.status_var.set("Starting…")
