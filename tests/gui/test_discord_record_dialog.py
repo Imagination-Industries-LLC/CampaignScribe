@@ -480,6 +480,7 @@ def test_watchdog_recorder_dies_while_starting(h):
     dlg.start_btn.invoke()
     h.recorders[0].running = False
     dlg._tick()
+    dlg._tick()
     assert dlg.state == "error"
     assert dlg.status_var.get().startswith("The recorder stopped before joining the channel.")
 
@@ -491,6 +492,46 @@ def test_watchdog_uses_last_error_message(h):
     h.recorders[0].emit({"event": "error", "code": "x", "message": "Channel not found."})
     h.pump()
     assert "Channel not found." in dlg.status_var.get()
+
+
+def test_watchdog_does_not_beat_late_owner_event(h):
+    dlg = h.dialog()
+    dlg.start_btn.invoke()
+    rec = h.recorders[0]
+    rec.running = False  # process already exited, event not delivered yet
+    dlg._tick()
+    assert dlg.state == "starting"
+    rec.emit({"event": "error", "code": "owner_not_in_voice", "message": "x"})
+    h.pump()
+    assert dlg.state == "picker"
+
+
+def test_watchdog_does_not_beat_late_error_message(h):
+    dlg = h.dialog()
+    dlg.start_btn.invoke()
+    rec = h.recorders[0]
+    rec.running = False
+    dlg._tick()
+    rec.emit({"event": "error", "code": "channel_not_found", "message": "Channel not found."})
+    h.pump()
+    assert dlg.state == "error"
+    assert "Channel not found." in dlg.status_var.get()
+    assert "stopped before joining" not in dlg.status_var.get()
+
+
+def test_watchdog_waits_for_reader_then_fails_and_reaps(h):
+    dlg = h.dialog()
+    dlg.start_btn.invoke()
+    rec = h.recorders[0]
+    rec.running = False
+    rec.readers_done = False
+    dlg._tick()
+    dlg._tick()
+    assert dlg.state == "starting"
+    rec.readers_done = True
+    dlg._tick()
+    assert dlg.state == "error"
+    assert rec.request_stops == 1
 
 
 def test_watchdog_quiet_while_picker_fallback(h):

@@ -298,6 +298,11 @@ class RecorderProcess:
     def exit_code(self) -> int | None:
         return self._proc.poll() if self._proc is not None else None
 
+    @property
+    def readers_done(self) -> bool:
+        """True once the stdout reader has consumed everything the child wrote."""
+        return self._reader is None or not self._reader.is_alive()
+
     def request_stop(self) -> None:
         """Non-blocking stop request: tell the recorder to stop and close its stdin.
 

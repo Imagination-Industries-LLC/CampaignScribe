@@ -217,6 +217,7 @@ class DiscordRecordDialog(tk.Toplevel):
         notice = config.load_config().get("discord_notice", "")
         self.state = "starting"
         self._last_error_msg = ""
+        self._exit_seen = False
         self.status_var.set("Connecting to Discord…")
         self._show(self._live)
         self.stop_btn.state(["disabled"])
@@ -246,6 +247,11 @@ class DiscordRecordDialog(tk.Toplevel):
     def _fail(self, message: str) -> None:
         self.state = "error"
         self._error_msg = message
+        if self.recorder is not None:
+            try:
+                self.recorder.request_stop()
+            except Exception as e:
+                config.log_exception("discord_record_dialog.reap", e)
         self.status_var.set(message)
         self._show(self._live)
         self.stop_btn.state(["disabled"])
@@ -404,10 +410,17 @@ class DiscordRecordDialog(tk.Toplevel):
                 pass
             self._tick_id = None
         if self.state == "starting":
-            if self.recorder is not None and not self.recorder.running:
-                self._fail(
-                    self._last_error_msg or "The recorder stopped before joining the channel."
-                )
+            rec = self.recorder
+            if rec is not None and not rec.running:
+                # Its last events (e.g. owner_not_in_voice) may still be in the reader thread
+                # or on the after(0) queue: fail only on a later tick, once the reader is done.
+                if self._exit_seen and getattr(rec, "readers_done", True):
+                    self._fail(
+                        self._last_error_msg or "The recorder stopped before joining the channel."
+                    )
+                    return
+                self._exit_seen = True
+                self._tick_id = self.after(300, self._tick)
             else:
                 self._tick_id = self.after(1000, self._tick)
             return
