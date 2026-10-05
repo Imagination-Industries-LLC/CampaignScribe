@@ -8,10 +8,10 @@ import readline from 'node:readline';
 import { Client, GatewayIntentBits, ChannelType } from 'discord.js';
 import { joinVoiceChannel, entersState, VoiceConnectionStatus, EndBehaviorType } from '@discordjs/voice';
 import prism from 'prism-media';
-import { RATE, downmixStereoS16, silenceToInsert, eventLine, parseArgs, endStream } from './lib.mjs';
+import { RATE, downmixStereoS16, silenceToInsert, writeZeros, eventLine, parseArgs, endStream } from './lib.mjs';
 
 const TOKEN = process.env.DISCORD_TOKEN || '';
-const STOP_MESSAGE = '⏹️ Recording stopped.';
+const STOP_MESSAGE = 'â¹ï¸ Recording stopped.';
 
 let logStream = null;
 let stopping = false;
@@ -84,15 +84,6 @@ function main(args) {
     try { fs.writeFileSync(path.join(OUT, 'tracks.json'), JSON.stringify(names, null, 2)); }
     catch (e) { log(`tracks.json write failed: ${e.message}`); }
   };
-
-  function writeZeros(t, n) {
-    while (n > 0) {
-      const c = Math.min(n, RATE);
-      t.ws.write(Buffer.alloc(c * 2));
-      t.written += c;
-      n -= c;
-    }
-  }
 
   // (Re)attach the opus receive stream + decoder to an existing track. The write stream and
   // `written` counter are kept so a rejoin only replaces opus and dec.

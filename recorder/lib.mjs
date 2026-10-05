@@ -56,3 +56,16 @@ export function endStream(ws) {
     try { ws.end(); } catch { resolve(); }
   });
 }
+
+// One shared 1-second silence buffer: ws.write() queues references, so padding a long gap
+// no longer allocates a fresh 96 KB Buffer per second of silence.
+const ZEROS = Buffer.alloc(RATE * 2);
+
+export function writeZeros(t, n) {
+  while (n > 0) {
+    const c = Math.min(n, RATE);
+    t.ws.write(c === RATE ? ZEROS : ZEROS.subarray(0, c * 2));
+    t.written += c;
+    n -= c;
+  }
+}

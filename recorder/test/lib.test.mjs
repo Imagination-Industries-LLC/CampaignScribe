@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { downmixStereoS16, silenceToInsert, eventLine, sanitizeName, parseArgs, RATE } from '../lib.mjs';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { downmixStereoS16, silenceToInsert, eventLine, sanitizeName, parseArgs, writeZeros, RATE } from '../lib.mjs';
 
 test('downmix averages L/R', () => {
   const st = Buffer.alloc(8);
@@ -68,4 +71,19 @@ test('endStream resolves for a healthy, an errored and an already-closed stream'
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('writeZeros pads long silence without RSS growth', async () => {
+  const f = path.join(os.tmpdir(), `zeros_${process.pid}.pcm`);
+  const ws = fs.createWriteStream(f);
+  const t = { ws, written: 0 };
+  const before = process.memoryUsage().rss;
+  writeZeros(t, RATE * 1800 + 123); // 30 min + a partial second
+  const growthMb = (process.memoryUsage().rss - before) / 1048576;
+  await new Promise((res) => ws.end(res));
+  try {
+    assert.equal(t.written, RATE * 1800 + 123);
+    assert.equal(fs.statSync(f).size, (RATE * 1800 + 123) * 2);
+    assert.ok(growthMb < 50, `RSS grew ${growthMb.toFixed(1)} MB`);
+  } finally { fs.unlinkSync(f); }
 });
