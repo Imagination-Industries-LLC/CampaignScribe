@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import math
+import os
 import queue
+import subprocess
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from app import config
-from app.core import llm
+from app.core import llm, paths
 from app.core.llm import cost, local_detect
+from bootstrap import core as bootstrap_core
 
 # Room for Gemini thinking tokens / reasoning models; the probe reply is still one word.
 _TEST_PROBE_MAX_TOKENS = 64
@@ -143,6 +146,8 @@ class SettingsDialog(tk.Toplevel):
         ).grid(row=row, column=0, columnspan=3, sticky="w", padx=10, pady=(0, 6))
         row += 1
 
+        row = self._build_engine_row(row, pad)
+
         btn_frame = ttk.Frame(self)
         btn_frame.grid(row=row, column=0, columnspan=3, pady=12)
         ttk.Button(btn_frame, text="Save", command=self._save).pack(side="left", padx=6)
@@ -153,6 +158,60 @@ class SettingsDialog(tk.Toplevel):
         y = master.winfo_rooty() + 60
         self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
         self.llm_provider_combo.focus_set()
+
+    # ---- Speech engine (installed mode only) ----
+    def _build_engine_row(self, row: int, pad: dict) -> int:
+        self._engine_other: str | None = None
+        if paths.mode() != "installed":
+            return row
+        state = bootstrap_core.read_state() or {}
+        profile = state.get("profile")
+        if profile not in ("gpu", "cpu"):
+            return row
+        self._engine_other = "cpu" if profile == "gpu" else "gpu"
+        ttk.Label(self, text="Speech engine:").grid(row=row, column=0, sticky="w", **pad)
+        eng = ttk.Frame(self)
+        eng.grid(row=row, column=1, columnspan=2, sticky="w", **pad)
+        self.engine_label = ttk.Label(eng, text="GPU (CUDA)" if profile == "gpu" else "CPU")
+        self.engine_label.pack(side="left")
+        self.engine_btn = ttk.Button(
+            eng,
+            text="Switch to CPU…" if profile == "gpu" else "Switch to GPU…",
+            command=self._switch_engine,
+        )
+        self.engine_btn.pack(side="left", padx=(12, 0))
+        return row + 1
+
+    def _switch_engine(self) -> None:
+        other = self._engine_other
+        if other is None:
+            return
+        gb = max(1, round(bootstrap_core.required_bytes(other) / 1024**3))
+        if not messagebox.askyesno(
+            "Speech engine",
+            "CampaignScribe will close and download the other speech engine "
+            f"(about {gb} GB). Continue?",
+            parent=self,
+        ):
+            return
+        home = paths.app_home()
+        cmd = [
+            str(home / "python" / "pythonw.exe"),
+            str(home / "bootstrap" / "launcher.py"),
+            "--switch",
+            other,
+        ]
+        env = dict(os.environ, **{paths.HOME_ENV: str(home)})
+        try:
+            subprocess.Popen(  # noqa: S603 - fixed argv built from the install dir
+                cmd, env=env, creationflags=bootstrap_core.no_window_flags()
+            )
+        except OSError as e:
+            messagebox.showerror("Speech engine", f"Could not start setup:\n{e}", parent=self)
+            return
+        master = self.master
+        self.destroy()
+        master._on_close()
 
     # ---- AI model section ----
     def _build_llm_section(self, row: int, pad: dict) -> int:
