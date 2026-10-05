@@ -55,7 +55,7 @@ Theme follows the OS by default and can be forced to dark or light in Settings.
 ## Prerequisites
 
 - Windows 10 / 11
-- Python 3.11 (`py -3.11`) when running from source. The packaged bundle
+- Python 3.13 (`py -3.13`) when running from source. The packaged bundle
   includes Python and the full PyTorch + CUDA runtime.
 - **GPU acceleration**: the pinned stack is `torch 2.11+cu128` (CUDA 12.8
   runtime). CUDA is forward-compatible at the driver level, so any NVIDIA

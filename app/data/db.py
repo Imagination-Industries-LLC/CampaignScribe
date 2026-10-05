@@ -6,7 +6,7 @@ import json
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from app.config import get_db_path
@@ -158,10 +158,15 @@ def create_session(
         return int(cur.lastrowid)
 
 
+def _utc_now_iso() -> str:
+    """Naive-UTC ISO timestamp (seconds), the format stored in the DB."""
+    return datetime.now(UTC).replace(tzinfo=None).isoformat(timespec="seconds")
+
+
 def update_session(session_id: int, **fields) -> None:
     if not fields:
         return
-    fields["updated_at"] = datetime.utcnow().isoformat(timespec="seconds")
+    fields["updated_at"] = _utc_now_iso()
     invalid = set(fields) - _SESSION_COLUMNS
     if invalid:
         raise ValueError(f"update_session: unknown column(s) {sorted(invalid)}")
@@ -291,7 +296,7 @@ def add_user_prompt(name: str, content: str) -> int:
 
 
 def update_user_prompt(prompt_id: int, name: str, content: str) -> None:
-    now = datetime.utcnow().isoformat(timespec="seconds")
+    now = _utc_now_iso()
     with get_conn() as c:
         c.execute(
             "UPDATE user_prompts SET name = ?, content = ?, updated_at = ? WHERE id = ?",
