@@ -1,0 +1,10 @@
+Looking in indexes: https://pypi.org/simple, https://download.pytorch.org/whl/cpu
+Collecting aiohappyeyeballs==2.7.1 (from -r locks\cpu.txt (line 4))
+  Using cached aiohappyeyeballs-2.7.1-py3-none-any.whl.metadata (5.9 kB)
+Collecting numpy==2.3.3 (from -r locks\cpu.txt (line 90))
+  Downloading numpy-2.3.3-cp313-cp313-win_amd64.whl.metadata (60 kB)
+Collecting torch==2.8.0+cpu (from -r locks\cpu.txt (line 130))
+  Downloading https://download.pytorch.org/whl/cpu/torch-2.8.0%2Bcpu-cp313-cp313-win_amd64.whl (110.9 MB)
+Downloading numpy-2.3.3-cp313-cp313-win_amd64.whl (12.8 MB)
+Installing collected packages: torch, numpy, aiohappyeyeballs
+Successfully installed aiohappyeyeballs-2.7.1 numpy-2.3.3 torch-2.8.0+cpu
