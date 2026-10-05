@@ -5,7 +5,7 @@ cd /d "%~dp0"
 rem CampaignScribe dev environment setup.
 rem
 rem Creates .venv and installs all dependencies. Wraps `pip install` because
-rem whisperx 3.8.5's metadata pins torch~=2.8.0 (a stale constraint that the
+rem whisperx 3.8.6's metadata pins torch~=2.8.0 (a stale constraint that the
 rem code actually works around) and would block our torch==2.11.0+cu128 pin.
 rem A two-step install gets around it.
 
@@ -37,14 +37,16 @@ echo [setup_venv] Step 1/2: installing app dependencies (whisperx will pull torc
     keyring ^
     ffmpeg-python ^
     python-docx ^
+    darkdetect ^
+    sentry-sdk~=2.71 ^
     pyinstaller ^
-    faster-whisper ^
-    whisperx==3.8.5 ^
+    faster-whisper==1.2.1 ^
+    whisperx==3.8.6 ^
     pyannote.audio==4.0.4 ^
     transformers==4.57.6 ^
     huggingface_hub==0.36.2 ^
-    lightning==2.6.1 ^
-    pytorch-lightning==2.6.1
+    lightning==2.6.6 ^
+    pytorch-lightning==2.6.6
 if errorlevel 1 exit /b 1
 
 echo.
