@@ -9,8 +9,9 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from app import config
-from app.core import llm
+from app.core import discord_recorder, llm
 from app.core.llm import cost, local_detect
+from app.ui.common import open_url
 
 # Room for Gemini thinking tokens / reasoning models; the probe reply is still one word.
 _TEST_PROBE_MAX_TOKENS = 64
@@ -18,7 +19,7 @@ _TEST_PROBE_TIMEOUT_S = 30.0
 
 
 class SettingsDialog(tk.Toplevel):
-    def __init__(self, master, initial_provider: str | None = None):
+    def __init__(self, master, initial_provider: str | None = None, focus: str | None = None):
         super().__init__(master)
         self._initial_provider = initial_provider
         self.title("CampaignScribe — Settings")
@@ -143,6 +144,8 @@ class SettingsDialog(tk.Toplevel):
         ).grid(row=row, column=0, columnspan=3, sticky="w", padx=10, pady=(0, 6))
         row += 1
 
+        row = self._build_discord_section(row, pad, cfg)
+
         btn_frame = ttk.Frame(self)
         btn_frame.grid(row=row, column=0, columnspan=3, pady=12)
         ttk.Button(btn_frame, text="Save", command=self._save).pack(side="left", padx=6)
@@ -153,6 +156,162 @@ class SettingsDialog(tk.Toplevel):
         y = master.winfo_rooty() + 60
         self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
         self.llm_provider_combo.focus_set()
+        if focus == "discord_max_length":
+            self.after_idle(self._focus_discord_max)
+
+    def _focus_discord_max(self):
+        try:
+            self.lift()
+            self.discord_max_hours_spin.focus_force()
+        except tk.TclError:
+            pass
+
+    # ---- Discord recording section ----
+    def _build_discord_section(self, row: int, pad: dict, cfg: dict) -> int:
+        ttk.Separator(self, orient="horizontal").grid(
+            row=row, column=0, columnspan=3, sticky="ew", padx=10, pady=(6, 2)
+        )
+        row += 1
+        ttk.Label(self, text="— Discord recording —").grid(
+            row=row, column=0, columnspan=3, sticky="w", padx=10, pady=(0, 4)
+        )
+        row += 1
+
+        self._discord_loaded_token = discord_recorder.get_token()
+        ttk.Label(self, text="Bot token:").grid(row=row, column=0, sticky="w", **pad)
+        self.discord_token_var = tk.StringVar(value=self._discord_loaded_token)
+        self.discord_token_entry = ttk.Entry(
+            self, textvariable=self.discord_token_var, width=55, show="•"
+        )
+        self.discord_token_entry.grid(row=row, column=1, **pad)
+        self.discord_invite_btn = ttk.Button(
+            self, text="Invite bot", command=self._invite_discord_bot
+        )
+        self.discord_invite_btn.grid(row=row, column=2, **pad)
+        self.discord_token_var.trace_add("write", lambda *_: self._sync_discord_invite())
+        self._sync_discord_invite()
+        row += 1
+
+        test_frame = ttk.Frame(self)
+        test_frame.grid(row=row, column=1, columnspan=2, sticky="w", **pad)
+        self.discord_test_btn = ttk.Button(
+            test_frame, text="Test connection", command=self._test_discord
+        )
+        self.discord_test_btn.pack(side="left")
+        self.discord_test_label = ttk.Label(test_frame, text="", wraplength=300, justify="left")
+        self.discord_test_label.pack(side="left", padx=8)
+        ttk.Button(test_frame, text="How to set up a bot…", command=self._show_discord_guide).pack(
+            side="right"
+        )
+        row += 1
+
+        ttk.Label(self, text="Recording notice:").grid(row=row, column=0, sticky="w", **pad)
+        self.discord_notice_var = tk.StringVar(
+            value=cfg.get("discord_notice") or config.DEFAULT_CONFIG["discord_notice"]
+        )
+        ttk.Entry(self, textvariable=self.discord_notice_var, width=55).grid(
+            row=row, column=1, columnspan=2, sticky="w", **pad
+        )
+        row += 1
+
+        ttk.Label(self, text="Max recording length (auto-stop):").grid(
+            row=row, column=0, sticky="w", **pad
+        )
+        total = int(cfg.get("discord_max_minutes", 360) or 360)
+        self.discord_max_hours_var = tk.IntVar(value=total // 60)
+        self.discord_max_minutes_var = tk.IntVar(value=total % 60)
+        len_frame = ttk.Frame(self)
+        len_frame.grid(row=row, column=1, sticky="w", **pad)
+        self.discord_max_hours_spin = ttk.Spinbox(
+            len_frame, from_=0, to=999, textvariable=self.discord_max_hours_var, width=5
+        )
+        self.discord_max_hours_spin.pack(side="left")
+        ttk.Label(len_frame, text="h").pack(side="left", padx=(2, 10))
+        ttk.Spinbox(
+            len_frame, from_=0, to=59, textvariable=self.discord_max_minutes_var, width=4
+        ).pack(side="left")
+        ttk.Label(len_frame, text="min").pack(side="left", padx=(2, 0))
+        row += 1
+        return row
+
+    def _sync_discord_invite(self):
+        tok = self.discord_token_var.get().strip()
+        ok = bool(tok) and discord_recorder.invite_url(tok) is not None
+        self.discord_invite_btn.config(state="normal" if ok else "disabled")
+
+    def _invite_discord_bot(self):
+        url = discord_recorder.invite_url(self.discord_token_var.get().strip())
+        if url:
+            open_url(url)
+
+    def _test_discord(self, _sync: bool = False):
+        """Check the (possibly unsaved) typed token against Discord.
+
+        The typed value is passed as list_inventory(token=...), so testing never saves it.
+        """
+        token = self.discord_token_var.get().strip()
+        if not token:
+            self.discord_test_label.config(text="✗ Enter a bot token first.")
+            return
+        self.discord_test_btn.config(state="disabled")
+        self.discord_test_label.config(text="Testing…")
+
+        def work():
+            try:
+                text = self._format_discord_inventory(discord_recorder.list_inventory(token=token))
+            except discord_recorder.RecorderError as e:
+                text = f"✗ {e.message}"
+            except Exception as e:
+                text = f"✗ {type(e).__name__}"
+            if _sync:
+                self._finish_discord_test(text)
+                return
+            try:
+                self.after(0, lambda: self._finish_discord_test(text))
+            except (RuntimeError, tk.TclError):
+                pass
+
+        if _sync:
+            work()
+        else:
+            threading.Thread(target=work, daemon=True).start()
+
+    @staticmethod
+    def _format_discord_inventory(inv: dict) -> str:
+        guilds = inv.get("guilds") or []
+        n = len(guilds)
+        chans = sum(len(g.get("voice_channels") or []) for g in guilds)
+        return (
+            f"✓ Connected — {n} server{'' if n == 1 else 's'}, "
+            f"{chans} voice channel{'' if chans == 1 else 's'}"
+        )
+
+    def _finish_discord_test(self, text: str):
+        try:
+            if not self.winfo_exists():
+                return
+            self.discord_test_label.config(text=text)
+            self.discord_test_btn.config(state="normal")
+        except tk.TclError:
+            pass
+
+    def _show_discord_guide(self):
+        win = tk.Toplevel(self)
+        win.title("Set up a Discord bot")
+        win.transient(self)
+        txt = tk.Text(win, width=70, height=14, wrap="word", padx=10, pady=8)
+        txt.insert(
+            "1.0",
+            "1. Go to https://discord.com/developers/applications and click New Application.\n"
+            "2. Open the Bot tab and turn OFF Public Bot, so only you can add it.\n"
+            "3. Click Reset Token, copy the token, and paste it into Bot token here. "
+            "Treat it like a password: anyone with it controls the bot.\n"
+            "4. Click Invite bot and add the bot to your server.\n"
+            "5. Click Test connection to confirm the bot can see your server.\n",
+        )
+        txt.config(state="disabled")
+        txt.pack(fill="both", expand=True)
+        ttk.Button(win, text="Close", command=win.destroy).pack(pady=(0, 8))
 
     # ---- AI model section ----
     def _build_llm_section(self, row: int, pad: dict) -> int:
@@ -510,6 +669,17 @@ class SettingsDialog(tk.Toplevel):
 
     def _save(self):
         try:
+            max_minutes = int(self.discord_max_hours_var.get()) * 60 + int(
+                self.discord_max_minutes_var.get()
+            )
+        except (tk.TclError, ValueError):
+            max_minutes = 0
+        if max_minutes < 1:
+            messagebox.showerror(
+                "Settings", "Max recording length must be at least 1 minute.", parent=self
+            )
+            return
+        try:
             self._stash_llm_fields()
             for pid, st in self._llm_state.items():
                 key = st["key"].strip()
@@ -542,6 +712,13 @@ class SettingsDialog(tk.Toplevel):
             cfg["discover_whisper_model"] = self.discover_model_var.get()
             cfg["discover_sample_minutes"] = int(self.discover_sample_var.get() or 0)
             cfg["crash_reporting_enabled"] = bool(self.crash_var.get())
+            token = self.discord_token_var.get().strip()
+            if token != self._discord_loaded_token:
+                discord_recorder.save_token(token)
+            cfg["discord_notice"] = self.discord_notice_var.get().strip() or str(
+                config.DEFAULT_CONFIG["discord_notice"]
+            )
+            cfg["discord_max_minutes"] = max_minutes
             config.save_config(cfg)
             from app.core import crash_reporting
 

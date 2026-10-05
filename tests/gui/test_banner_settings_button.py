@@ -49,7 +49,7 @@ def test_open_settings_passes_initial_provider(app, monkeypatch):
     seen = []
 
     class _FakeSettings(tk.Toplevel):
-        def __init__(self, master, initial_provider=None):
+        def __init__(self, master, initial_provider=None, focus=None):
             super().__init__(master)
             seen.append(initial_provider)
             self.after(0, self.destroy)
@@ -58,3 +58,17 @@ def test_open_settings_passes_initial_provider(app, monkeypatch):
     app.open_settings(initial_provider="ollama")
     app.open_settings()
     assert seen == ["ollama", None]
+
+
+def test_open_settings_passes_focus(app, monkeypatch):
+    seen = []
+
+    class _FakeSettings(tk.Toplevel):
+        def __init__(self, master, initial_provider=None, focus=None):
+            super().__init__(master)
+            seen.append(focus)
+            self.after(0, self.destroy)
+
+    monkeypatch.setattr("app.ui.app_window.SettingsDialog", _FakeSettings)
+    app.open_settings(focus="discord_max_length")
+    assert seen == ["discord_max_length"]

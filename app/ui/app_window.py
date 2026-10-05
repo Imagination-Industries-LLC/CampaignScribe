@@ -387,9 +387,9 @@ class AppWindow(tk.Tk):
             self.open_home()
             self.home_tab.new_campaign()
 
-    def open_settings(self, initial_provider: str | None = None):
+    def open_settings(self, initial_provider: str | None = None, focus: str | None = None):
         old_mode = config.load_config().get("theme_mode", "dark")
-        dlg = SettingsDialog(self, initial_provider=initial_provider)
+        dlg = SettingsDialog(self, initial_provider=initial_provider, focus=focus)
         self.wait_window(dlg)
         self._refresh_banner()
         for tab in (
