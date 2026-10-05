@@ -60,6 +60,8 @@ class _Env:
     def run(self, mode: str = "tracks", names=("Mike", "Sarah")):
         tab = self.tab
         paths = [str(self.tmp / f"{n.lower()}.flac") for n in names]
+        for p in paths:
+            Path(p).write_bytes(b"")  # _set_audio_files warns (modal) about missing files
         tab._set_audio_files(paths)
         if mode == "tracks":
             tab.mode_var.set("tracks")
@@ -140,6 +142,7 @@ def env(root, tmp_path, monkeypatch):
     monkeypatch.setattr(llm, "provider_ready", lambda: True)
     monkeypatch.setattr(tt.messagebox, "showerror", lambda *a, **k: pytest.fail(str(a)))
     monkeypatch.setattr(tt.messagebox, "showinfo", lambda *a, **k: None)
+    monkeypatch.setattr(tt.messagebox, "showwarning", lambda *a, **k: None)
     return e
 
 
