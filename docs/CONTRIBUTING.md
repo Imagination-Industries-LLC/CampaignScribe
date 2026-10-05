@@ -1,6 +1,6 @@
 # Contributing to CampaignScribe
 
-CampaignScribe is a Windows desktop application (Python 3.11, Tkinter) for transcribing and summarizing tabletop-RPG sessions. Contributions are welcome — please read this guide before opening a pull request.
+CampaignScribe is a Windows desktop application (Python 3.13, Tkinter) for transcribing and summarizing tabletop-RPG sessions. Contributions are welcome — please read this guide before opening a pull request.
 
 ## Local Setup
 

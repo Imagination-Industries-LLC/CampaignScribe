@@ -15,10 +15,10 @@ if exist ".venv\Scripts\python.exe" (
     exit /b 0
 )
 
-echo [setup_venv] Creating .venv with Python 3.11...
-py -3.11 -m venv .venv
+echo [setup_venv] Creating .venv with Python 3.13...
+py -3.13 -m venv .venv
 if errorlevel 1 (
-    echo [setup_venv] ERROR: failed to create venv. Is Python 3.11 installed?
+    echo [setup_venv] ERROR: failed to create venv. Is Python 3.13 installed?
     exit /b 1
 )
 
