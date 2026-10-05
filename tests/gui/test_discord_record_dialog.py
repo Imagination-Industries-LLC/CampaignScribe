@@ -629,3 +629,15 @@ def test_transcribe_handoff_sets_tracks_mode(root, tmp_path):
     assert [tab.track_meta[f]["speaker"] for f in files] == ["Mike", "Jo"]
     tab.load_for_session(db.get_session(sid), run_params=None)
     assert tab.mode_var.get() == "tracks"  # an explicit mode choice is not reset
+
+
+def test_quit_reason_attaches_without_handoff_and_ends_done(h):
+    dlg = h.recording()
+    dlg.stop(reason="quit")
+    h.pump()
+    assert dlg.state == "done"
+    assert len(h.finalize_calls) == 1
+    assert json.loads(db.get_session(h.sid)["source_audio_files"]) == [WAV]
+    assert h.opened_stage == []
+    assert h.app.discord_recorder_dialog is None
+    assert h.recorders[-1].request_stops == 0

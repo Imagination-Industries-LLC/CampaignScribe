@@ -54,3 +54,10 @@ def test_all_provider_privacy_urls_are_https():
         privacy.OPENROUTER_PRIVACY_URL,
     ):
         assert url.startswith("https://")
+
+
+def test_privacy_has_discord_recording_section():
+    text = privacy.load_privacy_text()
+    assert "## Discord recording" in text
+    for phrase in ("Discord's servers", "Windows Credential Manager", "recordings folder"):
+        assert phrase in text

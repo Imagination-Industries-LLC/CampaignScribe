@@ -40,6 +40,19 @@ DOT_HOLD_S = 2.0
 _STYLES = {"normal": LBL_DIM, "warn": LBL_STATUS_WARN, "error": LBL_STATUS_ERR}
 
 
+def attach_wavs_to_db(session_id: int, wavs: list[str]) -> bool:
+    """Append wavs (unique) to the session's source_audio_files. False if the session is gone."""
+    session = db.get_session(session_id)
+    if not session:
+        return False
+    existing = json.loads(session.get("source_audio_files") or "[]")
+    for p in wavs:
+        if p not in existing:
+            existing.append(p)
+    db.update_session(session_id, source_audio_files=json.dumps(existing))
+    return True
+
+
 def _spawn_thread(fn: Callable[[], None]) -> None:
     threading.Thread(target=fn, daemon=True).start()
 
@@ -519,6 +532,11 @@ class DiscordRecordDialog(tk.Toplevel):
         if reason == "cancel":
             self.destroy()
             return
+        if reason == "quit":
+            # app is quitting: tracks are attached (or the raw audio is kept); no hand-off
+            self.state = "done"
+            self.destroy()
+            return
         if failures:
             self._end_with_message(
                 f"{len(failures)} track(s) could not be converted. The raw audio is kept in:"
@@ -551,9 +569,4 @@ class DiscordRecordDialog(tk.Toplevel):
         if alive and hasattr(m, "attach_audio"):
             m.attach_audio(wavs)
             return
-        session = db.get_session(self.session_id) or {}
-        existing = json.loads(session.get("source_audio_files") or "[]")
-        for p in wavs:
-            if p not in existing:
-                existing.append(p)
-        db.update_session(self.session_id, source_audio_files=json.dumps(existing))
+        attach_wavs_to_db(self.session_id, wavs)

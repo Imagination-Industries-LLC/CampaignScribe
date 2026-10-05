@@ -53,6 +53,9 @@ def backlink_sessions_to_campaigns() -> int:
     return linked
 
 
+QUIT_WAIT_POLLS = 600  # x200 ms = 120 s
+
+
 class AppWindow(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -347,13 +350,51 @@ class AppWindow(tk.Tk):
     def _run_startup_prompts(self):
         """One prompt at a time: library import first, then the first-run welcome.
         A failure in one step is logged and never blocks the next."""
-        for step in (self._maybe_offer_library_import, self._maybe_first_run_setup):
+        for step in (
+            self._maybe_offer_library_import,
+            self._maybe_first_run_setup,
+            self._maybe_recover_recordings,
+        ):
             if not self._alive():
                 return
             try:
                 step()
             except Exception as e:  # noqa: BLE001
                 config.log_exception(f"startup prompt {getattr(step, '__name__', step)}", e)
+
+    def _maybe_recover_recordings(self):
+        """Offer to convert Discord recordings left unfinished by a crash or kill."""
+        from app.core import discord_recorder
+        from app.ui.discord_record_dialog import attach_wavs_to_db
+
+        folders = discord_recorder.unfinished_recordings(discord_recorder.recordings_root())
+        if not folders:
+            return
+        if not messagebox.askyesno(
+            "CampaignScribe",
+            f"Finish converting {len(folders)} interrupted recording(s)?",
+            parent=self,
+        ):
+            return
+        orphans: list[str] = []
+        for folder in folders:
+            try:
+                wavs, _failures = discord_recorder.finalize(folder)
+            except Exception as e:  # noqa: BLE001
+                config.log_exception("recover recording", e)
+                continue
+            sid = discord_recorder.session_id_from_dir(folder)
+            if not wavs:
+                continue
+            if sid is None or not attach_wavs_to_db(sid, list(wavs)):
+                orphans.append(folder)
+        if orphans:
+            messagebox.showinfo(
+                "CampaignScribe",
+                "These recordings were converted, but their session no longer exists:\n\n"
+                + "\n".join(orphans),
+                parent=self,
+            )
 
     def _alive(self) -> bool:
         try:
@@ -640,6 +681,34 @@ class AppWindow(tk.Tk):
             pass
 
     def _on_close(self):
+        dlg = getattr(self, "discord_recorder_dialog", None)
+        if dlg is not None and getattr(dlg, "state", None) in ("starting", "recording", "stopping"):
+            if not messagebox.askyesno(
+                "CampaignScribe",
+                "A Discord recording is running. Stop it and quit?",
+                parent=self,
+            ):
+                return
+            try:
+                dlg.stop(reason="quit")
+            except Exception as e:  # noqa: BLE001
+                config.log_exception("quit: stop discord recording", e)
+            self._await_recorder_then_close(dlg, QUIT_WAIT_POLLS)
+            return
+        self._close_now()
+
+    def _await_recorder_then_close(self, dlg, polls_left: int) -> None:
+        """Finalize runs in a worker; wait (<= 120 s) for the dialog to finish, then close."""
+        try:
+            gone = not dlg.winfo_exists()
+        except tk.TclError:
+            gone = True
+        if gone or dlg.state in ("done", "error") or polls_left <= 0:
+            self._close_now()
+            return
+        self.after(200, self._await_recorder_then_close, dlg, polls_left - 1)
+
+    def _close_now(self):
         self._save_window_geometry()
         if getattr(self, "_migration_after_id", None) is not None:
             try:

@@ -42,6 +42,15 @@ The **Help → Feedback & Support** menu can help you share information with us 
 - Every report is **scrubbed before sending**: no transcripts, audio, API keys/tokens, or speaker profiles; file paths have your home folder replaced with `~`, email addresses are removed, and your computer/account name is dropped. Stack-frame local variables are never collected.
 - Turning the setting back off **stops all transmission** immediately.
 
+## Discord recording
+If you use **Record from Discord**, CampaignScribe sends a bot you set up into a voice channel to record the session:
+- The audio travels through Discord's servers, exactly as in any Discord call. CampaignScribe has no say in that part.
+- CampaignScribe's own bot receives the audio on this PC and stores it only in your recordings folder (shown in Settings). Interrupted recordings stay there until you convert or delete them.
+- The bot token is stored in Windows Credential Manager and is sent only to Discord. It is never written to a log or a file.
+- CampaignScribe uploads nothing: the recordings are processed on your PC like any other audio.
+- The bot posts a notice in the channel when recording starts, so participants can see they are being recorded.
+- You are responsible for telling participants and getting their consent where the law requires it.
+
 ## What CampaignScribe does NOT do
 - No analytics, no tracking, no telemetry by default, and no servers of our own. We collect nothing about you.
 - The speaker-diarization library (pyannote.audio) has built-in usage metrics that report to its developers by default; CampaignScribe switches them off, so nothing is sent.
