@@ -200,11 +200,18 @@ class SessionView(tk.Toplevel):
         options = choices + [GUEST_CHOICE, IGNORE_CHOICE]
         self._review_vars: dict[str, tk.StringVar] = {}
         self._chip_labels: dict[str, ttk.Label] = {}
+        # Multi-track runs persist display names per cluster; seed from them so Review
+        # opens pre-filled. Mixed sessions store "" and so stay blank, as before.
+        name_by_cid = {
+            r["source_speaker_id"]: r["display_name"]
+            for r in db.get_speakers_for_session(self.session_id)
+            if r.get("source_speaker_id") and (r.get("display_name") or "").strip()
+        }
         for cid in self._detected_clusters():
             row = ttk.Frame(self.review_inner)
             row.pack(fill="x", pady=2)
             ttk.Label(row, text=cid, width=16).pack(side="left")
-            var = tk.StringVar(value=self._assignments.get(cid, ""))
+            var = tk.StringVar(value=self._assignments.get(cid) or name_by_cid.get(cid, ""))
             self._review_vars[cid] = var
             ttk.Combobox(row, textvariable=var, values=options, state="readonly", width=30).pack(
                 side="left"
