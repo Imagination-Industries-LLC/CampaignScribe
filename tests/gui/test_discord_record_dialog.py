@@ -481,6 +481,7 @@ def test_watchdog_recorder_dies_while_starting(h):
     h.recorders[0].running = False
     dlg._tick()
     dlg._tick()
+    h.pump()
     assert dlg.state == "error"
     assert dlg.status_var.get().startswith("The recorder stopped before joining the channel.")
 
@@ -530,8 +531,37 @@ def test_watchdog_waits_for_reader_then_fails_and_reaps(h):
     assert dlg.state == "starting"
     rec.readers_done = True
     dlg._tick()
+    h.pump()
     assert dlg.state == "error"
     assert rec.request_stops == 1
+
+
+def test_watchdog_gives_up_on_stuck_reader(h):
+    dlg = h.dialog()
+    dlg.start_btn.invoke()
+    rec = h.recorders[0]
+    rec.running = False
+    rec.readers_done = False
+    for _ in range(9):
+        dlg._tick()
+    h.pump()
+    assert dlg.state == "starting"
+    dlg._tick()
+    h.pump()
+    assert dlg.state == "error"
+    assert "stopped before joining" in dlg.status_var.get()
+
+
+def test_watchdog_final_check_lets_queued_event_win(h):
+    dlg = h.dialog()
+    dlg.start_btn.invoke()
+    rec = h.recorders[0]
+    rec.running = False
+    dlg._tick()
+    dlg._tick()  # decides to fail; final check is deferred to idle
+    rec.emit({"event": "error", "code": "owner_not_in_voice", "message": "x"})
+    h.pump()
+    assert dlg.state == "picker"
 
 
 def test_watchdog_quiet_while_picker_fallback(h):

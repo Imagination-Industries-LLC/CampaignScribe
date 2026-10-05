@@ -34,6 +34,7 @@ CONSENT_TEXT = (
     "this notice in the channel:"
 )
 AUTO_STOPPED_TEXT = "Stopped automatically at the maximum recording length."
+MAX_EXIT_DEFERRALS = 10  # x300 ms: stop waiting for the reader after ~3 s
 LOW_DISK_BYTES = 2 * 1024**3
 DOT_HOLD_S = 2.0
 _STYLES = {"normal": LBL_DIM, "warn": LBL_STATUS_WARN, "error": LBL_STATUS_ERR}
@@ -201,6 +202,10 @@ class DiscordRecordDialog(tk.Toplevel):
             return
         self.destroy()
 
+    def _fail_if_still_starting(self) -> None:
+        if self.state == "starting":
+            self._fail(self._last_error_msg or "The recorder stopped before joining the channel.")
+
     def _open_limit_settings(self) -> None:
         self.app.open_settings(focus="discord_max_length")
 
@@ -217,7 +222,7 @@ class DiscordRecordDialog(tk.Toplevel):
         notice = config.load_config().get("discord_notice", "")
         self.state = "starting"
         self._last_error_msg = ""
-        self._exit_seen = False
+        self._exit_ticks = 0
         self.status_var.set("Connecting to Discord…")
         self._show(self._live)
         self.stop_btn.state(["disabled"])
@@ -414,12 +419,12 @@ class DiscordRecordDialog(tk.Toplevel):
             if rec is not None and not rec.running:
                 # Its last events (e.g. owner_not_in_voice) may still be in the reader thread
                 # or on the after(0) queue: fail only on a later tick, once the reader is done.
-                if self._exit_seen and getattr(rec, "readers_done", True):
-                    self._fail(
-                        self._last_error_msg or "The recorder stopped before joining the channel."
-                    )
+                self._exit_ticks += 1
+                done = getattr(rec, "readers_done", True)
+                if (done and self._exit_ticks >= 2) or self._exit_ticks >= MAX_EXIT_DEFERRALS:
+                    # final re-check after idle so an already-queued _handle runs first
+                    self.after_idle(self._fail_if_still_starting)
                     return
-                self._exit_seen = True
                 self._tick_id = self.after(300, self._tick)
             else:
                 self._tick_id = self.after(1000, self._tick)
