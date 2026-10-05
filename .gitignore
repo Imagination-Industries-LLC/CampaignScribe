@@ -54,3 +54,7 @@ errors.log
 
 # Bundled model weights (fetched by scripts/fetch_diarization_weights.py; never committed)
 /models/
+
+# Node recorder deps and fetched Node runtime
+/recorder/node_modules/
+/vendor/
