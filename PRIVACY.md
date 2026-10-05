@@ -45,7 +45,7 @@ The **Help → Feedback & Support** menu can help you share information with us 
 ## Discord recording
 If you use **Record from Discord**, CampaignScribe sends a bot you set up into a voice channel to record the session:
 - The audio travels through Discord's servers, exactly as in any Discord call. CampaignScribe has no say in that part.
-- CampaignScribe's own bot receives the audio on this PC and stores it only in your recordings folder (shown in Settings). Interrupted recordings stay there until you convert or delete them.
+- CampaignScribe's own bot receives the audio on this PC and stores it only in your recordings folder: the `recordings_folder` setting if set, otherwise `recordings` inside your default output folder, otherwise `recordings` inside the CampaignScribe app data folder. Interrupted recordings stay there until you convert or delete them.
 - The bot token is stored in Windows Credential Manager and is sent only to Discord. It is never written to a log or a file.
 - CampaignScribe uploads nothing: the recordings are processed on your PC like any other audio.
 - The bot posts a notice in the channel when recording starts, so participants can see they are being recorded.

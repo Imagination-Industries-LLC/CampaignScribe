@@ -61,3 +61,5 @@ def test_privacy_has_discord_recording_section():
     assert "## Discord recording" in text
     for phrase in ("Discord's servers", "Windows Credential Manager", "recordings folder"):
         assert phrase in text
+    assert "shown in Settings" not in text
+    assert "recordings_folder" in text

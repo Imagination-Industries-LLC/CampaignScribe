@@ -641,3 +641,98 @@ def test_quit_reason_attaches_without_handoff_and_ends_done(h):
     assert h.opened_stage == []
     assert h.app.discord_recorder_dialog is None
     assert h.recorders[-1].request_stops == 0
+
+
+def _quit_app(dlg):
+    from app.ui.app_window import AppWindow
+
+    class _App:
+        _on_close = AppWindow._on_close
+        _await_recorder_then_close = AppWindow._await_recorder_then_close
+
+        def __init__(self):
+            self.discord_recorder_dialog = dlg
+            self.closed = 0
+            self.afters = []
+
+        def after(self, ms, fn, *a):
+            self.afters.append((fn, a))
+
+        def _close_now(self):
+            self.closed += 1
+
+    return _App()
+
+
+def test_quit_during_starting_is_safe_and_ends_done(h):
+    deferred = []
+    from app.ui.discord_record_dialog import DiscordRecordDialog
+
+    dlg = DiscordRecordDialog(
+        h.root,
+        h.app,
+        h.sid,
+        now=lambda: h.clock[0],
+        recorder_factory=h.factory,
+        spawn=deferred.append,
+    )
+    dlg.start_btn.invoke()
+    assert dlg.state == "starting"
+    rec = h.recorders[-1]
+    dlg.stop(reason="quit")  # worker has not started yet
+    rec.emit({"event": "joined", "guild_id": "1", "channel_id": "2"})  # late event: ignored
+    h.pump()
+    assert dlg.state == "stopping"
+    assert len(deferred) == 1
+    deferred[0]()
+    h.pump()
+    assert rec.stops == 1
+    assert rec.request_stops == 0
+    assert len(h.finalize_calls) == 1
+    assert h.opened_stage == []
+    assert dlg.state == "done"
+    assert h.app.discord_recorder_dialog is None
+    assert len(h.recorders) == 1  # no orphan recorder was created
+
+
+def test_quit_before_recorder_exists_is_safe(h):
+    dlg = h.dialog()  # consent: no recorder yet
+    dlg.stop(reason="quit")
+    h.pump()
+    assert h.recorders == []
+    assert dlg.state == "done"
+
+
+def test_quit_prompt_while_stopping_finalizes_once(h, monkeypatch):
+    deferred = []
+    from app.ui.discord_record_dialog import DiscordRecordDialog
+
+    dlg = DiscordRecordDialog(
+        h.root,
+        h.app,
+        h.sid,
+        now=lambda: h.clock[0],
+        recorder_factory=h.factory,
+        spawn=deferred.append,
+    )
+    dlg.start_btn.invoke()
+    h.recorders[-1].emit({"event": "joined", "guild_id": "1", "channel_id": "2"})
+    h.pump()
+    dlg.stop(reason="user")
+    assert dlg.state == "stopping"
+    h.ask_answer = True
+    app = _quit_app(dlg)
+    app._on_close()  # Yes: stop(reason="quit") is a no-op, then it waits
+    assert app.closed == 0
+    assert len(deferred) == 1
+    deferred[0]()
+    for _ in range(5):
+        h.pump()
+    assert len(h.finalize_calls) == 1
+    assert h.recorders[-1].stops == 1
+    # the user-stop hand-off destroyed the dialog; the next poll then closes the app
+    assert app.afters
+    while app.afters:
+        fn, a = app.afters.pop(0)
+        fn(*a)
+    assert app.closed == 1

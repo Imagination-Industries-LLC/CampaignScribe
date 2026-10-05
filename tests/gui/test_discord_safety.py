@@ -40,11 +40,24 @@ class FakeApp:
     _on_close = AppWindow._on_close
     _await_recorder_then_close = AppWindow._await_recorder_then_close
     _maybe_recover_recordings = AppWindow._maybe_recover_recordings
+    _finish_recovery = AppWindow._finish_recovery
 
     def __init__(self, dlg=None):
         self.discord_recorder_dialog = dlg
         self.closed = 0
         self.afters: list[tuple] = []
+        self.progress: list[str] = []
+        self.progress_closed = 0
+
+    def _recovery_progress(self, text):
+        self.progress.append(text)
+
+    def _recovery_progress_close(self):
+        self.progress_closed += 1
+
+    def recover(self):
+        self._maybe_recover_recordings(spawn=lambda fn: fn())
+        self.run_afters()
 
     def _close_now(self):
         self.closed += 1
@@ -172,7 +185,7 @@ def _folder(root, sid, ts="20261001_200000"):
 
 
 def test_recovery_no_folders_no_prompt(rec_root, asks):
-    FakeApp()._maybe_recover_recordings()
+    FakeApp().recover()
     assert asks.calls == []
 
 
@@ -182,8 +195,10 @@ def test_recovery_no_does_nothing(rec_root, asks, monkeypatch):
     monkeypatch.setattr(
         discord_recorder, "finalize", lambda d: pytest.fail("finalize must not run")
     )
-    FakeApp()._maybe_recover_recordings()
+    app = FakeApp()
+    app.recover()
     assert asks.calls[0][1] == "Finish converting 1 interrupted recording(s)?"
+    assert app.progress == []
 
 
 def test_recovery_yes_attaches_and_reports_missing_session(rec_root, asks, monkeypatch):
@@ -199,23 +214,62 @@ def test_recovery_yes_attaches_and_reports_missing_session(rec_root, asks, monke
     monkeypatch.setattr(discord_recorder, "finalize", fake_finalize)
     infos: list[tuple] = []
     monkeypatch.setattr("tkinter.messagebox.showinfo", lambda t, m, **kw: infos.append((t, m)))
-    FakeApp()._maybe_recover_recordings()
+    app = FakeApp()
+    app.recover()
     assert asks.calls[0][1] == "Finish converting 2 interrupted recording(s)?"
     assert sorted(finalized) == sorted([d1, d2])
     files = json.loads(db.get_session(sid)["source_audio_files"])
     assert files == [d1 + "/Mike_111.wav"]
     assert len(infos) == 1
     assert d2 in infos[0][1] and d1 not in infos[0][1]
+    assert app.progress and "2" in app.progress[-1]
+    assert app.progress_closed == 1
 
 
-def test_recovery_survives_finalize_error(rec_root, asks, monkeypatch):
-    _folder(rec_root, 1)
+def test_recovery_runs_off_the_tk_thread_and_defers_ui(rec_root, asks, monkeypatch):
+    sid = db.create_session("Night 1")
+    _folder(rec_root, sid)
+    monkeypatch.setattr(discord_recorder, "finalize", lambda d: ([d + "/a.wav"], {}))
+    queued = []
+    app = FakeApp()
+    app._maybe_recover_recordings(spawn=queued.append)
+    assert len(queued) == 1  # nothing converted or attached yet: the worker has not run
+    assert db.get_session(sid).get("source_audio_files") in (None, "", "[]")
+    queued[0]()
+    app.run_afters()
+    assert json.loads(db.get_session(sid)["source_audio_files"])
 
-    def boom(d):
-        raise RuntimeError("ffmpeg gone")
 
-    monkeypatch.setattr(discord_recorder, "finalize", boom)
-    FakeApp()._maybe_recover_recordings()  # must not raise
+def test_recovery_logs_and_reports_failures(rec_root, asks, monkeypatch):
+    sid = db.create_session("Night 1")
+    d1 = _folder(rec_root, sid)
+    d2 = _folder(rec_root, sid + 1)
+    d3 = _folder(rec_root, sid + 2)
+
+    def fake_finalize(d):
+        if d == d1:
+            return [d + "/ok.wav"], {"222": "ffmpeg failed"}
+        if d == d2:
+            return [], {"333": "ffmpeg failed", "444": "ffmpeg failed"}
+        raise RuntimeError("disk exploded")
+
+    monkeypatch.setattr(discord_recorder, "finalize", fake_finalize)
+    logged: list[str] = []
+    monkeypatch.setattr(config, "log_exception", lambda ctx, exc: logged.append(f"{ctx}|{exc}"))
+    infos: list[str] = []
+    monkeypatch.setattr("tkinter.messagebox.showinfo", lambda t, m, **kw: infos.append(m))
+    FakeApp().recover()
+    assert len(infos) == 1
+    msg = infos[0]
+    assert f"1 track(s) could not be converted — their raw audio is kept in {d1}" in msg
+    assert f"2 track(s) could not be converted — their raw audio is kept in {d2}" in msg
+    assert f"No audio could be converted from {d2}" in msg
+    assert f"No audio could be converted from {d3}" in msg
+    assert "offered again" in msg
+    assert any("ffmpeg failed" in x for x in logged)
+    assert any("disk exploded" in x for x in logged)
+    # the one good WAV still got attached
+    assert json.loads(db.get_session(sid)["source_audio_files"]) == [d1 + "/ok.wav"]
 
 
 def test_module_exposes_quit_constant():
