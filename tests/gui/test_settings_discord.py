@@ -197,6 +197,8 @@ def test_dialog_fits_small_screen_and_save_is_reachable(root, monkeypatch):
         dlg.update()
         height = int(dlg.geometry().split("+")[0].split("x")[1])
         assert height <= 700 - 96
+        # scrolling is real: the content is taller than the viewport
+        assert dlg._body.winfo_reqheight() > dlg._scroll.canvas.winfo_height()
         assert dlg.save_btn.winfo_ismapped()
         # Save sits inside the dialog's bounds, below the scroll area
         assert dlg.save_btn.winfo_rooty() + dlg.save_btn.winfo_height() <= (
@@ -215,8 +217,27 @@ def test_focus_scrolls_hours_spinbox_into_view(root, monkeypatch):
     dlg.update()
     try:
         canvas = dlg._scroll.canvas
+        assert canvas.yview()[0] > 0  # actually scrolled
         top = canvas.winfo_rooty()
         spin_y = dlg.discord_max_hours_spin.winfo_rooty()
         assert top <= spin_y <= top + canvas.winfo_height()
+    finally:
+        dlg.destroy()
+
+
+def test_dialog_is_not_clipped_on_the_real_screen(root):
+    root.deiconify()
+    root.update()
+    dlg = _dlg(root)
+    try:
+        dlg.update()
+        width, height = (int(v) for v in dlg.geometry().split("+")[0].split("x"))
+        assert width >= dlg._body.winfo_reqwidth()
+        right = dlg.winfo_rootx() + dlg.winfo_width()
+        btn = dlg.discord_invite_btn
+        assert btn.winfo_rootx() + btn.winfo_width() <= right
+        btn_h = dlg._btn_frame.winfo_reqheight() + 24
+        expected = min(dlg._body.winfo_reqheight() + btn_h, dlg.winfo_screenheight() - 96)
+        assert height == expected
     finally:
         dlg.destroy()

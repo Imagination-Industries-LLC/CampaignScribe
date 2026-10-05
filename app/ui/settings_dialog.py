@@ -173,8 +173,8 @@ class SettingsDialog(tk.Toplevel):
         """Size the dialog to its content, capped to the screen, and keep it fully on screen."""
         self.update_idletasks()
         canvas = self._scroll.canvas
-        body_w = self.winfo_reqwidth()
-        body_h = self.winfo_reqheight()
+        body_w = self._body.winfo_reqwidth()
+        body_h = self._body.winfo_reqheight()
         btn_h = self._btn_frame.winfo_reqheight() + 24
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         max_h = max(sh - 96, 200)
@@ -191,8 +191,8 @@ class SettingsDialog(tk.Toplevel):
 
     def _scroll_into_view(self, widget) -> None:
         canvas = self._scroll.canvas
-        total = max(self.winfo_height(), 1)
-        offset = widget.winfo_rooty() - self.winfo_rooty()
+        total = max(self._body.winfo_reqheight(), 1)
+        offset = widget.winfo_rooty() - self._body.winfo_rooty()
         canvas.yview_moveto(max(0.0, min(1.0, (offset - 20) / total)))
 
     def _focus_discord_max(self):
