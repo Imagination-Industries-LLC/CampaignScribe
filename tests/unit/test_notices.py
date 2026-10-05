@@ -17,6 +17,8 @@ def test_loads_bundled_file():
         "WhisperX",
         "faster-whisper",
         "CTranslate2",
+        "Python Software Foundation",
+        "Inno Setup",
     ):
         assert needle in text, needle
 

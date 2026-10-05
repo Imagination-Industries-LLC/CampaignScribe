@@ -54,3 +54,8 @@ errors.log
 
 # Bundled model weights (fetched by scripts/fetch_diarization_weights.py; never committed)
 /models/
+
+# Slim installer build (fetched runtimes, assembled root, output)
+/vendor/
+/build/installer-root/
+/dist-installer/

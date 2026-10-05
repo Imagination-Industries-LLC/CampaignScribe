@@ -24,6 +24,7 @@ Where that data goes depends on the provider you pick:
 The in-app notes on the Transcribe, Summarize and Refine screens always name the provider currently in use.
 
 ## Model downloads (first use only)
+- On first launch after installing, CampaignScribe downloads its speech engine (PyTorch and related libraries) from PyPI (pypi.org) and download.pytorch.org into a folder in your user profile. This happens once, and again only if you switch between GPU and CPU in Settings. No user data, audio, or transcripts are sent.
 - The speech-recognition models (Whisper) are downloaded from Hugging Face's public servers, and a word-alignment model from pytorch.org, the first time they are needed. No account, token, audio, or transcripts are sent.
 - The speaker-diarization model ships with CampaignScribe and never downloads.
 

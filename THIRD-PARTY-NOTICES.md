@@ -24,6 +24,14 @@ CampaignScribe includes or downloads the following third-party models and softwa
 - faster-whisper: MIT — https://github.com/SYSTRAN/faster-whisper
 - CTranslate2: MIT — https://github.com/OpenNMT/CTranslate2
 
+### Python
+- License: Python Software Foundation License Version 2 (PSF-2.0) - https://docs.python.org/3/license.html
+- Copyright (c) 2001 Python Software Foundation; All Rights Reserved. The official python.org 3.13 distribution is bundled unmodified in the installation folder (`python\`) and runs the app and its first-run setup. Its full license text ships as `python\LICENSE.txt`.
+
+### Inno Setup
+- Used to build the CampaignScribe installer; its setup stub is embedded in the installer. https://jrsoftware.org/isinfo.php
+- License (Inno Setup License): Copyright (C) 1997-2026 Jordan Russell. Portions Copyright (C) 2000-2026 Martijn Laan. All rights reserved. This software is provided "as-is", without any express or implied warranty. Permission is granted to use it for any purpose, including commercial applications, and to redistribute it provided that the copyright notices and web site addresses are retained and that modified versions are plainly marked as such.
+
 ## Downloaded on first use (not bundled)
 
 ### OpenAI Whisper models (CTranslate2 conversions by Systran)
