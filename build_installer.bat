@@ -74,7 +74,7 @@ robocopy "ffmpeg" "%STAGE%\ffmpeg" ffmpeg.exe /NFL /NDL /NJH /NJS /NP
 if errorlevel 8 goto :copyfail
 robocopy "models\speaker-diarization-community-1" "%STAGE%\models\speaker-diarization-community-1" /E /NFL /NDL /NJH /NJS /NP
 if errorlevel 8 goto :copyfail
-robocopy "vendor\python" "%STAGE%\python" /E /XD __pycache__ /XF *.pyc /NFL /NDL /NJH /NJS /NP
+robocopy "vendor\python" "%STAGE%\python" /E /XD __pycache__ Doc /XF *.pyc /NFL /NDL /NJH /NJS /NP
 if errorlevel 8 goto :copyfail
 if defined HAVE_RECORDER (
     robocopy "recorder" "%STAGE%\recorder" /E /XD "%ROOT%recorder\test" __pycache__ /NFL /NDL /NJH /NJS /NP

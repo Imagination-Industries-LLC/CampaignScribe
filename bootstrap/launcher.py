@@ -14,6 +14,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Never write __pycache__ under the read-only {app}; must precede the bootstrap imports.
+sys.dont_write_bytecode = True
 _APP_HOME = Path(__file__).resolve().parent.parent
 if str(_APP_HOME) not in sys.path:  # running as a script: sys.path[0] is bootstrap/, not {app}
     sys.path.insert(0, str(_APP_HOME))

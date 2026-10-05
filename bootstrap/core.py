@@ -303,6 +303,7 @@ def launch_command(
     """The app launch command and its environment (CAMPAIGNSCRIBE_HOME set)."""
     env = dict(os.environ if base_env is None else base_env)
     env[HOME_ENV] = str(app_home)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"  # never write __pycache__ under the read-only {app}
     return [str(env_pythonw), str(Path(app_home) / "main.py")], env
 
 

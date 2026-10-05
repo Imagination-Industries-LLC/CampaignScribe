@@ -57,6 +57,8 @@ Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\bootstrap\launcher.py
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\python"
+Type: filesandordirs; Name: "{app}\app"
+Type: filesandordirs; Name: "{app}\bootstrap"
 
 [Code]
 function DirBytes(const Dir: String): Int64;
@@ -85,6 +87,8 @@ begin
   end;
 end;
 
+{ Silent uninstall defaults to Yes: it removes the re-creatable speech engine, never user data.
+  For all-users installs only the uninstalling account's engine is offered/removed. }
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   EnvDir, SizeText: String;

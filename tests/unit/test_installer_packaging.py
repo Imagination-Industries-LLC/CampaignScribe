@@ -86,3 +86,25 @@ def test_iss_uninstall_prompt_and_user_data_safe():
     # user data is never deleted
     assert "DelTree(ExpandConstant('{userappdata}" not in ISS
     assert not re.search(r"(?:DelTree|DeleteFile)\([^)]*userappdata", ISS)
+
+
+def test_bat_is_crlf_and_excludes_python_docs():
+    raw = (ROOT / "build_installer.bat").read_bytes()
+    assert b"\r\n" in raw  # .gitattributes pins *.bat to CRLF; cmd mis-parses LF-only goto labels
+    assert re.search(r"vendor.python.*/XD [^\r\n]*\bDoc\b", BAT)
+
+
+def test_gitattributes_pins_eol():
+    ga = (ROOT / ".gitattributes").read_text(encoding="utf-8")
+    assert "*.bat text eol=crlf" in ga
+    assert "locks/*.txt text eol=lf" in ga
+
+
+def test_iss_uninstall_deletes_bytecode_dirs():
+    assert r'Name: "{app}\app"' in ISS
+    assert r'Name: "{app}\bootstrap"' in ISS
+
+
+def test_launcher_disables_bytecode_before_bootstrap_imports():
+    src = (ROOT / "bootstrap" / "launcher.py").read_text(encoding="utf-8")
+    assert src.index("sys.dont_write_bytecode = True") < src.index("from bootstrap import")

@@ -1,0 +1,2 @@
+*.bat text eol=crlf
+locks/*.txt text eol=lf

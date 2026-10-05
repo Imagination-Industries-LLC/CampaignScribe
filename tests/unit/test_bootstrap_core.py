@@ -276,7 +276,7 @@ def test_verify_command_and_parse():
 def test_launch_command_sets_home():
     cmd, env = core.launch_command(Path("e/pythonw.exe"), Path("app"), base_env={"A": "1"})
     assert cmd == [str(Path("e/pythonw.exe")), str(Path("app") / "main.py")]
-    assert env == {"A": "1", "CAMPAIGNSCRIBE_HOME": "app"}
+    assert env == {"A": "1", "CAMPAIGNSCRIBE_HOME": "app", "PYTHONDONTWRITEBYTECODE": "1"}
 
 
 # --- progress --------------------------------------------------------------
