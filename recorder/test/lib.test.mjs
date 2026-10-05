@@ -32,6 +32,8 @@ test('sanitizeName', () => {
   assert.equal(sanitizeName('a/b\\c:d*e?f"g<h>i|j'), 'a_b_c_d_e_f_g_h_i_j');
   assert.equal(sanitizeName('   '), 'user');
   assert.equal(sanitizeName('x\u0001y'), 'x_y');
+  assert.equal(sanitizeName('a'.repeat(300)), 'a'.repeat(80));
+  assert.equal(sanitizeName(' '.repeat(5) + 'b'.repeat(79) + ' c'), 'b'.repeat(79));
 });
 
 test('parseArgs', () => {

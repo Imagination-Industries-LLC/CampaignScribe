@@ -233,18 +233,23 @@ class RecorderProcess:
             ]
             if self.channel_id:
                 cmd += ["--channel", self.channel_id]
-        self._proc = subprocess.Popen(
-            cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            bufsize=1,
-            env=env,
-            creationflags=_NO_WINDOW,
-        )
+        try:
+            self._proc = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1,
+                env=env,
+                creationflags=_NO_WINDOW,
+            )
+        except OSError as e:
+            raise RecorderError(
+                "launch_failed", f"Could not start the recorder: {e.strerror or type(e).__name__}"
+            ) from None
         self._reader = threading.Thread(target=self._read_stdout, daemon=True)
         self._err_reader = threading.Thread(target=self._read_stderr, daemon=True)
         self._reader.start()
@@ -329,11 +334,12 @@ class RecorderProcess:
 
 # ---- finalize / recovery ----------------------------------------------------------------
 
+_NAME_MAX = 80
 _INVALID_NAME = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
 def sanitize_name(name: str) -> str:
-    cleaned = _INVALID_NAME.sub("_", str(name or "")).strip()
+    cleaned = _INVALID_NAME.sub("_", str(name or "")).strip()[:_NAME_MAX].strip()
     return cleaned or "user"
 
 
@@ -353,10 +359,16 @@ def finalize(out_dir: str, *, ffmpeg: str | None = None) -> tuple[list[str], dic
     for pcm in sorted(Path(out_dir).glob("*.pcm")):
         uid = pcm.stem
         wav = pcm.with_name(f"{sanitize_name(names.get(uid) or uid)}_{uid}.wav")
-        cmd = [ffmpeg, "-f", "s16le", "-ar", "48000", "-ac", "1", "-i", str(pcm)]
+        cmd = [ffmpeg, "-nostdin", "-f", "s16le", "-ar", "48000", "-ac", "1", "-i", str(pcm)]
         cmd += ["-ar", "16000", "-ac", "1", str(wav), "-y"]
         try:
-            res = subprocess.run(cmd, capture_output=True, creationflags=_NO_WINDOW, check=False)
+            res = subprocess.run(
+                cmd,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                creationflags=_NO_WINDOW,
+                check=False,
+            )
         except OSError as e:
             failures[str(pcm)] = str(e)
             continue

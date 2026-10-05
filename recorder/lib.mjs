@@ -28,7 +28,7 @@ export function eventLine(event, fields = {}) {
 
 export function sanitizeName(name) {
   // eslint-disable-next-line no-control-regex
-  const s = String(name ?? '').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').trim();
+  const s = [...String(name ?? '').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').trim()].slice(0, 80).join('').trim();
   return s || 'user';
 }
 

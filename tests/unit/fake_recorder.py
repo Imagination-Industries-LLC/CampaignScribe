@@ -45,7 +45,24 @@ def main() -> int:
         emit("ready")
         while True:
             time.sleep(0.2)
-    # record_ok
+    if mode == "flood":
+        emit("ready")
+        line = json.dumps({"event": "telemetry", "pad": "x" * 1000}) + "\n"
+        for _ in range(5000):  # ~5 MB each way
+            sys.stdout.write(line)
+            sys.stderr.write("e" * 1000 + "\n")
+        sys.stdout.flush()
+        sys.stderr.flush()
+        for _ in sys.stdin:
+            pass
+        emit("stopped", seconds=1)
+        return 0
+    if mode == "leak_probe":
+        outdir = arg("--out") or os.getcwd()
+        os.makedirs(outdir, exist_ok=True)
+        with open(os.path.join(outdir, "env_seen.txt"), "w", encoding="utf-8") as f:
+            f.write(os.environ.get("DISCORD_TOKEN") or "")
+    # record_ok / leak_probe
     out = arg("--out") or os.getcwd()
     os.makedirs(out, exist_ok=True)
     emit("ready")

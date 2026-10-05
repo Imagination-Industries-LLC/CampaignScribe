@@ -6,6 +6,7 @@ import base64
 import json
 import os
 import shutil
+import subprocess
 import sys
 import time
 import wave
@@ -102,17 +103,85 @@ def test_garbage_lines_ignored(tmp_path, monkeypatch):
 
 
 def test_token_never_leaks(tmp_path, monkeypatch):
-    config.save_discord_token("SECRET123")
-    assert dr.get_token() == "SECRET123"
+    secret = "SECRET123"
+    config.save_discord_token(secret)
+    assert dr.get_token() == secret
     ev = []
-    p = _proc(tmp_path, ev, "record_ok", monkeypatch)
+    p = _proc(tmp_path, ev, "leak_probe", monkeypatch)
     p.start()
     assert _wait(lambda: _spoke(ev))
     p.stop()
-    assert "SECRET123" not in json.dumps(p.args)
-    assert "SECRET123" not in json.dumps(ev)
-    for f in (tmp_path / "rec").iterdir():
-        assert b"SECRET123" not in f.read_bytes()
+    out = tmp_path / "rec"
+    # the child DID get the token through its environment ...
+    assert (out / "env_seen.txt").read_text(encoding="utf-8") == secret
+    (out / "env_seen.txt").unlink()
+    # ... and it is nowhere else
+    assert secret not in json.dumps(p.args)
+    assert secret not in json.dumps(ev)
+    assert all(secret not in line for line in p.stderr_lines)
+    for f in out.iterdir():
+        assert secret.encode() not in f.read_bytes()
+    # errors raised to the caller do not carry it either
+    _fake_node(monkeypatch, "list_error")
+    with pytest.raises(dr.RecorderError) as ei:
+        dr.list_inventory(token=secret)
+    assert secret not in str(ei.value)
+    assert secret not in ei.value.code
+    bad = dr.RecorderProcess(
+        str(out), notice="n", channel_id=None, on_event=ev.append, cmd=[str(tmp_path / "nope.exe")]
+    )
+    with pytest.raises(dr.RecorderError) as ei2:
+        bad.start()
+    assert secret not in str(ei2.value)
+
+
+def test_flood_does_not_deadlock(tmp_path, monkeypatch):
+    ev = []
+    p = _proc(tmp_path, ev, "flood", monkeypatch)
+    p.start()
+    t = time.time()
+    code = p.stop(timeout_s=20)
+    assert time.time() - t < 15
+    assert code == 0
+    assert not p.running
+    assert not p._reader.is_alive()
+    assert not p._err_reader.is_alive()
+    assert len(p.stderr_lines) == 200
+    assert ev[-1]["event"] == "stopped"
+    assert sum(1 for e in ev if e["event"] == "telemetry") == 5000
+
+
+def test_start_launch_failure_is_recorder_error(tmp_path):
+    p = dr.RecorderProcess(
+        str(tmp_path),
+        notice="n",
+        channel_id=None,
+        on_event=lambda e: None,
+        cmd=[str(tmp_path / "nope.exe")],
+    )
+    with pytest.raises(dr.RecorderError) as ei:
+        p.start()
+    assert ei.value.code == "launch_failed"
+
+
+def test_finalize_ffmpeg_gets_nostdin_and_devnull(tmp_path, monkeypatch):
+    _write_pcm(tmp_path / "1.pcm", 1)
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        seen["kw"] = kw
+        raise OSError("stop here")
+
+    monkeypatch.setattr(dr.subprocess, "run", fake_run)
+    dr.finalize(str(tmp_path), ffmpeg="ff")
+    assert "-nostdin" in seen["cmd"]
+    assert seen["kw"]["stdin"] == subprocess.DEVNULL
+
+
+def test_sanitize_name_caps_length():
+    assert dr.sanitize_name("a" * 300) == "a" * 80
+    assert dr.sanitize_name(" " * 5 + "b" * 79 + " c") == "b" * 79
 
 
 def test_no_token_raises_without_test_cmd(tmp_path):
