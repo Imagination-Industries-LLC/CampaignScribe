@@ -443,6 +443,12 @@ class SessionView(tk.Toplevel):
             ):
                 self.app.open_settings()
             return
+        try:
+            discord_recorder.node_exe()
+            discord_recorder.recorder_script()
+        except discord_recorder.RecorderUnavailable as e:
+            messagebox.showerror("Discord recording", str(e), parent=self)
+            return
         from app.ui.discord_record_dialog import DiscordRecordDialog
 
         DiscordRecordDialog(self.app, self.app, self.session_id, session_view=self)

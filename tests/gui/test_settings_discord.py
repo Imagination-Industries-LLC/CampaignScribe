@@ -103,14 +103,14 @@ def test_save_rejects_zero_max(root, monkeypatch):
             dlg.destroy()
 
 
-def test_focus_max_length(root):
-    # A transient of a withdrawn master is never mapped, so focus_get() would be None.
-    root.deiconify()
-    root.update()
+def test_focus_max_length(root, monkeypatch):
+    # OS foreground is not reliable on a withdrawn master / CI, so record the focus request.
+    calls = []
+    monkeypatch.setattr(tk.Misc, "focus_force", lambda self: calls.append(self), raising=True)
     dlg = _dlg(root, focus="discord_max_length")
     dlg.update()
     try:
-        assert dlg.focus_get() is dlg.discord_max_hours_spin
+        assert dlg.discord_max_hours_spin in calls
     finally:
         dlg.destroy()
 
@@ -166,6 +166,57 @@ def test_setup_guide_opens(root):
         walk(guide)
         body = "\n".join(texts)
         assert "Public Bot" in body and "Reset Token" in body
+        assert "Privileged" in body
         guide.destroy()
+    finally:
+        dlg.destroy()
+
+
+def test_connection_test_shows_unavailable_message(root, monkeypatch):
+    msg = "The Discord recorder components are missing. Reinstall CampaignScribe."
+
+    def boom(timeout_s=20.0, token=None):
+        raise discord_recorder.RecorderUnavailable(msg)
+
+    monkeypatch.setattr("app.core.discord_recorder.list_inventory", boom)
+    dlg = _dlg(root)
+    try:
+        dlg.discord_token_var.set("tok")
+        dlg._test_discord(_sync=True)
+        assert dlg.discord_test_label.cget("text") == "\u2717 " + msg
+    finally:
+        dlg.destroy()
+
+
+def test_dialog_fits_small_screen_and_save_is_reachable(root, monkeypatch):
+    monkeypatch.setattr(tk.Misc, "winfo_screenheight", lambda self: 700)
+    root.deiconify()  # geometry assertions need a mapped transient
+    root.update()
+    dlg = _dlg(root)
+    try:
+        dlg.update()
+        height = int(dlg.geometry().split("+")[0].split("x")[1])
+        assert height <= 700 - 96
+        assert dlg.save_btn.winfo_ismapped()
+        # Save sits inside the dialog's bounds, below the scroll area
+        assert dlg.save_btn.winfo_rooty() + dlg.save_btn.winfo_height() <= (
+            dlg.winfo_rooty() + dlg.winfo_height()
+        )
+    finally:
+        dlg.destroy()
+
+
+def test_focus_scrolls_hours_spinbox_into_view(root, monkeypatch):
+    monkeypatch.setattr(tk.Misc, "winfo_screenheight", lambda self: 600)
+    root.deiconify()
+    root.update()
+    monkeypatch.setattr(tk.Misc, "focus_force", lambda self: None, raising=True)
+    dlg = _dlg(root, focus="discord_max_length")
+    dlg.update()
+    try:
+        canvas = dlg._scroll.canvas
+        top = canvas.winfo_rooty()
+        spin_y = dlg.discord_max_hours_spin.winfo_rooty()
+        assert top <= spin_y <= top + canvas.winfo_height()
     finally:
         dlg.destroy()

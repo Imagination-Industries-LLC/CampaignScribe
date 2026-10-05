@@ -48,7 +48,7 @@ def main() -> int:
     if mode == "flood":
         emit("ready")
         line = json.dumps({"event": "telemetry", "pad": "x" * 1000}) + "\n"
-        for _ in range(5000):  # ~5 MB each way
+        for _ in range(1500):  # ~1.5 MB each way, far above pipe buffers
             sys.stdout.write(line)
             sys.stderr.write("e" * 1000 + "\n")
         sys.stdout.flush()

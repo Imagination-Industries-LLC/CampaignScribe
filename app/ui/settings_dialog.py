@@ -11,7 +11,7 @@ from tkinter import filedialog, messagebox, ttk
 from app import config
 from app.core import discord_recorder, llm
 from app.core.llm import cost, local_detect
-from app.ui.common import open_url
+from app.ui.common import ScrollableFrame, open_url
 
 # Room for Gemini thinking tokens / reasoning models; the probe reply is still one word.
 _TEST_PROBE_MAX_TOKENS = 64
@@ -29,21 +29,35 @@ class SettingsDialog(tk.Toplevel):
 
         cfg = config.load_config()
 
+        # Save/Cancel stay pinned at the bottom; everything else scrolls so the dialog always
+        # fits the screen (the Discord section made it taller than a 900 px display).
+        self._btn_frame = ttk.Frame(self)
+        self._btn_frame.pack(side="bottom", pady=12)
+        self._scroll = ScrollableFrame(self)
+        self._scroll.pack(side="top", fill="both", expand=True)
+        self._body = self._scroll.inner
+
         pad = {"padx": 10, "pady": 6}
         row = 0
 
         row = self._build_llm_section(row, pad)
 
-        ttk.Label(self, text="Default output folder:").grid(row=row, column=0, sticky="w", **pad)
+        ttk.Label(self._body, text="Default output folder:").grid(
+            row=row, column=0, sticky="w", **pad
+        )
         self.out_var = tk.StringVar(value=cfg.get("default_output_folder", ""))
-        ttk.Entry(self, textvariable=self.out_var, width=55).grid(row=row, column=1, **pad)
-        ttk.Button(self, text="Browse…", command=self._browse_out).grid(row=row, column=2, **pad)
+        ttk.Entry(self._body, textvariable=self.out_var, width=55).grid(row=row, column=1, **pad)
+        ttk.Button(self._body, text="Browse…", command=self._browse_out).grid(
+            row=row, column=2, **pad
+        )
         row += 1
 
-        ttk.Label(self, text="Default Whisper model:").grid(row=row, column=0, sticky="w", **pad)
+        ttk.Label(self._body, text="Default Whisper model:").grid(
+            row=row, column=0, sticky="w", **pad
+        )
         self.model_var = tk.StringVar(value=cfg.get("default_whisper_model", "large-v3"))
         ttk.Combobox(
-            self,
+            self._body,
             textvariable=self.model_var,
             state="readonly",
             width=20,
@@ -51,10 +65,10 @@ class SettingsDialog(tk.Toplevel):
         ).grid(row=row, column=1, sticky="w", **pad)
         row += 1
 
-        ttk.Label(self, text="Default # speakers:").grid(row=row, column=0, sticky="w", **pad)
+        ttk.Label(self._body, text="Default # speakers:").grid(row=row, column=0, sticky="w", **pad)
         self.spk_var = tk.IntVar(value=int(cfg.get("default_num_speakers", 5)))
         ttk.Spinbox(
-            self,
+            self._body,
             from_=1,
             to=20,
             textvariable=self.spk_var,
@@ -62,10 +76,10 @@ class SettingsDialog(tk.Toplevel):
         ).grid(row=row, column=1, sticky="w", **pad)
         row += 1
 
-        ttk.Label(self, text="Theme:").grid(row=row, column=0, sticky="w", **pad)
+        ttk.Label(self._body, text="Theme:").grid(row=row, column=0, sticky="w", **pad)
         self.theme_var = tk.StringVar(value=cfg.get("theme_mode", "dark").capitalize())
         ttk.Combobox(
-            self,
+            self._body,
             textvariable=self.theme_var,
             state="readonly",
             width=20,
@@ -74,16 +88,16 @@ class SettingsDialog(tk.Toplevel):
         row += 1
 
         # ---- Discovery section ----
-        ttk.Separator(self, orient="horizontal").grid(
+        ttk.Separator(self._body, orient="horizontal").grid(
             row=row, column=0, columnspan=3, sticky="ew", padx=10, pady=(6, 2)
         )
         row += 1
-        ttk.Label(self, text="— Discovery —").grid(
+        ttk.Label(self._body, text="— Discovery —").grid(
             row=row, column=0, columnspan=3, sticky="w", padx=10, pady=(0, 4)
         )
         row += 1
         ttk.Label(
-            self,
+            self._body,
             text=(
                 "Discovery uses a lighter model on a sample to build the initial roster"
                 " — you review it before transcribing."
@@ -93,10 +107,10 @@ class SettingsDialog(tk.Toplevel):
         ).grid(row=row, column=0, columnspan=3, sticky="w", padx=10, pady=(0, 4))
         row += 1
 
-        ttk.Label(self, text="Discovery model:").grid(row=row, column=0, sticky="w", **pad)
+        ttk.Label(self._body, text="Discovery model:").grid(row=row, column=0, sticky="w", **pad)
         self.discover_model_var = tk.StringVar(value=cfg.get("discover_whisper_model", "small"))
         ttk.Combobox(
-            self,
+            self._body,
             textvariable=self.discover_model_var,
             state="readonly",
             width=20,
@@ -104,12 +118,12 @@ class SettingsDialog(tk.Toplevel):
         ).grid(row=row, column=1, sticky="w", **pad)
         row += 1
 
-        ttk.Label(self, text="Discovery sample (min, 0 = full first file):").grid(
+        ttk.Label(self._body, text="Discovery sample (min, 0 = full first file):").grid(
             row=row, column=0, sticky="w", **pad
         )
         self.discover_sample_var = tk.IntVar(value=int(cfg.get("discover_sample_minutes", 0)))
         ttk.Spinbox(
-            self,
+            self._body,
             from_=0,
             to=120,
             textvariable=self.discover_sample_var,
@@ -118,23 +132,23 @@ class SettingsDialog(tk.Toplevel):
         row += 1
 
         # ---- Privacy / crash reporting ----
-        ttk.Separator(self, orient="horizontal").grid(
+        ttk.Separator(self._body, orient="horizontal").grid(
             row=row, column=0, columnspan=3, sticky="ew", padx=10, pady=(6, 2)
         )
         row += 1
-        ttk.Label(self, text="— Privacy —").grid(
+        ttk.Label(self._body, text="— Privacy —").grid(
             row=row, column=0, columnspan=3, sticky="w", padx=10, pady=(0, 4)
         )
         row += 1
         self.crash_var = tk.BooleanVar(value=bool(cfg.get("crash_reporting_enabled", False)))
         ttk.Checkbutton(
-            self,
+            self._body,
             text="Send anonymous crash reports to help fix bugs (opt-in)",
             variable=self.crash_var,
         ).grid(row=row, column=0, columnspan=3, sticky="w", padx=10, pady=(0, 2))
         row += 1
         ttk.Label(
-            self,
+            self._body,
             text=(
                 "Off by default. Reports are scrubbed of transcripts, audio, keys, speaker "
                 "profiles, and personal paths before sending. See Help → Privacy & Data."
@@ -146,53 +160,77 @@ class SettingsDialog(tk.Toplevel):
 
         row = self._build_discord_section(row, pad, cfg)
 
-        btn_frame = ttk.Frame(self)
-        btn_frame.grid(row=row, column=0, columnspan=3, pady=12)
-        ttk.Button(btn_frame, text="Save", command=self._save).pack(side="left", padx=6)
-        ttk.Button(btn_frame, text="Cancel", command=self.destroy).pack(side="left", padx=6)
+        self.save_btn = ttk.Button(self._btn_frame, text="Save", command=self._save)
+        self.save_btn.pack(side="left", padx=6)
+        ttk.Button(self._btn_frame, text="Cancel", command=self.destroy).pack(side="left", padx=6)
 
-        self.update_idletasks()
-        x = master.winfo_rootx() + (master.winfo_width() - self.winfo_width()) // 2
-        y = master.winfo_rooty() + 60
-        self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+        self._fit_to_screen(master)
         self.llm_provider_combo.focus_set()
         if focus == "discord_max_length":
             self.after_idle(self._focus_discord_max)
 
+    def _fit_to_screen(self, master) -> None:
+        """Size the dialog to its content, capped to the screen, and keep it fully on screen."""
+        self.update_idletasks()
+        canvas = self._scroll.canvas
+        body_w = self.winfo_reqwidth()
+        body_h = self.winfo_reqheight()
+        btn_h = self._btn_frame.winfo_reqheight() + 24
+        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+        max_h = max(sh - 96, 200)
+        vsb_w = self._scroll.vsb.winfo_reqwidth()
+        width = min(body_w + vsb_w, sw)
+        height = min(body_h + btn_h, max_h)
+        canvas.configure(width=body_w, height=max(height - btn_h, 50))
+        x = master.winfo_rootx() + (master.winfo_width() - width) // 2
+        y = master.winfo_rooty() + 60
+        x = max(0, min(x, sw - width))
+        y = max(0, min(y, sh - height - 48))  # leave room for the taskbar
+        self.geometry(f"{width}x{height}+{x}+{y}")
+        self.update_idletasks()
+
+    def _scroll_into_view(self, widget) -> None:
+        canvas = self._scroll.canvas
+        total = max(self.winfo_height(), 1)
+        offset = widget.winfo_rooty() - self.winfo_rooty()
+        canvas.yview_moveto(max(0.0, min(1.0, (offset - 20) / total)))
+
     def _focus_discord_max(self):
         try:
             self.lift()
+            self.update_idletasks()
+            self._scroll_into_view(self.discord_max_hours_spin)
             self.discord_max_hours_spin.focus_force()
         except tk.TclError:
             pass
 
     # ---- Discord recording section ----
     def _build_discord_section(self, row: int, pad: dict, cfg: dict) -> int:
-        ttk.Separator(self, orient="horizontal").grid(
+        ttk.Separator(self._body, orient="horizontal").grid(
             row=row, column=0, columnspan=3, sticky="ew", padx=10, pady=(6, 2)
         )
         row += 1
-        ttk.Label(self, text="— Discord recording —").grid(
+        ttk.Label(self._body, text="— Discord recording —").grid(
             row=row, column=0, columnspan=3, sticky="w", padx=10, pady=(0, 4)
         )
         row += 1
 
         self._discord_loaded_token = discord_recorder.get_token()
-        ttk.Label(self, text="Bot token:").grid(row=row, column=0, sticky="w", **pad)
+        ttk.Label(self._body, text="Bot token:").grid(row=row, column=0, sticky="w", **pad)
         self.discord_token_var = tk.StringVar(value=self._discord_loaded_token)
         self.discord_token_entry = ttk.Entry(
-            self, textvariable=self.discord_token_var, width=55, show="•"
+            self._body, textvariable=self.discord_token_var, width=55, show="•"
         )
         self.discord_token_entry.grid(row=row, column=1, **pad)
         self.discord_invite_btn = ttk.Button(
-            self, text="Invite bot", command=self._invite_discord_bot
+            self._body, text="Invite bot", command=self._invite_discord_bot
         )
         self.discord_invite_btn.grid(row=row, column=2, **pad)
         self.discord_token_var.trace_add("write", lambda *_: self._sync_discord_invite())
         self._sync_discord_invite()
         row += 1
 
-        test_frame = ttk.Frame(self)
+        test_frame = ttk.Frame(self._body)
         test_frame.grid(row=row, column=1, columnspan=2, sticky="w", **pad)
         self.discord_test_btn = ttk.Button(
             test_frame, text="Test connection", command=self._test_discord
@@ -205,22 +243,22 @@ class SettingsDialog(tk.Toplevel):
         )
         row += 1
 
-        ttk.Label(self, text="Recording notice:").grid(row=row, column=0, sticky="w", **pad)
+        ttk.Label(self._body, text="Recording notice:").grid(row=row, column=0, sticky="w", **pad)
         self.discord_notice_var = tk.StringVar(
             value=cfg.get("discord_notice") or config.DEFAULT_CONFIG["discord_notice"]
         )
-        ttk.Entry(self, textvariable=self.discord_notice_var, width=55).grid(
+        ttk.Entry(self._body, textvariable=self.discord_notice_var, width=55).grid(
             row=row, column=1, columnspan=2, sticky="w", **pad
         )
         row += 1
 
-        ttk.Label(self, text="Max recording length (auto-stop):").grid(
+        ttk.Label(self._body, text="Max recording length (auto-stop):").grid(
             row=row, column=0, sticky="w", **pad
         )
         total = int(cfg.get("discord_max_minutes", 360) or 360)
         self.discord_max_hours_var = tk.IntVar(value=total // 60)
         self.discord_max_minutes_var = tk.IntVar(value=total % 60)
-        len_frame = ttk.Frame(self)
+        len_frame = ttk.Frame(self._body)
         len_frame.grid(row=row, column=1, sticky="w", **pad)
         self.discord_max_hours_spin = ttk.Spinbox(
             len_frame, from_=0, to=999, textvariable=self.discord_max_hours_var, width=5
@@ -261,6 +299,8 @@ class SettingsDialog(tk.Toplevel):
                 text = self._format_discord_inventory(discord_recorder.list_inventory(token=token))
             except discord_recorder.RecorderError as e:
                 text = f"✗ {e.message}"
+            except discord_recorder.RecorderUnavailable as e:
+                text = f"✗ {e}"
             except Exception as e:
                 text = f"✗ {type(e).__name__}"
             if _sync:
@@ -307,7 +347,9 @@ class SettingsDialog(tk.Toplevel):
             "3. Click Reset Token, copy the token, and paste it into Bot token here. "
             "Treat it like a password: anyone with it controls the bot.\n"
             "4. Click Invite bot and add the bot to your server.\n"
-            "5. Click Test connection to confirm the bot can see your server.\n",
+            "5. Click Test connection to confirm the bot can see your server.\n"
+            "Leave all Privileged Gateway Intents OFF (Presence, Server Members, Message Content): "
+            "the recorder does not need them.\n",
         )
         txt.config(state="disabled")
         txt.pack(fill="both", expand=True)
@@ -346,15 +388,15 @@ class SettingsDialog(tk.Toplevel):
             self._llm_current = self._initial_provider
         self._display_to_id = {p.display_name: pid for pid, p in llm.PRESETS.items()}
 
-        ttk.Label(self, text="— AI model —").grid(
+        ttk.Label(self._body, text="— AI model —").grid(
             row=row, column=0, columnspan=3, sticky="w", padx=10, pady=(6, 0)
         )
         row += 1
 
-        ttk.Label(self, text="Provider:").grid(row=row, column=0, sticky="w", **pad)
+        ttk.Label(self._body, text="Provider:").grid(row=row, column=0, sticky="w", **pad)
         self.llm_provider_var = tk.StringVar(value=llm.PRESETS[self._llm_current].display_name)
         self.llm_provider_combo = ttk.Combobox(
-            self,
+            self._body,
             textvariable=self.llm_provider_var,
             state="readonly",
             width=28,
@@ -364,11 +406,11 @@ class SettingsDialog(tk.Toplevel):
         self.llm_provider_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_provider_change())
         row += 1
 
-        self.llm_badge_label = ttk.Label(self, text="", wraplength=520, justify="left")
+        self.llm_badge_label = ttk.Label(self._body, text="", wraplength=520, justify="left")
         self.llm_badge_label.grid(row=row, column=1, columnspan=2, sticky="w", padx=10, pady=(0, 2))
         row += 1
 
-        self.llm_rates_row = ttk.Frame(self)
+        self.llm_rates_row = ttk.Frame(self._body)
         self.llm_rates_row.grid(row=row, column=0, columnspan=3, sticky="ew")
         ttk.Label(self.llm_rates_row, text="Rates ($ per M tokens):").grid(
             row=0, column=0, sticky="w", **pad
@@ -388,25 +430,25 @@ class SettingsDialog(tk.Toplevel):
         ttk.Button(rates_inner, text="Default", command=self._reset_rates).pack(side="left")
         row += 1
 
-        ttk.Label(self, text="Model:").grid(row=row, column=0, sticky="w", **pad)
+        ttk.Label(self._body, text="Model:").grid(row=row, column=0, sticky="w", **pad)
         self.llm_model_var = tk.StringVar()
         self.llm_model_combo = ttk.Combobox(
-            self, textvariable=self.llm_model_var, width=52, state="normal", values=[]
+            self._body, textvariable=self.llm_model_var, width=52, state="normal", values=[]
         )
         self.llm_model_combo.grid(row=row, column=1, **pad)
         self.llm_model_var.trace_add("write", lambda *_: self._refresh_badges())
-        model_btns = ttk.Frame(self)
+        model_btns = ttk.Frame(self._body)
         model_btns.grid(row=row, column=2, sticky="w", **pad)
         ttk.Button(model_btns, text="Default", command=self._reset_model).pack(side="left")
         self.llm_detect_btn = ttk.Button(model_btns, text="Detect", command=self._run_detect)
         # packed/unpacked by _load_llm_fields
         row += 1
 
-        self.llm_local_label = ttk.Label(self, text="", wraplength=520, justify="left")
+        self.llm_local_label = ttk.Label(self._body, text="", wraplength=520, justify="left")
         self.llm_local_label.grid(row=row, column=1, columnspan=2, sticky="w", padx=10, pady=(0, 4))
         row += 1
 
-        self.llm_key_row = ttk.Frame(self)
+        self.llm_key_row = ttk.Frame(self._body)
         self.llm_key_row.grid(row=row, column=0, columnspan=3, sticky="ew")
         ttk.Label(self.llm_key_row, text="API key:").grid(row=0, column=0, sticky="w", **pad)
         self.api_var = tk.StringVar()
@@ -422,7 +464,7 @@ class SettingsDialog(tk.Toplevel):
         self.llm_key_row.columnconfigure(1, weight=1)
         row += 1
 
-        self.llm_base_url_row = ttk.Frame(self)
+        self.llm_base_url_row = ttk.Frame(self._body)
         self.llm_base_url_row.grid(row=row, column=0, columnspan=3, sticky="ew")
         ttk.Label(self.llm_base_url_row, text="Base URL:").grid(row=0, column=0, sticky="w", **pad)
         self.llm_base_url_var = tk.StringVar()
@@ -432,13 +474,15 @@ class SettingsDialog(tk.Toplevel):
         self.llm_base_url_row.columnconfigure(1, weight=1)
         row += 1
 
-        self.llm_test_btn = ttk.Button(self, text="Test connection", command=self._test_connection)
+        self.llm_test_btn = ttk.Button(
+            self._body, text="Test connection", command=self._test_connection
+        )
         self.llm_test_btn.grid(row=row, column=0, sticky="w", **pad)
-        self.llm_test_label = ttk.Label(self, text="", wraplength=420, justify="left")
+        self.llm_test_label = ttk.Label(self._body, text="", wraplength=420, justify="left")
         self.llm_test_label.grid(row=row, column=1, columnspan=2, sticky="w", **pad)
         row += 1
 
-        ttk.Separator(self, orient="horizontal").grid(
+        ttk.Separator(self._body, orient="horizontal").grid(
             row=row, column=0, columnspan=3, sticky="ew", padx=10, pady=(2, 6)
         )
         row += 1

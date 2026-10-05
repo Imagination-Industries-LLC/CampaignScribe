@@ -14,7 +14,7 @@ from tkinter import messagebox, ttk
 from app import config
 from app.core import discord_recorder
 from app.core.autostop import autostop_text, fmt_hm, fmt_hms
-from app.core.discord_recorder import RecorderError, RecorderProcess
+from app.core.discord_recorder import RecorderError, RecorderProcess, RecorderUnavailable
 from app.data import db
 from app.ui.common import add_tooltip
 from app.ui.theme import (
@@ -161,12 +161,13 @@ class DiscordRecordDialog(tk.Toplevel):
         self.disk_var = tk.StringVar(value="")
         self.disk_label = ttk.Label(self._live, textvariable=self.disk_var, style=LBL_DIM)
         self.disk_label.pack(anchor="w", padx=S_3)
-        self._people = ttk.Frame(self._live)
-        self._people.pack(fill="both", expand=True, **pad)
+        # Stop is packed first (side=bottom) so a long roster can never squeeze it out.
         self.stop_btn = ttk.Button(
             self._live, text="Stop recording", style=BTN_DANGER, command=self.stop
         )
-        self.stop_btn.pack(anchor="e", **pad)
+        self.stop_btn.pack(side="bottom", anchor="e", **pad)
+        self._people = ttk.Frame(self._live)
+        self._people.pack(fill="both", expand=True, **pad)
 
         self._show(self._consent)
 
@@ -247,7 +248,7 @@ class DiscordRecordDialog(tk.Toplevel):
         )
         try:
             self.recorder.start()
-        except RecorderError as e:
+        except (RecorderError, RecorderUnavailable) as e:
             self._fail(str(e))
             return
         self._tick_id = self.after(1000, self._tick)
@@ -349,6 +350,7 @@ class DiscordRecordDialog(tk.Toplevel):
         if kind == "joined":
             self.state = "recording"
             self._started_at = self._now()
+            self._exit_ticks = 0
             self._last_limit = self._limit()
             self.stop_btn.state(["!disabled"])
             where = " / ".join(x for x in (ev.get("guild_name"), ev.get("channel_name")) if x)
@@ -444,9 +446,15 @@ class DiscordRecordDialog(tk.Toplevel):
             return
         if self.state != "recording" or self._started_at is None:
             return
-        if self.recorder is not None and not self.recorder.running:
-            self._error_msg = "The recorder stopped unexpectedly."
-            self.stop(reason="error")
+        rec = self.recorder
+        if rec is not None and not rec.running:
+            # Same deferral as starting: its final `error` event may still be in flight.
+            self._exit_ticks += 1
+            done = getattr(rec, "readers_done", True)
+            if (done and self._exit_ticks >= 2) or self._exit_ticks >= MAX_EXIT_DEFERRALS:
+                self.after_idle(self._stop_if_still_recording)
+                return
+            self._tick_id = self.after(300, self._tick)
             return
         elapsed = self._now() - self._started_at
         self.elapsed_var.set(fmt_hms(elapsed))
@@ -472,6 +480,11 @@ class DiscordRecordDialog(tk.Toplevel):
                 self._suspended_for_limit = limit
         if self.state == "recording":
             self._tick_id = self.after(1000, self._tick)
+
+    def _stop_if_still_recording(self) -> None:
+        if self.state == "recording":
+            self._error_msg = self._last_error_msg or "The recorder stopped unexpectedly."
+            self.stop(reason="error")
 
     def _check_limit(self, elapsed: float, limit: int) -> str | None:
         if elapsed < limit * 60:

@@ -388,8 +388,9 @@ def test_recorder_error_finalizes_without_handoff(h):
 def test_recorder_dying_silently_is_an_error(h):
     dlg = h.recording()
     h.recorders[-1].running = False
-    dlg._tick()
-    h.pump()
+    for _ in range(3):  # the exit is re-checked after a short deferral
+        dlg._tick()
+        h.pump()
     assert dlg.state == "error"
     assert h.opened_stage == []
 
@@ -736,3 +737,73 @@ def test_quit_prompt_while_stopping_finalizes_once(h, monkeypatch):
         fn, a = app.afters.pop(0)
         fn(*a)
     assert app.closed == 1
+
+
+def test_many_people_never_hide_stop_button(h, root):
+    root.deiconify()
+    dlg = h.recording()
+    for i in range(15):
+        h.recorders[-1].emit({"event": "user", "id": str(100 + i), "name": f"Player {i}"})
+    h.pump()
+    root.update()
+    assert dlg.stop_btn.winfo_ismapped()
+    assert dlg.stop_btn.winfo_rooty() + dlg.stop_btn.winfo_height() <= (
+        dlg.winfo_rooty() + dlg.winfo_height()
+    )
+
+
+def test_recording_error_message_beats_generic_exit(h):
+    dlg = h.recording()
+    rec = h.recorders[-1]
+    rec.running = False
+    rec.readers_done = False  # its last event is still in flight
+    dlg._tick()
+    assert dlg.state == "recording"
+    rec.emit({"event": "error", "code": "voice_lost", "message": "Lost the voice connection."})
+    h.pump()
+    assert dlg.state in ("stopping", "error", "done")
+    dlg._tick()
+    h.pump()
+    assert "Lost the voice connection." in dlg.status_var.get()
+    assert "stopped unexpectedly" not in dlg.status_var.get()
+
+
+def test_recording_exit_without_event_still_fails_after_deferral(h):
+    dlg = h.recording()
+    rec = h.recorders[-1]
+    rec.running = False
+    rec.readers_done = False
+    for _ in range(12):
+        dlg._tick()
+        h.pump()
+        if dlg.state != "recording":
+            break
+    assert dlg.state != "recording"
+    assert "stopped unexpectedly" in dlg.status_var.get()
+
+
+def test_launch_recorder_unavailable_shows_message(h, monkeypatch):
+    def boom(self):
+        raise discord_recorder.RecorderUnavailable("Reinstall CampaignScribe (no Node).")
+
+    monkeypatch.setattr(FakeRecorder, "start", boom)
+    dlg = h.dialog()
+    dlg.start_btn.invoke()
+    h.pump()
+    assert dlg.state == "error"
+    assert "Reinstall CampaignScribe (no Node)." in dlg.status_var.get()
+
+
+def test_button_preflight_unavailable_shows_error_and_no_dialog(h, root, monkeypatch):
+    shown = []
+    monkeypatch.setattr("tkinter.messagebox.showerror", lambda t, m, **k: shown.append(m))
+
+    def missing():
+        raise discord_recorder.RecorderUnavailable("Reinstall CampaignScribe (no Node).")
+
+    monkeypatch.setattr(discord_recorder, "node_exe", missing)
+    view = _view(h, root)
+    view.record_btn.invoke()
+    assert shown == ["Reinstall CampaignScribe (no Node)."]
+    assert h.app.discord_recorder_dialog is None
+    view.destroy()
