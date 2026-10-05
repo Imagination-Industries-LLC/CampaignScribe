@@ -27,6 +27,9 @@ except ImportError:  # tkinter missing: setup cannot show, launch path still wor
     SetupWindow = None
 
 
+WAIT_TIMEOUT_S = 30.0
+
+
 def _env_python(name: str) -> Path:
     return core.env_dir() / "Scripts" / name
 
@@ -98,7 +101,14 @@ def _launch_app(app_home: Path) -> bool:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="launcher")
     parser.add_argument("--switch", choices=core.PROFILES, default=None)
+    parser.add_argument("--wait-pid", type=int, default=None)
     args = parser.parse_args(argv)
+
+    if args.wait_pid is not None and not core.wait_for_exit(args.wait_pid, WAIT_TIMEOUT_S):
+        text = "CampaignScribe is still running — close it and try again."
+        _log_error(text)
+        _error_box("CampaignScribe", text)
+        return 4
 
     app_home = Path(__file__).resolve().parent.parent
     action, profile = decide(

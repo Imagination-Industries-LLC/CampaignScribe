@@ -187,6 +187,52 @@ def required_bytes(profile: str) -> int:
     return _REQUIRED_BYTES[profile] + HEADROOM_BYTES
 
 
+_DOWNLOAD_BYTES = {"gpu": 2_600_000_000, "cpu": 300_000_000}
+
+
+def download_bytes(profile: str) -> int:
+    """Approximate network download for the profile."""
+    return _DOWNLOAD_BYTES[profile]
+
+
+def human_size(n: int) -> str:
+    """'300 MB' below 1 GB, otherwise one-decimal GB ('2.6 GB')."""
+    if n < 1_000_000_000:
+        return f"{round(n / 1_000_000)} MB"
+    return f"{n / 1_000_000_000:.1f} GB"
+
+
+def wait_for_exit(pid: int, timeout_s: float = 30.0) -> bool:
+    """Block until process ``pid`` exits; True if gone, False on timeout."""
+    import time
+
+    if sys.platform == "win32":
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        kernel32.OpenProcess.restype = ctypes.c_void_p
+        kernel32.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
+        kernel32.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+        kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+        handle = kernel32.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE
+        if not handle:
+            return True  # already gone
+        try:
+            return kernel32.WaitForSingleObject(handle, int(timeout_s * 1000)) == 0
+        finally:
+            kernel32.CloseHandle(handle)
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        except PermissionError:
+            pass
+        time.sleep(0.1)
+    return False
+
+
 def disk_ok(path: str | Path, profile: str) -> tuple[bool, int]:
     """(enough free space?, free bytes) on the drive holding ``path`` (may not exist yet)."""
     probe = Path(path)

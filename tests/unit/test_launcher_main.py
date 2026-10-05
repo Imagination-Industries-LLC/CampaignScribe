@@ -125,3 +125,64 @@ def test_missing_tkinter_logs_and_shows_native_message(patched, monkeypatch):
     assert launcher.main([]) == 2
     assert "tkinter" in msgs[0]
     assert "tkinter" in core.setup_log_path().read_text(encoding="utf-8")
+
+
+def test_human_size_and_download_bytes():
+    assert core.human_size(core.download_bytes("cpu")) == "300 MB"
+    assert core.human_size(core.download_bytes("gpu")) == "2.6 GB"
+    assert core.human_size(999_000_000) == "999 MB"
+    assert core.human_size(1_000_000_000) == "1.0 GB"
+
+
+def test_wait_for_exit_real_child():
+    import subprocess
+    import sys
+    import time
+
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(1)"])  # noqa: S603
+    try:
+        t0 = time.monotonic()
+        assert core.wait_for_exit(child.pid, 15) is True
+        assert time.monotonic() - t0 < 14
+    finally:
+        child.wait()
+
+
+def test_wait_for_exit_times_out_on_live_process():
+    import subprocess
+    import sys
+
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(5)"])  # noqa: S603
+    try:
+        assert core.wait_for_exit(child.pid, 0.5) is False
+    finally:
+        child.kill()
+        child.wait()
+
+
+def test_wait_for_exit_gone_pid():
+    import subprocess
+    import sys
+
+    child = subprocess.Popen([sys.executable, "-c", "pass"])  # noqa: S603
+    child.wait()
+    assert core.wait_for_exit(child.pid, 5) is True
+
+
+def test_wait_pid_timeout_refuses_without_touching_env(patched, monkeypatch):
+    popen, windows, _root = patched
+    monkeypatch.setattr(core, "wait_for_exit", lambda pid, t: False)
+    boxes = []
+    monkeypatch.setattr(launcher, "_error_box", lambda *a: boxes.append(a))
+    monkeypatch.setattr(core, "read_state", lambda: pytest.fail("env touched"))
+    assert launcher.main(["--switch", "cpu", "--wait-pid", "123"]) == 4
+    assert boxes[0][1] == "CampaignScribe is still running — close it and try again."
+    assert not popen and not windows
+
+
+def test_wait_pid_parsed_and_waited(patched, monkeypatch):
+    seen = []
+    monkeypatch.setattr(core, "wait_for_exit", lambda pid, t: seen.append((pid, t)) or True)
+    _decide(monkeypatch, ("launch", "gpu"))
+    launcher.main(["--wait-pid", "77"])
+    assert seen == [(77, launcher.WAIT_TIMEOUT_S)]

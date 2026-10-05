@@ -402,6 +402,14 @@ class AppWindow(tk.Tk):
     def _any_tab_busy(self) -> bool:
         return any(getattr(widget, "_busy", False) for widget, _label, _icon in self._tab_specs)
 
+    def is_busy(self) -> bool:
+        """True while any tab has a running job."""
+        return self._any_tab_busy()
+
+    def request_close(self):
+        """Close the app through the normal shutdown path."""
+        self._on_close()
+
     def request_rebuild(self):
         """Persist geometry, flag a rebuild, and close the window so the
         entry-point relaunch loop constructs a fresh one (new theme applied)."""

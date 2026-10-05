@@ -186,11 +186,20 @@ class SettingsDialog(tk.Toplevel):
         other = self._engine_other
         if other is None:
             return
-        gb = max(1, round(bootstrap_core.required_bytes(other) / 1024**3))
+        master = self.master
+        is_busy = getattr(master, "is_busy", None)
+        if callable(is_busy) and is_busy():
+            messagebox.showinfo(
+                "Speech engine",
+                "Finish or cancel the running job before switching the speech engine.",
+                parent=self,
+            )
+            return
+        size = bootstrap_core.human_size(bootstrap_core.download_bytes(other))
         if not messagebox.askyesno(
             "Speech engine",
             "CampaignScribe will close and download the other speech engine "
-            f"(about {gb} GB). Continue?",
+            f"(about {size}). Continue?",
             parent=self,
         ):
             return
@@ -200,6 +209,8 @@ class SettingsDialog(tk.Toplevel):
             str(home / "bootstrap" / "launcher.py"),
             "--switch",
             other,
+            "--wait-pid",
+            str(os.getpid()),
         ]
         env = dict(os.environ, **{paths.HOME_ENV: str(home)})
         try:
@@ -209,9 +220,8 @@ class SettingsDialog(tk.Toplevel):
         except OSError as e:
             messagebox.showerror("Speech engine", f"Could not start setup:\n{e}", parent=self)
             return
-        master = self.master
         self.destroy()
-        master._on_close()
+        master.request_close()
 
     # ---- AI model section ----
     def _build_llm_section(self, row: int, pad: dict) -> int:
