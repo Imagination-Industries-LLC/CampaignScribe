@@ -22,6 +22,7 @@
 3. Start recording from a session. The bot **joins the channel its owner is in**, with a server and channel picker as the fallback, and posts a configurable recording notice.
 4. On Stop, attach the tracks to the session and open Transcribe in "One file per speaker" mode with Discord display names.
 5. Recover from crashes and dropouts without losing audio.
+6. A user-defined **maximum recording length**, 6 hours by default, shown prominently on the recorder. Clicking it opens the setting, and it can be changed while recording.
 
 ## Non-goals (v1)
 
@@ -143,8 +144,15 @@ A new section, "— Discord recording —", with these controls:
   - paste the token here, then click Invite bot.
 - **Recording notice:** a text field, saved to config `discord_notice`. Default: `🔴 This voice channel is being recorded by CampaignScribe for session notes.`
 
+- **Max recording length:**
+  - two spinboxes, hours from 0 up and minutes from 0 to 59, with the label "Max recording length (auto-stop)";
+  - saved to config `discord_max_minutes` (integer, default `360`);
+  - the minimum is 1 minute, with no maximum. A value of 0:00 is rejected on Save with "Max recording length must be at least 1 minute."
+  - `SettingsDialog(master, initial_provider=None, focus=None)` gains `focus`. With `focus="discord_max_length"` the dialog scrolls to and focuses the hours spinbox, and `AppWindow.open_settings` passes `focus` through.
+
 New config keys:
 - `discord_notice`
+- `discord_max_minutes` (default `360`)
 - `discord_last_guild` and `discord_last_channel`, for the picker
 - `recordings_folder`: the parent folder for recordings. If blank, it is `<default output folder or app data>/recordings`.
 
@@ -168,7 +176,19 @@ New config keys:
    - a row per person, with their name, a speaking dot that is lit for 1.5 s after each `speaking` event, and their recorded minutes;
    - free disk space on the recordings drive, with a warning below 2 GB;
    - status lines for reconnecting and rejoined events;
+   - **the auto-stop line,** a large clickable label directly under the timer, described below;
    - a **Stop recording** button.
+
+   **The auto-stop line:**
+   - **Text:** `⏱ Auto-stop at H:MM — in H:MM:SS`. It is styled as a link with a hand cursor and the tooltip "Change the maximum recording length".
+   - **Clicking it** calls `app.open_settings(focus="discord_max_length")`. Settings is modal, but the recording and this dialog's timers keep running, because `after` callbacks still fire under a grab.
+   - **When Settings closes,** and on every 1-second tick, the dialog re-reads `discord_max_minutes`, so a change takes effect immediately while recording.
+   - **Last 5 minutes:** the line switches to the warning style and reads `⏱ Auto-stop in M:SS`.
+   - **Limit reached:** the dialog runs exactly the same stop path as the Stop button: stop, finalize, attach, navigate. Its status line notes "Stopped automatically at the maximum recording length."
+   - **New limit below the time already recorded:** if a change leaves the limit at or below the elapsed time, the dialog asks once, with an askyesno titled "Maximum length already reached": "The new maximum (H:MM) is shorter than this recording (H:MM:SS). Stop recording now?"
+     - **Yes** stops through the normal path.
+     - **No** keeps recording with auto-stop suspended. The line shows, in the error style, `⏱ Past the maximum length — auto-stop is off until you set a longer limit`. A later change to a limit above the elapsed time re-arms auto-stop.
+   - **Who enforces it:** the Python dialog, not the recorder. If CampaignScribe dies, the recorder already stops on stdin EOF.
 4. **Stop.** The dialog sends stop, waits for `stopped`, and runs `finalize` on a worker thread. Then it:
    - adds the WAVs to the session's `source_audio_files`, like `_add_track`;
    - closes, and calls `app.open_session_stage(session_id, "transcribe", run_params={"mode": "tracks"})`.
@@ -208,7 +228,18 @@ New config keys:
   - the record dialog flow with a fake `RecorderProcess`: consent, then events, then stop, then finalize, then attach and navigate;
   - the picker fallback on `owner_not_in_voice`;
   - the quit-while-recording prompt;
-  - the recovery prompt.
+  - the recovery prompt;
+  - **max length:**
+    - the default of 360 minutes;
+    - Save rejecting 0:00;
+    - `open_settings(focus="discord_max_length")` focusing the hours spinbox;
+    - the auto-stop line text for a fake elapsed time;
+    - the warning style in the last 5 minutes;
+    - auto-stop calling the same stop path when the fake elapsed time reaches the limit;
+    - a mid-recording config change being picked up on the next tick;
+    - a new limit below the elapsed time prompting, where Yes stops, No suspends with the error line, and a later longer limit re-arms.
+
+    The dialog's clock is injectable (`now=` callable), so tests never sleep.
 
   The existing autouse guard fails any unpatched modal dialog.
 - **CI constraints:** no Node, network, real ML packages or fetched weights in the Python tests.
