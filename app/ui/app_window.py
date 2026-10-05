@@ -8,7 +8,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from app import __version__, config
+from app import COPYRIGHT_NOTICE, __version__, config
 from app.core import first_run, library, llm, notices, privacy
 from app.core.transcriber import check_gpu
 from app.ui import welcome_dialog
@@ -682,7 +682,9 @@ class AboutDialog(tk.Toplevel):
             self,
             text=(
                 "Built on WhisperX, pyannote.audio, and the Anthropic Claude API.\n"
-                "github.com/Imagination-Industries-LLC/CampaignScribe"
+                "github.com/Imagination-Industries-LLC/CampaignScribe\n"
+                f"{COPYRIGHT_NOTICE}\n"
+                "Free software under the GNU GPL v3 (GPL-3.0-only); no warranty."
             ),
             wraplength=420,
             justify="center",
