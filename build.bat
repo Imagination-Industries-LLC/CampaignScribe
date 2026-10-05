@@ -17,11 +17,28 @@ if errorlevel 1 (
     echo ERROR: diarization weights missing or invalid; see message above.
     exit /b 1
 )
+echo Fetching bundled Node.js runtime...
+"%PY%" scripts\fetch_node_runtime.py
+if errorlevel 1 (
+    echo ERROR: Node.js runtime missing or invalid; see message above.
+    exit /b 1
+)
+echo Installing recorder dependencies...
+pushd recorder
+call "%ROOT%vendor\node\npm.cmd" ci --omit=dev --no-audit --no-fund
+if errorlevel 1 (
+    popd
+    echo ERROR: npm ci for the recorder failed.
+    exit /b 1
+)
+popd
 "%PY%" -m PyInstaller --noconfirm --onedir --windowed ^
     --icon=assets\icon.ico ^
     --name CampaignScribe ^
     --add-data "ffmpeg\ffmpeg.exe;ffmpeg" ^
     --add-data "assets;assets" ^
+    --add-data "vendor\node\node.exe;node" ^
+    --add-data "recorder;recorder" ^
     --add-data "PRIVACY.md;." ^
     --add-data "THIRD-PARTY-NOTICES.md;." ^
     --add-data "models\speaker-diarization-community-1;models\speaker-diarization-community-1" ^

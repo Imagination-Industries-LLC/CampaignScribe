@@ -24,6 +24,30 @@ CampaignScribe includes or downloads the following third-party models and softwa
 - faster-whisper: MIT — https://github.com/SYSTRAN/faster-whisper
 - CTranslate2: MIT — https://github.com/OpenNMT/CTranslate2
 
+## Discord recording (bundled)
+
+### Node.js
+- License: MIT — https://nodejs.org (the distribution also includes third-party components under their own licenses, listed in Node's LICENSE file: https://github.com/nodejs/node/blob/main/LICENSE)
+- Bundled unmodified as the runtime for the Discord recorder helper.
+
+### discord.js
+- License: Apache-2.0 — https://discord.js.org
+
+### @discordjs/voice
+- License: Apache-2.0 — https://discord.js.org
+
+### @snazzah/davey
+- License: MIT — https://github.com/Snazzah/davey
+
+### opusscript
+- License: MIT — https://github.com/abalabahaha/opusscript
+
+### prism-media
+- License: Apache-2.0 — https://github.com/hydrabolt/prism-media
+
+### libsodium-wrappers
+- License: ISC — https://github.com/jedisct1/libsodium.js
+
 ## Downloaded on first use (not bundled)
 
 ### OpenAI Whisper models (CTranslate2 conversions by Systran)
