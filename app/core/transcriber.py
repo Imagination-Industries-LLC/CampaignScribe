@@ -171,9 +171,9 @@ class TranscriptionPipeline:
             self.device = "cuda"
             self.compute_type = "float16"
 
-    def _load_models(self) -> None:
+    def _load_models(self, need_diarize: bool = True) -> None:
         diar_dir = None
-        if self._diarize is None:
+        if need_diarize and self._diarize is None:
             from app.core import models
 
             # Fail fast (before the multi-GB Whisper load) if the bundle is missing.
@@ -186,7 +186,7 @@ class TranscriptionPipeline:
             self._model = whisperx.load_model(
                 self.model_size, self.device, compute_type=self.compute_type
             )
-        if self._diarize is None:
+        if need_diarize and self._diarize is None:
             from whisperx.diarize import DiarizationPipeline
 
             # Bundled pyannote community-1 weights (CC-BY-4.0); see THIRD-PARTY-NOTICES.md.
@@ -194,20 +194,19 @@ class TranscriptionPipeline:
                 model_name=str(diar_dir), token=None, device=self.device
             )
 
-    def transcribe_file(
+    def _transcribe_and_align(
         self,
         wav_path: str,
-        num_speakers: int | None = None,
-        min_speakers: int | None = None,
-        max_speakers: int | None = None,
-        progress: Callable[[str, float], None] | None = None,
-    ) -> list[dict[str, Any]]:
-        """Run the full transcribe + align + diarize pipeline. Returns segment list."""
+        progress: Callable[[str, float], None] | None,
+        need_diarize: bool = False,
+    ) -> dict[str, Any]:
+        """Load models, Whisper-transcribe and align. Returns the aligned whisperx result."""
         import whisperx
 
         if progress:
             progress("Loading models", 0.05)
-        self._load_models()
+        # need_diarize=True keeps the missing-weights check ahead of the Whisper load.
+        self._load_models(need_diarize=need_diarize)
 
         if progress:
             progress("Transcribing", 0.20)
@@ -222,33 +221,83 @@ class TranscriptionPipeline:
             )
             self._align_cache[language] = (model_a, metadata)
         model_a, metadata = self._align_cache[language]
-        result = whisperx.align(result["segments"], model_a, metadata, wav_path, self.device)
+        return whisperx.align(result["segments"], model_a, metadata, wav_path, self.device)
 
+    def _diarize_into(
+        self,
+        wav_path: str,
+        result: dict[str, Any],
+        kwargs: dict[str, Any],
+        progress: Callable[[str, float], None] | None,
+    ) -> dict[str, Any]:
+        """Run pyannote and assign speakers to result's segments (stores embeddings)."""
+        import whisperx
+
+        self._load_models(need_diarize=True)
         if progress:
             progress("Diarizing speakers", 0.75)
-        kwargs: dict[str, Any] = speaker_count_window(num_speakers, min_speakers, max_speakers)
         try:
             diarize_segments, _spk_emb = self._diarize(wav_path, return_embeddings=True, **kwargs)
             self._last_speaker_embeddings = coerce_embeddings(_spk_emb)
         except Exception:  # noqa: BLE001 - embeddings are best-effort; never break the transcript
             diarize_segments = self._diarize(wav_path, **kwargs)  # proven path, no embeddings
             self._last_speaker_embeddings = {}
-        result = whisperx.assign_word_speakers(diarize_segments, result)
+        return whisperx.assign_word_speakers(diarize_segments, result)
 
+    @staticmethod
+    def _normalize(
+        result: dict[str, Any], default_speaker: str = "UNKNOWN"
+    ) -> list[dict[str, Any]]:
+        return [
+            {
+                "start": seg.get("start"),
+                "end": seg.get("end"),
+                "text": (seg.get("text") or "").strip(),
+                "speaker": seg.get("speaker") or default_speaker,
+            }
+            for seg in result.get("segments", [])
+        ]
+
+    def transcribe_file(
+        self,
+        wav_path: str,
+        num_speakers: int | None = None,
+        min_speakers: int | None = None,
+        max_speakers: int | None = None,
+        progress: Callable[[str, float], None] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Run the full transcribe + align + diarize pipeline. Returns segment list."""
+        result = self._transcribe_and_align(wav_path, progress, need_diarize=True)
+        kwargs: dict[str, Any] = speaker_count_window(num_speakers, min_speakers, max_speakers)
+        result = self._diarize_into(wav_path, result, kwargs, progress)
         if progress:
             progress("Done", 1.0)
-        segments = result.get("segments", [])
-        normalized: list[dict[str, Any]] = []
-        for seg in segments:
-            normalized.append(
-                {
-                    "start": seg.get("start"),
-                    "end": seg.get("end"),
-                    "text": (seg.get("text") or "").strip(),
-                    "speaker": seg.get("speaker") or "UNKNOWN",
-                }
-            )
-        return normalized
+        return self._normalize(result)
+
+    def transcribe_track(
+        self,
+        wav_path: str,
+        *,
+        diarize: bool = False,
+        num_speakers: int | None = None,
+        min_speakers: int | None = None,
+        max_speakers: int | None = None,
+        progress: Callable[[str, float], None] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Transcribe ONE speaker's track. No pyannote unless ``diarize`` (shared mic)."""
+        self._last_speaker_embeddings = {}
+        result = self._transcribe_and_align(wav_path, progress, need_diarize=diarize)
+        if diarize:
+            kwargs = speaker_count_window(num_speakers, min_speakers, max_speakers)
+            result = self._diarize_into(wav_path, result, kwargs, progress)
+            default = "UNKNOWN"
+        else:
+            default = "SPEAKER_00"
+            for seg in result.get("segments", []):
+                seg.pop("speaker", None)
+        if progress:
+            progress("Done", 1.0)
+        return self._normalize(result, default_speaker=default)
 
     def close(self) -> None:
         """Release models and free GPU memory between jobs. Idempotent."""

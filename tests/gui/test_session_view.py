@@ -165,3 +165,32 @@ def test_promote_does_not_add_guest_to_roster(root):
         assert len(names) == 2  # no extra entry from the guest cluster
     finally:
         view.destroy()
+
+
+def test_review_prefills_names_from_persisted_track_rows(root):
+    from app.data import db
+    from app.ui.session_view import SessionView
+
+    db.init_db()
+    sid = db.create_session("Tracks")
+    for cid, name in (("TRACK_01", "Mike"), ("TRACK_02", "Sarah")):
+        db.add_speaker_profile(
+            sid, {"source_speaker_id": cid, "display_name": name, "include_in_tracking": 1}
+        )
+    mixed = db.create_session("Mixed")
+    for cid in ("SPEAKER_00", "SPEAKER_01"):
+        db.add_speaker_profile(
+            mixed, {"source_speaker_id": cid, "display_name": "", "include_in_tracking": 1}
+        )
+    app = types.SimpleNamespace(
+        notebook=None, open_session_stage=lambda *a: None, open_home=lambda: None
+    )
+    view = SessionView(root, app, sid)
+    root.update_idletasks()
+    assert {c: v.get() for c, v in view._review_vars.items()} == {
+        "TRACK_01": "Mike",
+        "TRACK_02": "Sarah",
+    }
+    view2 = SessionView(root, app, mixed)
+    root.update_idletasks()
+    assert {v.get() for v in view2._review_vars.values()} == {""}

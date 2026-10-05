@@ -82,3 +82,53 @@ def test_missing_weights_raise_clear_error(monkeypatch, tmp_path):
     with pytest.raises(models.MissingModelError):
         transcriber.TranscriptionPipeline(model_size="small")._load_models()
     assert loaded == []  # failed before the multi-GB Whisper load
+
+
+def test_track_without_diarize_never_loads_pyannote(stubs, monkeypatch):
+    fake_wx = sys.modules["whisperx"]
+
+    class _M:
+        def transcribe(self, *a, **k):
+            return {"language": "en", "segments": [{"start": 0, "end": 1, "text": "x"}]}
+
+    fake_wx.load_model = lambda *a, **k: _M()
+    fake_wx.load_align_model = lambda **k: (object(), {})
+    fake_wx.align = lambda segs, *a, **k: {"segments": segs}
+
+    def _no_dir():
+        raise AssertionError("diarization_dir must not be consulted")
+
+    monkeypatch.setattr(models, "diarization_dir", _no_dir)
+    p = transcriber.TranscriptionPipeline(model_size="small")
+    out = p.transcribe_track("x.wav", diarize=False)
+    assert out and "diarize" not in stubs
+    assert p._diarize is None
+
+
+def test_track_with_diarize_constructs_pyannote_once(stubs):
+    fake_wx = sys.modules["whisperx"]
+
+    class _M:
+        def transcribe(self, *a, **k):
+            return {"language": "en", "segments": [{"start": 0, "end": 1, "text": "x"}]}
+
+    built = []
+    fake_wx.load_model = lambda *a, **k: _M()
+    fake_wx.load_align_model = lambda **k: (object(), {})
+    fake_wx.align = lambda segs, *a, **k: {"segments": segs}
+    fake_wx.assign_word_speakers = lambda d, r: r
+    orig = sys.modules["whisperx.diarize"].DiarizationPipeline
+
+    class Counting(orig):
+        def __init__(self, **k):
+            super().__init__(**k)
+            built.append(1)
+
+        def __call__(self, *a, **k):
+            return [], {}
+
+    sys.modules["whisperx.diarize"].DiarizationPipeline = Counting
+    p = transcriber.TranscriptionPipeline(model_size="small")
+    p.transcribe_track("x.wav", diarize=True)
+    p.transcribe_track("x.wav", diarize=True)
+    assert built == [1]
