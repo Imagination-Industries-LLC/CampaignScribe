@@ -5,7 +5,7 @@ first-run setup installs into the user's environment with
 `pip install --no-deps -r locks/<profile>.txt`. Because of `--no-deps`, every
 package must be listed. They are generated, never hand-edited.
 
-The setup compares `scripts/make_locks.lock_sha256()` (CRLF-normalised) of the
+The setup compares `bootstrap/core.lock_sha256()` (CRLF-normalised; the installed bootstrap cannot import `scripts/`) of the
 shipped lock with the one recorded in `cs-setup.json`; any change here triggers a
 re-setup of the same profile on the next launch.
 

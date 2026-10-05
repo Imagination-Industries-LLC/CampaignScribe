@@ -49,11 +49,11 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "build\installer-root\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
-Name: "{autoprograms}\CampaignScribe"; Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\bootstrap\launcher.py"""; WorkingDir: "{app}"; IconFilename: "{app}\assets\icon.ico"; AppUserModelID: "ImaginationIndustries.CampaignScribe"
-Name: "{autodesktop}\CampaignScribe"; Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\bootstrap\launcher.py"""; WorkingDir: "{app}"; IconFilename: "{app}\assets\icon.ico"; AppUserModelID: "ImaginationIndustries.CampaignScribe"; Tasks: desktopicon
+Name: "{autoprograms}\CampaignScribe"; Filename: "{app}\python\pythonw.exe"; Parameters: "-B ""{app}\bootstrap\launcher.py"""; WorkingDir: "{app}"; IconFilename: "{app}\assets\icon.ico"; AppUserModelID: "ImaginationIndustries.CampaignScribe"
+Name: "{autodesktop}\CampaignScribe"; Filename: "{app}\python\pythonw.exe"; Parameters: "-B ""{app}\bootstrap\launcher.py"""; WorkingDir: "{app}"; IconFilename: "{app}\assets\icon.ico"; AppUserModelID: "ImaginationIndustries.CampaignScribe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\bootstrap\launcher.py"""; WorkingDir: "{app}"; Description: "Launch CampaignScribe"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\python\pythonw.exe"; Parameters: "-B ""{app}\bootstrap\launcher.py"""; WorkingDir: "{app}"; Description: "Launch CampaignScribe"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\python"
@@ -109,5 +109,6 @@ begin
   begin
     DelTree(EnvDir, True, True, True);
     DeleteFile(ExpandConstant('{localappdata}\CampaignScribe\env-setup.log'));
+    RemoveDir(ExpandConstant('{localappdata}\CampaignScribe'));  { only succeeds when empty }
   end;
 end;

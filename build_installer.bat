@@ -92,6 +92,13 @@ echo ERROR: assembling the installer root failed.
 exit /b 1
 :copied
 
+echo Pre-compiling bytecode so nothing is written under {app} at runtime...
+"%STAGE%\python\python.exe" -B -m compileall -q --invalidation-mode checked-hash "%STAGE%\python\Lib" "%STAGE%\app" "%STAGE%\bootstrap"
+if errorlevel 1 (
+    echo ERROR: compileall failed.
+    exit /b 1
+)
+
 echo [5/7] Reading the version...
 set "VER="
 for /f "tokens=2 delims==" %%v in ('findstr /b "__version__" app\__init__.py') do set "VER=%%v"

@@ -153,7 +153,8 @@ diarization weights, see above) and [Inno Setup 6](https://jrsoftware.org/isinfo
 It fetches the official Python 3.13 runtime into `vendor\python`, assembles
 `build\installer-root\` and writes `dist-installer\CampaignScribe-Setup-<version>.exe`.
 The installer is slim: PyTorch and the other speech-engine libraries are
-installed on first run from the hash-pinned files in `locks\`.
+installed on first run from the exact version-pinned files in `locks\`
+(hash-pinning is planned).
 
 ### Legacy PyInstaller build
 

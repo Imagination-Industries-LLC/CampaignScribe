@@ -71,7 +71,7 @@ def test_iss_invariants():
     assert re.search(r"^AppId=\{\{[0-9A-F-]{36}\}$", ISS, re.M)
     assert 'AppUserModelID: "ImaginationIndustries.CampaignScribe"' in ISS
     assert r"{app}\python\pythonw.exe" in ISS
-    assert r'"""{app}\bootstrap\launcher.py"""' in ISS
+    assert r'"-B ""{app}\bootstrap\launcher.py"""' in ISS
     assert "nowait postinstall skipifsilent" in ISS
     assert r"build\installer-root\*" in ISS and "recursesubdirs" in ISS
 
@@ -105,6 +105,33 @@ def test_iss_uninstall_deletes_bytecode_dirs():
     assert r'Name: "{app}\bootstrap"' in ISS
 
 
-def test_launcher_disables_bytecode_before_bootstrap_imports():
+def test_bat_precompiles_checked_hash_bytecode_after_staging_before_iscc():
+    m = re.search(r"^.*compileall.*$", BAT, re.M)
+    assert m, "no compileall step"
+    line = m.group(0)
+    assert "--invalidation-mode checked-hash" in line
+    assert " -B " in line
+    for part in (r"%STAGE%\python\Lib", r"%STAGE%\app", r"%STAGE%\bootstrap"):
+        assert part in line, part
+    assert _pos(r"vendor\python") < m.start() < _pos("ISCC.exe")
+    assert "errorlevel 1" in BAT[m.end() : m.end() + 40]
+
+
+def test_iss_launches_with_dash_B_on_every_entry():
+    params = re.findall(r'Parameters: ("(?:[^"]|"")*")', ISS)
+    assert len(params) == 3  # two [Icons] shortcuts and the [Run] entry
+    for p in params:
+        assert p == '"-B ""{app}\\bootstrap\\launcher.py"""', p
+
+
+def test_iss_uninstall_removes_empty_local_dir_after_env_and_log():
+    del_log = ISS.index(
+        "DeleteFile(ExpandConstant('{localappdata}\\CampaignScribe\\env-setup.log'))"
+    )
+    rm = ISS.index("RemoveDir(ExpandConstant('{localappdata}\\CampaignScribe'))")
+    assert ISS.index("DelTree(EnvDir, True, True, True)") < del_log < rm
+
+
+def test_launcher_keeps_dont_write_bytecode_belt_and_braces():
     src = (ROOT / "bootstrap" / "launcher.py").read_text(encoding="utf-8")
     assert src.index("sys.dont_write_bytecode = True") < src.index("from bootstrap import")
