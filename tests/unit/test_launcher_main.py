@@ -137,9 +137,13 @@ def test_human_size_and_download_bytes():
 def test_wait_for_exit_real_child():
     import subprocess
     import sys
+    import threading
     import time
 
     child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(1)"])  # noqa: S603
+    # Reap concurrently: on POSIX an exited-but-unreaped child is a zombie and
+    # os.kill(pid, 0) would keep succeeding. Production only waits on its parent.
+    threading.Thread(target=child.wait, daemon=True).start()
     try:
         t0 = time.monotonic()
         assert core.wait_for_exit(child.pid, 15) is True
