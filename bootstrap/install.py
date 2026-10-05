@@ -6,11 +6,13 @@ unit-testable without a real multi-GB install.
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
 import sys
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -74,39 +76,66 @@ class Installer:
     # --- hooks -------------------------------------------------------------
 
     def cancel(self) -> None:
-        """Terminate the running pip/venv process; the next step will not start."""
+        """Flag cancellation and kill the running process tree.
+
+        Only the worker deletes files (it runs cleanup itself once the process is
+        gone), so cancel never races a step that is still writing.
+        """
         self._cancelled = True
         with self._lock:
             proc = self._proc
         if proc is not None:
-            try:
-                proc.terminate()
-            except OSError:
-                pass
+            _kill_tree(proc)
 
-    def cleanup(self) -> None:
-        """Remove a partial environment. State goes first so it can never look complete."""
+    def cleanup(self, attempts: int = 1, delay: float = 0.5) -> str | None:
+        """Remove a partial environment. State goes first so it can never look complete.
+
+        Returns the leftover env path if files remain after ``attempts`` tries
+        (e.g. locked by antivirus), else None.
+        """
         _remove_state()
-        shutil.rmtree(core.env_dir(), ignore_errors=True)
+        env = core.env_dir()
+        for i in range(max(attempts, 1)):
+            shutil.rmtree(env, ignore_errors=True)
+            if not env.exists():
+                return None
+            if i + 1 < attempts:
+                time.sleep(delay)
+        return str(env)
 
     # --- default runner ----------------------------------------------------
 
     def _stream_run(self, cmd, line_cb, timeout=None):
-        proc = subprocess.Popen(  # noqa: S603  # nosec B603 - fixed argv, no shell
-            [str(c) for c in cmd],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            creationflags=core.no_window_flags(),
-        )
+        env = dict(os.environ)
+        env.update(PYTHONIOENCODING="utf-8", PIP_NO_INPUT="1", PIP_DISABLE_PIP_VERSION_CHECK="1")
+        try:
+            proc = subprocess.Popen(  # noqa: S603  # nosec B603 - fixed argv, no shell
+                [str(c) for c in cmd],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=env,
+                creationflags=core.no_window_flags(),
+            )
+        except FileNotFoundError as exc:
+            raise RuntimeError(f"Python runtime not found at {cmd[0]}") from exc
         with self._lock:
             self._proc = proc
+        timed_out = threading.Event()
+
+        def on_timeout():
+            timed_out.set()
+            _kill_tree(proc)
+
         timer = None
         if timeout:
-            timer = threading.Timer(timeout, proc.kill)
+            timer = threading.Timer(timeout, on_timeout)
+            timer.daemon = True
             timer.start()
+        if self._cancelled:  # cancel() ran before the process was registered
+            _kill_tree(proc)
         lines = []
         try:
             for raw in proc.stdout:
@@ -119,6 +148,9 @@ class Installer:
                 timer.cancel()
             with self._lock:
                 self._proc = None
+        if timed_out.is_set():
+            line_cb(f"Timed out after {timeout} s")
+            return -1, "\n".join(lines)
         return proc.returncode, "\n".join(lines)
 
     # --- the install -------------------------------------------------------
@@ -129,7 +161,16 @@ class Installer:
             return self._install(profile, log_cb, progress_cb)
         except Exception as exc:  # noqa: BLE001 - any failure becomes a failure result
             log_cb(f"Setup error: {exc}")
+            if self._cancelled:
+                return self._cancelled_result()
             return InstallResult(False, False, str(exc))
+
+    def _cancelled_result(self) -> InstallResult:
+        leftover = self.cleanup(attempts=6)
+        msg = "Cancelled"
+        if leftover:
+            msg += f"; could not remove {leftover} (files in use) - delete it manually"
+        return InstallResult(False, False, msg)
 
     def _emit(self, log_cb):
         log_file = core.setup_log_path()
@@ -149,6 +190,8 @@ class Installer:
         return emit
 
     def _step(self, label, cmd, emit, timeout=None, line_cb=None):
+        if self._cancelled:
+            return None, "Cancelled"
         emit(f"== {label}")
         emit("$ " + " ".join(str(c) for c in cmd))
         rc, out = self._run(cmd, line_cb or emit, timeout)
@@ -157,6 +200,11 @@ class Installer:
         if rc != 0:
             return None, f"{label} failed (exit code {rc})"
         return out, ""
+
+    def _fail(self, err) -> InstallResult:
+        if self._cancelled:
+            return self._cancelled_result()
+        return InstallResult(False, False, err)
 
     def _install(self, profile, log_cb, progress_cb) -> InstallResult:
         if profile not in core.PROFILES:
@@ -175,7 +223,7 @@ class Installer:
             emit,
         )
         if err:
-            return InstallResult(False, False, err)
+            return self._fail(err)
 
         pip_version = core.lock_pip_version(lock_file)
         if pip_version:
@@ -183,7 +231,7 @@ class Installer:
                 "Upgrading pip", core.pip_upgrade_command(env_py, pip_version), emit
             )
             if err:
-                return InstallResult(False, False, err)
+                return self._fail(err)
 
         counter = core.ProgressCounter(total)
 
@@ -199,19 +247,21 @@ class Installer:
             line_cb=pip_line,
         )
         if err:
-            return InstallResult(False, False, err)
+            return self._fail(err)
 
         out, err = self._step(
             "Verifying", core.verify_command(env_py), emit, timeout=VERIFY_TIMEOUT
         )
         if err:
-            return InstallResult(False, False, err)
+            return self._fail(err)
         try:
             _torch, cuda_ok = core.parse_verify(out)
         except ValueError as exc:
             emit(f"Verify output not understood: {exc}")
             return InstallResult(False, False, f"Verifying failed: {exc}")
 
+        if self._cancelled:  # never record success after a cancel
+            return self._cancelled_result()
         core.write_state(
             profile,
             core.lock_sha256(lock_file),
@@ -219,6 +269,26 @@ class Installer:
         )
         progress_cb(total, total, None)
         return InstallResult(True, cuda_ok, "")
+
+
+def _kill_tree(proc) -> None:
+    """Kill proc and its children. A venv's python.exe on Windows is a redirector
+    whose real interpreter is a child, so killing only the parent orphans pip."""
+    if sys.platform == "win32":
+        try:
+            subprocess.run(  # noqa: S603  # nosec B603 B607 - fixed argv, no shell
+                ["taskkill", "/T", "/F", "/PID", str(proc.pid)],
+                capture_output=True,
+                timeout=15,
+                creationflags=core.no_window_flags(),
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            pass
+    try:
+        proc.kill()
+    except OSError:
+        pass
 
 
 def _remove_state() -> None:

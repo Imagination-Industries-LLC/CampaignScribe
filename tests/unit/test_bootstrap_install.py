@@ -1,3 +1,8 @@
+import subprocess
+import sys
+import threading
+import time
+
 import pytest
 
 from bootstrap import core, install
@@ -140,3 +145,131 @@ def test_base_python_falls_back_in_dev_checkout(home, monkeypatch):
     (home / "python").mkdir()
     (home / "python" / "python.exe").write_text("")
     assert install.Installer(home).base_python() == home / "python" / "python.exe"
+
+
+def test_cancel_between_steps_runs_no_later_step_and_no_state(home):
+    inst = install.Installer(home, base_python="b")
+    cmds = []
+
+    def run(cmd, line_cb, timeout=None):
+        cmds.append(cmd)
+        if len(cmds) == 2:  # cancel lands after the pip upgrade returns 0
+            inst.cancel()
+        return 0, ""
+
+    inst._run = run
+    res = inst("cpu", lambda s: None, lambda *a: None)
+    assert len(cmds) == 2 and res.message.startswith("Cancelled")
+    assert core.read_state() is None and not core.env_dir().exists()
+
+
+def test_cancel_after_verify_before_write_state_writes_nothing(home):
+    inst = install.Installer(home, base_python="b")
+    n = []
+
+    def run(cmd, line_cb, timeout=None):
+        n.append(1)
+        if len(n) == 4:  # verify succeeds, and cancel arrives right after
+            inst.cancel()
+            return 0, "2.5.1 True"
+        return 0, ""
+
+    inst._run = run
+    res = inst("cpu", lambda s: None, lambda *a: None)
+    assert not res.ok and res.message.startswith("Cancelled")
+    assert core.read_state() is None
+
+
+def test_cleanup_reports_leftover_when_locked(home, monkeypatch):
+    core.env_dir().mkdir(parents=True)
+    monkeypatch.setattr(install.shutil, "rmtree", lambda *a, **k: None)
+    monkeypatch.setattr(install.time, "sleep", lambda s: None)
+    inst = install.Installer(home, base_python="b")
+    assert inst.cleanup(attempts=3) == str(core.env_dir())
+
+
+def test_missing_base_python_message(home):
+    inst = install.Installer(home, base_python=str(home / "nope" / "python.exe"))
+    res = inst("cpu", lambda s: None, lambda *a: None)
+    assert not res.ok and "Python runtime not found at" in res.message
+
+
+# --- the real runner ---------------------------------------------------------
+
+
+def test_stream_run_streams_lines_and_sets_env(home):
+    inst = install.Installer(home, base_python="b")
+    lines = []
+    code = "import os; print('a'); print('b'); print(os.environ['PIP_NO_INPUT'], os.environ['PYTHONIOENCODING'])"
+    rc, out = inst._stream_run([sys.executable, "-c", code], lines.append)
+    assert rc == 0 and lines == ["a", "b", "1 utf-8"] and out == "\n".join(lines)
+
+
+def test_stream_run_nonzero_exit(home):
+    inst = install.Installer(home, base_python="b")
+    rc, _ = inst._stream_run([sys.executable, "-c", "import sys; sys.exit(3)"], lambda s: None)
+    assert rc == 3
+
+
+_PARENT = (
+    "import subprocess, sys, time\n"
+    "g = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+    "print(g.pid, flush=True)\n"
+    "time.sleep(60)\n"
+)
+
+
+def _alive(pid):
+    if sys.platform == "win32":
+        out = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}", "/NH"], capture_output=True, text=True, check=False
+        ).stdout
+        return str(pid) in out
+    try:
+        import os
+
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def _wait_dead(pid, limit=8.0):
+    end = time.time() + limit
+    while time.time() < end:
+        if not _alive(pid):
+            return True
+        time.sleep(0.2)
+    return False
+
+
+def test_stream_run_timeout_kills_whole_tree(home):
+    inst = install.Installer(home, base_python="b")
+    pids = []
+    t0 = time.time()
+    rc, _ = inst._stream_run([sys.executable, "-c", _PARENT], lambda s: pids.append(s), timeout=2)
+    assert rc != 0 and time.time() - t0 < 20
+    if sys.platform == "win32":  # tree kill is the Windows redirector fix
+        assert _wait_dead(int(pids[0]))
+
+
+def test_cancel_kills_whole_tree_and_read_loop_returns(home):
+    inst = install.Installer(home, base_python="b")
+    pids = []
+    started = threading.Event()
+
+    def cb(line):
+        pids.append(line)
+        started.set()
+
+    result = {}
+    th = threading.Thread(
+        target=lambda: result.update(r=inst._stream_run([sys.executable, "-c", _PARENT], cb))
+    )
+    th.start()
+    assert started.wait(15)
+    inst.cancel()
+    th.join(15)
+    assert not th.is_alive()
+    if sys.platform == "win32":
+        assert _wait_dead(int(pids[0]))

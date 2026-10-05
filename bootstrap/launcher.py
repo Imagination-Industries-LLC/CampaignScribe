@@ -37,14 +37,62 @@ def _new_root():
     return tk.Tk()
 
 
-def _launch_app(app_home: Path) -> None:
+def _native_message(title: str, text: str) -> None:
+    """A message box that needs no tkinter (Windows only; silently skipped elsewhere)."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        ctypes.windll.user32.MessageBoxW(None, text, title, 0x10)
+    except Exception:  # noqa: BLE001 - best effort, nothing else to fall back to
+        pass
+
+
+def _log_error(text: str) -> None:
+    try:
+        path = core.setup_log_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(text + "\n")
+    except OSError:
+        pass
+
+
+def _error_box(title: str, text: str) -> None:
+    try:
+        import tkinter as tk
+        from tkinter import messagebox
+
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            messagebox.showerror(title, text, parent=root)
+        finally:
+            root.destroy()
+    except Exception:  # noqa: BLE001 - no usable Tk: fall back to the native box
+        _native_message(title, text)
+
+
+def _launch_app(app_home: Path) -> bool:
+    """Start the app; on failure log it, tell the user, and return False."""
     argv, env = launch_command(_env_python("pythonw.exe"), app_home)
-    subprocess.Popen(  # noqa: S603  # nosec B603 - fixed argv, no shell
-        argv,
-        env=env,
-        cwd=str(app_home),
-        creationflags=core.no_window_flags(),
-    )
+    try:
+        subprocess.Popen(  # noqa: S603  # nosec B603 - fixed argv, no shell
+            argv,
+            env=env,
+            cwd=str(app_home),
+            creationflags=core.no_window_flags(),
+        )
+    except OSError as exc:
+        text = (
+            f"CampaignScribe could not start: {exc}\n\nEnvironment: {core.env_dir()}\n"
+            "Reinstalling or switching the speech engine in Settings may repair it."
+        )
+        _log_error(text)
+        _error_box("CampaignScribe", text)
+        return False
+    return True
 
 
 def main(argv=None) -> int:
@@ -58,18 +106,20 @@ def main(argv=None) -> int:
     )
 
     if action == "launch":
-        _launch_app(app_home)
-        return 0
+        return 0 if _launch_app(app_home) else 3
 
     if SetupWindow is None:
+        text = "CampaignScribe setup needs tkinter, which is missing from the bundled Python."
+        _log_error(text)
+        _native_message("CampaignScribe", text)
         return 2
     root = _new_root()
-    result = {"done": False}
+    result = {"done": False, "launched": False}
 
     def on_done(_profile):
         result["done"] = True
         root.destroy()
-        _launch_app(app_home)
+        result["launched"] = _launch_app(app_home)
 
     SetupWindow(
         root,
@@ -81,7 +131,9 @@ def main(argv=None) -> int:
         resetup=(action == "resetup"),
     )
     root.mainloop()
-    return 0 if result["done"] else 1
+    if not result["done"]:
+        return 1
+    return 0 if result["launched"] else 3
 
 
 if __name__ == "__main__":

@@ -90,3 +90,38 @@ def test_resetup_branch_skips_choice_and_launches_on_done(patched, monkeypatch):
     assert windows[0].kw["resetup"] is True
     assert windows[0].kw["profile_default"] == "gpu"
     assert root.destroyed and len(popen) == 1
+
+
+def test_launch_failure_shows_error_and_returns_nonzero(patched, monkeypatch, tmp_path):
+    _decide(monkeypatch, ("launch", "gpu"))
+    boxes = []
+    monkeypatch.setattr(launcher, "_error_box", lambda title, text: boxes.append(text))
+
+    def boom(*a, **k):
+        raise FileNotFoundError("pythonw.exe missing")
+
+    monkeypatch.setattr(launcher.subprocess, "Popen", boom)
+    assert launcher.main([]) == 3
+    assert "pythonw.exe missing" in boxes[0] and str(core.env_dir()) in boxes[0]
+    assert "pythonw.exe missing" in core.setup_log_path().read_text(encoding="utf-8")
+
+
+def test_launch_failure_after_setup_is_nonzero(patched, monkeypatch):
+    popen, windows, root = patched
+    _decide(monkeypatch, ("setup", None))
+    monkeypatch.setattr(launcher, "_error_box", lambda *a: None)
+    monkeypatch.setattr(
+        launcher.subprocess, "Popen", lambda *a, **k: (_ for _ in ()).throw(OSError("x"))
+    )
+    root.on_mainloop = lambda: windows[0].kw["on_done"]("cpu")
+    assert launcher.main([]) == 3
+
+
+def test_missing_tkinter_logs_and_shows_native_message(patched, monkeypatch):
+    _decide(monkeypatch, ("setup", None))
+    monkeypatch.setattr(launcher, "SetupWindow", None)
+    msgs = []
+    monkeypatch.setattr(launcher, "_native_message", lambda t, x: msgs.append(x))
+    assert launcher.main([]) == 2
+    assert "tkinter" in msgs[0]
+    assert "tkinter" in core.setup_log_path().read_text(encoding="utf-8")

@@ -40,6 +40,8 @@ class FakeInstaller:
         self.cleaned = False
 
     def __call__(self, profile, log_cb, progress_cb):
+        if self.cancelled:
+            return InstallResult(False, False, "Cancelled")
         self.calls.append(profile)
         for i in range(40):
             log_cb(f"line {i}")
@@ -126,7 +128,7 @@ def test_installer_exception_is_a_failure(root):
     assert win.failure.winfo_manager() == "pack" and not done
 
 
-def test_close_while_installing_confirms_cancels_and_destroys(root, monkeypatch):
+def test_close_while_installing_waits_for_worker_then_destroys(root, monkeypatch):
     asked = []
     monkeypatch.setattr(messagebox, "askyesno", lambda *a, **k: asked.append(a) or True)
     pending = []
@@ -135,8 +137,27 @@ def test_close_while_installing_confirms_cancels_and_destroys(root, monkeypatch)
     win.install_button.invoke()
     assert win.installing and len(pending) == 1
     win.on_close()
-    assert asked and inst.cancelled and inst.cleaned
+    # the window survives until the worker reports; nothing is deleted on the Tk thread
+    assert asked and inst.cancelled and not inst.cleaned
+    assert not _root_gone(root)
+    pending[0]()  # worker sees the cancel, cleans up itself, finishes
+    root.update()
+    assert _root_gone(root)
     assert core.read_state() is None and not done
+
+
+def test_close_wait_is_bounded(root, monkeypatch):
+    monkeypatch.setattr(messagebox, "askyesno", lambda *a, **k: True)
+    scheduled = []
+    inst = FakeInstaller([])
+    win, _ = _make(root, inst, spawn=lambda fn: None)
+    win.install_button.invoke()
+    real_after = root.after
+    monkeypatch.setattr(root, "after", lambda ms, fn=None, *a: scheduled.append(ms) or "x")
+    win.on_close()
+    assert scheduled == [setup_window.CANCEL_WAIT_MS]
+    monkeypatch.setattr(root, "after", real_after)
+    win._destroy()  # what the bounded timer does
     assert _root_gone(root)
 
 
@@ -261,3 +282,38 @@ def test_status_line_and_bar(root):
     root.update()
     assert win.status_var.get() == "Installing torch (1/4)"
     assert float(win.bar.cget("value")) == 25.0
+
+
+def test_resetup_blocked_by_disk_shows_only_quit_and_never_installs(root, monkeypatch):
+    monkeypatch.setattr(core, "disk_ok", lambda p, prof: (False, 1024**3))
+    inst = FakeInstaller([InstallResult(True, True, "")])
+    win, done = _make(root, inst, default="cpu", resetup=True)
+    root.update()
+    assert inst.calls == [] and not done and not win.installing
+    assert win.choice.winfo_manager() == "pack"
+    assert "Not enough free disk space" in win.error_label.cget("text")
+    assert win.gpu_radio.winfo_manager() == "" and win.install_button.winfo_manager() == ""
+    assert "Quit" in _labels(win.choice)
+
+
+def test_resetup_blocked_by_long_path(root, monkeypatch):
+    monkeypatch.setattr(core, "path_ok", lambda p: False)
+    inst = FakeInstaller([])
+    win, _ = _make(root, inst, default="gpu", resetup=True)
+    assert inst.calls == [] and "too long" in win.error_label.cget("text")
+
+
+def test_retry_rechecks_disk_before_starting(root, monkeypatch):
+    inst = FakeInstaller([InstallResult(False, False, "boom"), InstallResult(True, True, "")])
+    win, done = _make(root, inst, nvidia=GPU)
+    win.install_button.invoke()
+    root.update()
+    monkeypatch.setattr(core, "disk_ok", lambda p, prof: (False, 1024**3))
+    win.retry_button.invoke()
+    root.update()
+    assert inst.calls == ["gpu"] and not done
+    assert "Not enough free disk space" in win.failure_label.cget("text")
+    monkeypatch.setattr(core, "disk_ok", lambda p, prof: (True, 50 * 1024**3))
+    win.retry_button.invoke()
+    root.update()
+    assert inst.calls == ["gpu", "gpu"] and done == ["gpu"]

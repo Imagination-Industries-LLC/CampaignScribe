@@ -28,6 +28,7 @@ EXPLANATION = (
 )
 DOWNLOAD_GB = {"gpu": "2.6", "cpu": "0.3"}
 LOG_TAIL = 30
+CANCEL_WAIT_MS = 30000
 
 
 def _default_spawn(fn) -> None:
@@ -92,8 +93,24 @@ class SetupWindow:
         self._build_failure()
         self._build_warning()
 
+        self.cancelling = False
+        self._worker_done = False
         if resetup:
-            self._begin(default)
+            problems = self._problems(default)
+            if problems:  # nothing is deleted: show the blocking messages with only Quit
+                for w in (
+                    self.explanation,
+                    self.gpu_radio,
+                    self.gpu_caption,
+                    self.cpu_radio,
+                    self.cpu_caption,
+                    self.install_button,
+                ):
+                    w.pack_forget()
+                self.error_label.configure(text="\n".join(problems))
+                self._show(self.choice)
+            else:
+                self._begin(default)
         else:
             self.choice_var.trace_add("write", lambda *_: self._refresh_checks())
             self._show(self.choice)
@@ -181,6 +198,12 @@ class SetupWindow:
         else:
             self.gpu_warning.pack_forget()
 
+        problems = self._problems(profile)
+        self.error_label.configure(text="\n".join(problems))
+        self.install_button.state(["disabled"] if problems else ["!disabled"])
+
+    def _problems(self, profile) -> list:
+        """Blocking disk/path messages for ``profile`` (empty when it is fine to install)."""
         env = core.env_dir()
         problems = []
         try:
@@ -201,8 +224,7 @@ class SetupWindow:
                 f"the limit is {core.MAX_ENV_PATH_LEN}), which would break the speech engine. "
                 "Use a Windows account with a shorter user name."
             )
-        self.error_label.configure(text="\n".join(problems))
-        self.install_button.state(["disabled"] if problems else ["!disabled"])
+        return problems
 
     # --- install -----------------------------------------------------------
 
@@ -220,8 +242,13 @@ class SetupWindow:
             self._begin(self.choice_var.get())
 
     def retry(self) -> None:
-        if not self.installing:
-            self._begin(self.run_profile)
+        if self.installing:
+            return
+        problems = self._problems(self.run_profile)
+        if problems:  # conditions changed since the failed attempt: do not touch the env
+            self.failure_label.configure(text="\n".join(problems))
+            return
+        self._begin(self.run_profile)
 
     def _begin(self, profile) -> None:
         self.run_profile = profile
@@ -251,7 +278,13 @@ class SetupWindow:
             result = self.installer(profile, log_cb, progress_cb)
         except Exception as exc:  # noqa: BLE001 - a crashing installer is a failed install
             result = _Failed(str(exc))
+        self._worker_done = True
         self._post(self._on_result, attempt, profile, result)
+        self._post(self._worker_finished)
+
+    def _worker_finished(self) -> None:
+        if self.cancelling:
+            self._destroy()
 
     def _live(self, attempt) -> bool:
         return not self.closed and attempt == self._attempt
@@ -312,9 +345,22 @@ class SetupWindow:
             parent=self.root,
         ):
             return
+        # The worker owns cleanup: cancel only flags + kills the process tree, then the
+        # worker deletes the partial env and its finish callback destroys the window.
         self.closed = True
-        for hook in ("cancel", "cleanup"):
-            fn = getattr(self.installer, hook, None)
-            if fn:
-                fn()
-        self.root.destroy()
+        self.cancelling = True
+        self.status_var.set("Cancelling…")
+        self.root.protocol("WM_DELETE_WINDOW", lambda: None)
+        cancel = getattr(self.installer, "cancel", None)
+        if cancel:
+            cancel()
+        if self._worker_done:
+            self._destroy()
+        else:
+            self.root.after(CANCEL_WAIT_MS, self._destroy)  # bounded wait for the worker
+
+    def _destroy(self) -> None:
+        try:
+            self.root.destroy()
+        except tk.TclError:
+            pass
