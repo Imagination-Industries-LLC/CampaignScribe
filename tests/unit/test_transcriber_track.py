@@ -52,6 +52,7 @@ def fakes(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "whisperx.diarize", fake_diar)
     monkeypatch.setattr(models, "diarization_dir", lambda: tmp_path)
     monkeypatch.setattr(transcriber, "check_gpu", lambda: {"cuda_available": False})
+    monkeypatch.setattr(transcriber, "coerce_embeddings", lambda raw: dict(raw or {}))
     return state
 
 
