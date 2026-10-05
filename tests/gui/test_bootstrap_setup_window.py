@@ -7,6 +7,8 @@ from bootstrap import core, setup_window
 from bootstrap.install import InstallResult
 from bootstrap.setup_window import SetupWindow
 
+pytestmark = pytest.mark.gui
+
 GPU = {"found": True, "name": "RTX 4090", "driver": "555.1"}
 
 
@@ -317,3 +319,64 @@ def test_retry_rechecks_disk_before_starting(root, monkeypatch):
     win.retry_button.invoke()
     root.update()
     assert inst.calls == ["gpu", "gpu"] and done == ["gpu"]
+
+
+class StatusInstaller(FakeInstaller):
+    """Reports a scripted sequence of progress calls, then fails (stays on the failure page)."""
+
+    def __init__(self, calls):
+        super().__init__([InstallResult(False, False, "x")])
+        self.script = calls
+
+    def __call__(self, profile, log_cb, progress_cb):
+        for args in self.script:
+            progress_cb(*args)
+        return self.results.pop(0)
+
+
+def _status_after(root, calls):
+    win, _ = _make(root, StatusInstaller(calls))
+    win.install_button.invoke()
+    root.update()
+    return win.status_var.get()
+
+
+def test_status_creating_environment(root):
+    got = _status_after(root, [(0, 4, None, "Creating the environment\u2026")])
+    assert got == "Creating the environment\u2026"
+
+
+def test_status_updating_pip(root):
+    assert _status_after(root, [(0, 4, None, "Updating pip\u2026")]) == "Updating pip\u2026"
+
+
+def test_status_unpacking_instead_of_freezing_on_last_package(root):
+    calls = [
+        (3, 4, "torch"),
+        (3, 4, None, "Unpacking downloaded packages\u2026 this can take a few minutes"),
+        (3, 4, None),  # later log lines (name None) must not erase it
+    ]
+    got = _status_after(root, calls)
+    assert got == "Unpacking downloaded packages\u2026 this can take a few minutes"
+
+
+def test_plain_package_progress_still_shown(root):
+    assert _status_after(root, [(2, 4, "numpy")]) == "Installing numpy (2/4)"
+
+
+def test_window_sets_icon_when_available(root, monkeypatch):
+    calls = []
+    monkeypatch.setattr(root, "iconbitmap", lambda path: calls.append(path), raising=False)
+    _make(root, FakeInstaller([]))
+    from pathlib import Path
+
+    assert [Path(c) for c in calls] == [Path("app") / "assets" / "icon.ico"]
+
+
+def test_window_survives_icon_failure(root, monkeypatch):
+    def boom(path):
+        raise tk.TclError("bitmap not defined")
+
+    monkeypatch.setattr(root, "iconbitmap", boom, raising=False)
+    win, _ = _make(root, FakeInstaller([]))
+    assert win.root is root

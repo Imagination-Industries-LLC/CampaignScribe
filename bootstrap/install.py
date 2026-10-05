@@ -19,6 +19,9 @@ from pathlib import Path
 from bootstrap import core
 
 VERIFY_TIMEOUT = 120
+STATUS_CREATING = "Creating the environment…"
+STATUS_PIP = "Updating pip…"
+STATUS_UNPACKING = "Unpacking downloaded packages… this can take a few minutes"
 
 
 @dataclass(frozen=True)
@@ -114,7 +117,12 @@ class Installer:
 
     def _stream_run(self, cmd, line_cb, timeout=None):
         env = dict(os.environ)
-        env.update(PYTHONIOENCODING="utf-8", PIP_NO_INPUT="1", PIP_DISABLE_PIP_VERSION_CHECK="1")
+        env.update(
+            PYTHONIOENCODING="utf-8",
+            PIP_NO_INPUT="1",
+            PIP_DISABLE_PIP_VERSION_CHECK="1",
+            PYTHONDONTWRITEBYTECODE="1",  # nothing under the read-only {app}; pip still compiles installs
+        )
         try:
             proc = subprocess.Popen(  # noqa: S603  # nosec B603 - fixed argv, no shell
                 [str(c) for c in cmd],
@@ -223,6 +231,7 @@ class Installer:
         # Interrupted-run safety (Review Focus 2): state first, then the env, then the venv.
         self.cleanup()
 
+        progress_cb(0, total, None, STATUS_CREATING)
         _, err = self._step(
             "Creating environment",
             [self.base_python(), "-m", "venv", core.env_dir()],
@@ -233,6 +242,7 @@ class Installer:
 
         pip_version = core.lock_pip_version(lock_file)
         if pip_version:
+            progress_cb(0, total, None, STATUS_PIP)
             _, err = self._step(
                 "Upgrading pip", core.pip_upgrade_command(env_py, pip_version), emit
             )
@@ -244,7 +254,11 @@ class Installer:
         def pip_line(line: str) -> None:
             emit(line)
             done, tot, name = counter.feed(line)
-            progress_cb(done, tot, package_name(name) if name else None)
+            if line.strip().startswith("Installing collected packages"):
+                # pip prints nothing while it unpacks the downloaded wheels: say so
+                progress_cb(done, tot, None, STATUS_UNPACKING)
+            else:
+                progress_cb(done, tot, package_name(name) if name else None)
 
         _, err = self._step(
             "Installing libraries",
@@ -280,13 +294,18 @@ class Installer:
         return InstallResult(True, cuda_ok, "")
 
 
+def _taskkill_exe() -> str:
+    """Full path to taskkill.exe so a hostile PATH entry cannot shadow it."""
+    return os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "taskkill.exe")
+
+
 def _kill_tree(proc) -> None:
     """Kill proc and its children. A venv's python.exe on Windows is a redirector
     whose real interpreter is a child, so killing only the parent orphans pip."""
     if sys.platform == "win32":
         try:
-            subprocess.run(  # noqa: S603  # nosec B603 B607 - fixed argv, no shell
-                ["taskkill", "/T", "/F", "/PID", str(proc.pid)],
+            subprocess.run(  # noqa: S603  # nosec B603 - fixed argv, no shell
+                [_taskkill_exe(), "/T", "/F", "/PID", str(proc.pid)],
                 capture_output=True,
                 timeout=15,
                 creationflags=core.no_window_flags(),

@@ -103,6 +103,7 @@ def test_confirm_launches_and_closes(root, monkeypatch, tmp_path):
     ((cmd, kw),) = calls
     assert cmd == [
         str(tmp_path / "python" / "pythonw.exe"),
+        "-B",
         str(tmp_path / "bootstrap" / "launcher.py"),
         "--switch",
         "cpu",

@@ -24,6 +24,10 @@ def patched(monkeypatch, tmp_path):
     popen = []
     monkeypatch.setattr(launcher.subprocess, "Popen", lambda *a, **k: popen.append((a, k)))
     monkeypatch.setattr(core, "detect_nvidia", lambda: {"found": False, "name": "", "driver": ""})
+    fake_pythonw = tmp_path / "pythonw.exe"
+    fake_pythonw.write_bytes(b"")
+    monkeypatch.setattr(launcher, "_bundled_pythonw", lambda home: fake_pythonw)
+    monkeypatch.setattr(launcher, "_set_app_user_model_id", lambda: None)
     root = FakeRoot()
     monkeypatch.setattr(launcher, "_new_root", lambda: root)
     windows = []
@@ -190,3 +194,64 @@ def test_wait_pid_parsed_and_waited(patched, monkeypatch):
     _decide(monkeypatch, ("launch", "gpu"))
     launcher.main(["--wait-pid", "77"])
     assert seen == [(77, launcher.WAIT_TIMEOUT_S)]
+
+
+def test_missing_bundled_python_is_an_error_not_a_silent_exit(patched, monkeypatch, tmp_path):
+    popen, _, _ = patched
+    _decide(monkeypatch, ("launch", "gpu"))
+    monkeypatch.setattr(
+        launcher, "_bundled_pythonw", lambda home: tmp_path / "gone" / "pythonw.exe"
+    )
+    boxes = []
+    monkeypatch.setattr(launcher, "_error_box", lambda title, text: boxes.append(text))
+    assert launcher.main([]) != 0
+    assert popen == []
+    assert "pythonw.exe" in boxes[0]
+    assert "pythonw.exe" in core.setup_log_path().read_text(encoding="utf-8")
+
+
+def test_bundled_pythonw_path(tmp_path):
+    assert launcher._bundled_pythonw(tmp_path) == tmp_path / "python" / "pythonw.exe"
+
+
+def test_app_user_model_id_set_on_windows(monkeypatch):
+    import types
+
+    calls = []
+    fake = types.SimpleNamespace(
+        windll=types.SimpleNamespace(
+            shell32=types.SimpleNamespace(
+                SetCurrentProcessExplicitAppUserModelID=lambda v: calls.append(v)
+            )
+        )
+    )
+    monkeypatch.setattr(launcher.sys, "platform", "win32")
+    monkeypatch.setitem(__import__("sys").modules, "ctypes", fake)
+    launcher._set_app_user_model_id()
+    assert calls == ["ImaginationIndustries.CampaignScribe"]
+
+
+def test_app_user_model_id_failure_is_swallowed(monkeypatch):
+    import types
+
+    def boom(v):
+        raise OSError("no shell32")
+
+    fake = types.SimpleNamespace(
+        windll=types.SimpleNamespace(
+            shell32=types.SimpleNamespace(SetCurrentProcessExplicitAppUserModelID=boom)
+        )
+    )
+    monkeypatch.setattr(launcher.sys, "platform", "win32")
+    monkeypatch.setitem(__import__("sys").modules, "ctypes", fake)
+    launcher._set_app_user_model_id()
+
+
+def test_main_sets_app_id_before_creating_tk(patched, monkeypatch):
+    order = []
+    monkeypatch.setattr(launcher, "_set_app_user_model_id", lambda: order.append("aumid"))
+    root = patched[2]
+    monkeypatch.setattr(launcher, "_new_root", lambda: order.append("tk") or root)
+    _decide(monkeypatch, ("setup", None))
+    launcher.main([])
+    assert order == ["aumid", "tk"]

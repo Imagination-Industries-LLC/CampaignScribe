@@ -116,6 +116,35 @@ def lock_pip_version(path: str | Path) -> str | None:
     return None
 
 
+def env_home_matches(app_home: str | Path) -> bool:
+    """True if the env's pyvenv.cfg ``home`` is this install's bundled Python.
+
+    A venv records the interpreter directory it was created from; after the app is
+    reinstalled elsewhere (e.g. per-user -> all-users) the env's redirector points
+    at a directory that no longer exists. Unreadable or missing config -> False.
+    In a dev checkout (no ``{app}/python``) the base is the running interpreter's dir.
+    """
+    try:
+        text = (env_dir() / "pyvenv.cfg").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    recorded = None
+    for line in text.splitlines():
+        key, sep, value = line.partition("=")
+        if sep and key.strip().lower() == "home":
+            recorded = value.strip()
+            break
+    if not recorded:
+        return False
+    bundled = Path(app_home) / "python"
+    expected = bundled if bundled.exists() else Path(sys.executable).parent
+
+    def norm(p) -> str:
+        return os.path.normcase(os.path.realpath(str(p)))
+
+    return norm(recorded) == norm(expected)
+
+
 # --- launch / setup decision -----------------------------------------------
 
 
@@ -143,6 +172,8 @@ def decide(
     except OSError:
         return ("resetup", profile)
     if state.get("lock_sha256") != current:
+        return ("resetup", profile)
+    if not env_home_matches(app_home):  # app reinstalled elsewhere: the env's python dangles
         return ("resetup", profile)
     return ("launch", profile)
 
@@ -258,6 +289,10 @@ def pip_upgrade_command(env_python: str | Path, version: str) -> list[str]:
         "install",
         "--require-virtualenv",
         "--disable-pip-version-check",
+        "--retries",
+        "5",
+        "--timeout",
+        "60",
         f"pip=={version}",
     ]
 

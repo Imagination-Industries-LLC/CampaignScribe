@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 import threading
@@ -200,9 +201,13 @@ def test_missing_base_python_message(home):
 def test_stream_run_streams_lines_and_sets_env(home):
     inst = install.Installer(home, base_python="b")
     lines = []
-    code = "import os; print('a'); print('b'); print(os.environ['PIP_NO_INPUT'], os.environ['PYTHONIOENCODING'])"
+    code = (
+        "import os; print('a'); print('b'); "
+        "print(os.environ['PIP_NO_INPUT'], os.environ['PYTHONIOENCODING'], "
+        "os.environ['PYTHONDONTWRITEBYTECODE'])"
+    )
     rc, out = inst._stream_run([sys.executable, "-c", code], lines.append)
-    assert rc == 0 and lines == ["a", "b", "1 utf-8"] and out == "\n".join(lines)
+    assert rc == 0 and lines == ["a", "b", "1 utf-8 1"] and out == "\n".join(lines)
 
 
 def test_stream_run_nonzero_exit(home):
@@ -309,3 +314,48 @@ def test_cancel_during_write_state_is_atomic(home, monkeypatch):
     res = inst("cpu", lambda s: None, lambda *a: None)
     th[0].join(5)
     assert res.ok and core.read_state() is not None  # never "cancelled but state exists"
+
+
+def test_taskkill_uses_full_system32_path(monkeypatch):
+    monkeypatch.setenv("SystemRoot", "C:\\Win")
+    assert install._taskkill_exe() == os.path.join("C:\\Win", "System32", "taskkill.exe")
+    monkeypatch.delenv("SystemRoot")
+    assert install._taskkill_exe() == os.path.join(r"C:\Windows", "System32", "taskkill.exe")
+
+
+def test_kill_tree_runs_full_path_taskkill(monkeypatch):
+    seen = []
+    monkeypatch.setattr(install.sys, "platform", "win32")
+    monkeypatch.setattr(install.subprocess, "run", lambda cmd, **k: seen.append(cmd))
+    monkeypatch.setattr(install, "_taskkill_exe", lambda: "FULL")
+
+    class P:
+        pid = 42
+
+        def kill(self):
+            pass
+
+    install._kill_tree(P())
+    assert seen == [["FULL", "/T", "/F", "/PID", "42"]]
+
+
+def test_step_status_and_unpacking_notices(home):
+    class Run(FakeRun):
+        def __call__(self, cmd, line_cb, timeout=None):
+            if len(self.cmds) == 2:
+                line_cb("Collecting torch==2.5.1+cpu")
+                line_cb("Installing collected packages: torch, numpy")
+            return super().__call__(cmd, line_cb, timeout)
+
+    prog = []
+    inst = install.Installer(home, run=Run(), base_python="BASE")
+    inst("cpu", lambda s: None, lambda *a: prog.append(a))
+    statuses = [a[3] for a in prog if len(a) == 4]
+    assert statuses == [
+        install.STATUS_CREATING,
+        install.STATUS_PIP,
+        install.STATUS_UNPACKING,
+    ]
+    assert install.STATUS_CREATING == "Creating the environment\u2026"
+    assert install.STATUS_PIP == "Updating pip\u2026"
+    assert install.STATUS_UNPACKING.startswith("Unpacking downloaded packages")

@@ -30,10 +30,27 @@ except ImportError:  # tkinter missing: setup cannot show, launch path still wor
 
 
 WAIT_TIMEOUT_S = 30.0
+APP_USER_MODEL_ID = "ImaginationIndustries.CampaignScribe"
 
 
 def _env_python(name: str) -> Path:
     return core.env_dir() / "Scripts" / name
+
+
+def _bundled_pythonw(app_home: Path) -> Path:
+    return app_home / "python" / "pythonw.exe"
+
+
+def _set_app_user_model_id() -> None:
+    """Group the taskbar entry under the installer shortcut's AppUserModelID (best effort)."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
+    except Exception:  # noqa: BLE001 - cosmetic only
+        pass
 
 
 def _new_root():
@@ -81,6 +98,15 @@ def _error_box(title: str, text: str) -> None:
 
 def _launch_app(app_home: Path) -> bool:
     """Start the app; on failure log it, tell the user, and return False."""
+    redirector = _bundled_pythonw(app_home)
+    if not redirector.exists():  # the env's venv redirector would fail silently without it
+        text = (
+            f"CampaignScribe's bundled Python is missing: {redirector}\n\n"
+            "Reinstall CampaignScribe to repair it."
+        )
+        _log_error(text)
+        _error_box("CampaignScribe", text)
+        return False
     argv, env = launch_command(_env_python("pythonw.exe"), app_home)
     try:
         subprocess.Popen(  # noqa: S603  # nosec B603 - fixed argv, no shell
@@ -105,6 +131,7 @@ def main(argv=None) -> int:
     parser.add_argument("--switch", choices=core.PROFILES, default=None)
     parser.add_argument("--wait-pid", type=int, default=None)
     args = parser.parse_args(argv)
+    _set_app_user_model_id()  # before any Tk window is created
 
     if args.wait_pid is not None and not core.wait_for_exit(args.wait_pid, WAIT_TIMEOUT_S):
         text = "CampaignScribe is still running — close it and try again."

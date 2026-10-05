@@ -78,6 +78,10 @@ class SetupWindow:
         self._attempt = 0
 
         root.title(TITLE)
+        try:
+            root.iconbitmap(str(self.app_home / "assets" / "icon.ico"))
+        except tk.TclError:  # missing icon or non-Windows Tk: cosmetic only
+            pass
         root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.choice = ttk.Frame(root, padding=16)
         self.progress = ttk.Frame(root, padding=16)
@@ -274,8 +278,8 @@ class SetupWindow:
         def log_cb(line):
             self._post(self._on_log, attempt, line)
 
-        def progress_cb(done, total, name):
-            self._post(self._on_progress, attempt, done, total, name)
+        def progress_cb(done, total, name, status=None):
+            self._post(self._on_progress, attempt, done, total, name, status)
 
         try:
             result = self.installer(profile, log_cb, progress_cb)
@@ -301,11 +305,13 @@ class SetupWindow:
         self.log_text.see("end")
         self.log_text.configure(state="disabled")
 
-    def _on_progress(self, attempt, done, total, name) -> None:
+    def _on_progress(self, attempt, done, total, name, status=None) -> None:
         if not self._live(attempt):
             return
         self.bar.configure(value=100.0 * done / max(total, 1))
-        if name:
+        if status:
+            self.status_var.set(status)
+        elif name:
             self.status_var.set(f"Installing {name} ({done}/{total})")
 
     def _on_result(self, attempt, profile, result) -> None:

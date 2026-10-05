@@ -206,6 +206,7 @@ class SettingsDialog(tk.Toplevel):
         home = paths.app_home()
         cmd = [
             str(home / "python" / "pythonw.exe"),
+            "-B",
             str(home / "bootstrap" / "launcher.py"),
             "--switch",
             other,

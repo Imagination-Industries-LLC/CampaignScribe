@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -98,6 +99,23 @@ def test_real_locks_have_pip_version():
 # --- decide ----------------------------------------------------------------
 
 
+def _write_cfg(home_value, text=None):
+    core.env_dir().mkdir(parents=True, exist_ok=True)
+    body = (
+        text if text is not None else f"home = {home_value}\ninclude-system-site-packages = false\n"
+    )
+    (core.env_dir() / "pyvenv.cfg").write_text(body, encoding="utf-8")
+
+
+@pytest.fixture
+def matching_env(local_appdata):
+    """An env whose pyvenv.cfg points at <tmp>/app/python (the bundled runtime)."""
+    home = _make_home(local_appdata)
+    (home / "python").mkdir()
+    _write_cfg(home / "python")
+    return home
+
+
 def _state(home, profile, sha=None):
     return {
         "profile": profile,
@@ -116,9 +134,47 @@ def test_decide_invalid_state_is_setup(tmp_path):
     assert core.decide({}, home, True, None) == ("setup", None)
 
 
-def test_decide_launch(tmp_path):
-    home = _make_home(tmp_path)
+def test_decide_launch(matching_env):
+    home = matching_env
     assert core.decide(_state(home, "gpu"), home, True, None) == ("launch", "gpu")
+
+
+def test_decide_moved_install_is_resetup(local_appdata):
+    home = _make_home(local_appdata)
+    (home / "python").mkdir()
+    _write_cfg(local_appdata / "old-app" / "python")
+    assert core.decide(_state(home, "gpu"), home, True, None) == ("resetup", "gpu")
+
+
+def test_env_home_matches(matching_env):
+    assert core.env_home_matches(matching_env) is True
+
+
+def test_env_home_matches_ignores_trailing_separator(matching_env):
+    _write_cfg(str(matching_env / "python") + os.sep)
+    assert core.env_home_matches(matching_env) is True
+
+
+def test_env_home_mismatch(matching_env):
+    _write_cfg(matching_env.parent / "elsewhere" / "python")
+    assert core.env_home_matches(matching_env) is False
+
+
+def test_env_home_missing_cfg(local_appdata):
+    home = _make_home(local_appdata)
+    assert core.env_home_matches(home) is False
+
+
+@pytest.mark.parametrize("text", ["", "no equals here\n", "executable = x\n", "home =\n"])
+def test_env_home_unparsable_cfg(matching_env, text):
+    _write_cfg(None, text=text)
+    assert core.env_home_matches(matching_env) is False
+
+
+def test_env_home_dev_checkout_uses_interpreter_dir(local_appdata):
+    home = _make_home(local_appdata)  # no <home>/python
+    _write_cfg(Path(sys.executable).parent)
+    assert core.env_home_matches(home) is True
 
 
 def test_decide_missing_env_python_is_setup_with_profile_default(tmp_path):
@@ -259,7 +315,10 @@ def test_pip_command_flags():
 
 
 def test_pip_upgrade_command():
-    assert core.pip_upgrade_command("py", "26.2.1")[-1] == "pip==26.2.1"
+    cmd = core.pip_upgrade_command("py", "26.2.1")
+    assert cmd[-1] == "pip==26.2.1"
+    assert cmd[cmd.index("--retries") + 1] == "5"
+    assert cmd[cmd.index("--timeout") + 1] == "60"
 
 
 def test_verify_command_and_parse():
