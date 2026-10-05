@@ -182,3 +182,19 @@ Privacy details, including exactly what leaves the machine and when, are in
 - **Something else broke** — Help → Feedback & Support → Report a problem
   attaches a scrubbed diagnostics bundle; Tools → Open Logs Folder has
   `errors.log`.
+
+## License
+
+Copyright (C) 2026 Imagination Industries LLC.
+
+CampaignScribe is free software: you can redistribute it and/or modify it under
+the terms of the **GNU General Public License, version 3 only** (SPDX:
+`GPL-3.0-only`), as published by the Free Software Foundation. See
+[LICENSE](LICENSE) for the full text.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+Third-party components bundled with CampaignScribe keep their own licenses; see
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
