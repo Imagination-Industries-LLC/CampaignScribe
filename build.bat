@@ -7,6 +7,10 @@ if not exist "%PY%" (
     echo ERROR: venv not found at %PY%
     exit /b 1
 )
+if not exist "%ROOT%ffmpeg\ffmpeg.exe" (
+    echo ERROR: ffmpeg\ffmpeg.exe not found. Download a Windows ffmpeg build ^(e.g. https://www.gyan.dev/ffmpeg/builds/ or winget install Gyan.FFmpeg^) and copy ffmpeg.exe into the ffmpeg folder.
+    exit /b 1
+)
 echo Fetching bundled diarization weights...
 "%PY%" scripts\fetch_diarization_weights.py
 if errorlevel 1 (
@@ -54,8 +58,17 @@ if errorlevel 1 (
     --hidden-import=app ^
     --hidden-import=app.ui.app_window ^
     main.py
+if errorlevel 1 (
+    echo ERROR: PyInstaller failed; see the output above. No usable build was produced.
+    exit /b 1
+)
+if not exist "dist\CampaignScribe\CampaignScribe.exe" (
+    echo ERROR: dist\CampaignScribe\CampaignScribe.exe was not produced.
+    exit /b 1
+)
 echo.
 echo Build complete. Output: dist\CampaignScribe\CampaignScribe.exe
 echo (--onedir mode: keep the entire dist\CampaignScribe folder together;
 echo  the .exe will not work alone.)
 endlocal
+exit /b 0

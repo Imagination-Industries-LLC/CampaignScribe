@@ -47,6 +47,18 @@ def test_build_fetches_and_bundles_weights_notices_and_privacy():
     assert "('THIRD-PARTY-NOTICES.md', '.')" in spec
 
 
+def test_build_fails_loudly_on_missing_ffmpeg_or_pyinstaller_error():
+    bat = _read("build.bat")
+    ffmpeg_check = bat.index(r'if not exist "%ROOT%ffmpeg\ffmpeg.exe"')
+    pyinstaller = bat.index("-m PyInstaller")
+    errorlevel = bat.index("if errorlevel 1", pyinstaller)
+    dist_check = bat.index(r'if not exist "dist\CampaignScribe\CampaignScribe.exe"')
+    complete = bat.index("Build complete")
+    assert ffmpeg_check < pyinstaller
+    assert pyinstaller < errorlevel < complete
+    assert errorlevel < dist_check < complete
+
+
 def test_setup_venv_runs_fetch():
     assert "scripts\\fetch_diarization_weights.py" in _read("setup_venv.bat")
 
