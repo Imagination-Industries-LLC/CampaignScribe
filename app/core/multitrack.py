@@ -105,7 +105,10 @@ def transcribe_tracks(
         try:
             report(i, "converting")
             wav = wav_for(track)
-            res.durations[track.path] = wav_duration(wav)
+            try:
+                res.durations[track.path] = wav_duration(wav)
+            except Exception:  # noqa: BLE001, S110 - the length check is warning-only
+                pass
             count_kwargs = (shared_mic_count_kwargs or {}) if track.shared_mic else {}
             segs = pipeline.transcribe_track(
                 wav,

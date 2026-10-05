@@ -101,8 +101,10 @@ def test_wav_duration_failure_is_contained(wav_for, monkeypatch):
     monkeypatch.setattr(mt, "wav_duration", boom)
     pipe = FakePipeline({"a.flac": [(1.0, "a1", None)]})
     res = mt.transcribe_tracks(pipe, _tracks(), wav_for=wav_for)
-    assert set(res.failures) == {"a.flac", "b.flac"}
-    assert res.segments == []
+    assert res.failures == {}
+    assert res.segments
+    assert "TRACK_01" in res.mapping and "TRACK_02" in res.mapping
+    assert res.durations == {}
     assert all(not os.path.exists(p) for p in wav_for.made)
 
 
