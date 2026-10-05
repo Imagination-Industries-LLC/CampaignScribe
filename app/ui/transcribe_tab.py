@@ -57,6 +57,7 @@ class TranscribeTab(ttk.Frame):
         self._busy = False
         self._cancel = threading.Event()
         self._run_params: dict = {}
+        self._run_mode = "mixed"
 
         self._scroll = ScrollableFrame(self)
         self._scroll.pack(fill="both", expand=True)
@@ -559,6 +560,7 @@ class TranscribeTab(ttk.Frame):
         for f in self.audio_files:
             self._set_row(f, "queued")
 
+        self._run_mode = self.mode_var.get()
         self._cancel.clear()
         self._set_busy(True)
         threading.Thread(target=self._worker, daemon=True).start()
@@ -586,8 +588,21 @@ class TranscribeTab(ttk.Frame):
             model_size=self.model_var.get(),
         )
 
-        all_segments: list[dict[str, Any]] = []
         run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        try:
+            if self._run_mode == "tracks":
+                self._worker_tracks(provider, speakers_doc, ignored_ids, pipeline, run_ts)
+            else:
+                self._worker_mixed(provider, speakers_doc, ignored_ids, pipeline, run_ts)
+        finally:
+            try:
+                pipeline.close()
+            except Exception:
+                pass
+            self.after(0, lambda: self._set_busy(False))
+
+    def _worker_mixed(self, provider, speakers_doc, ignored_ids, pipeline, run_ts):
+        all_segments: list[dict[str, Any]] = []
 
         for i, ap in enumerate(self.audio_files, start=1):
             if self._cancel.is_set():
@@ -650,27 +665,34 @@ class TranscribeTab(ttk.Frame):
             except Exception:
                 pass
 
-        # After all files: produce speakers_improvements
+        self._write_improvements(all_segments, speakers_doc, provider)
+        self._update_session_record()
+        self._stash_embeddings(getattr(pipeline, "_last_speaker_embeddings", None))
+
+    def _write_improvements(self, all_segments, speakers_doc, provider) -> str:
+        """Produce speakers_improvements_*.json after a run. Sets and returns the final status."""
+        final = "Done."
         if all_segments and not self._cancel.is_set():
             try:
-                self._set_status("Generating speaker improvement suggestions…")
+                self._set_status("Generating speaker improvement suggestions\u2026")
                 imp = speaker_id.refine_speakers(all_segments, speakers_doc, provider)
                 ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                 imp_path = os.path.join(self.output_dir, f"speakers_improvements_{ts}.json")
                 with open(imp_path, "w", encoding="utf-8") as f:
                     json.dump(imp, f, indent=2, ensure_ascii=False)
                 self._add_output(imp_path)
-                self._set_status(
-                    "Done. Speaker-improvement suggestions saved — open the Refine tab "
+                final = (
+                    "Done. Speaker-improvement suggestions saved \u2014 open the Refine tab "
                     "to review them and fold them into your profile before your "
                     "next session."
                 )
             except Exception as e:
-                self._set_status(f"Done — improvements step failed: {e}")
-        else:
-            self._set_status("Done.")
+                final = f"Done \u2014 improvements step failed: {e}"
+        self._set_status(final)
+        return final
 
-        # Update session record
+    def _update_session_record(self, extra: dict | None = None) -> None:
+        """Mark the linked session transcribed (best-effort)."""
         if self.session_id:
             try:
                 db.update_session(
@@ -678,29 +700,93 @@ class TranscribeTab(ttk.Frame):
                     transcripts_folder=self.output_dir,
                     speakers_json_path=self.speakers_path,
                     status="transcribed",
+                    **(extra or {}),
                 )
             except Exception:
                 pass
 
-        # Voice Auto-Match (Spec 2): the diarization pass already produced per-cluster
-        # embeddings (single pass) — stash them for the session's ② Review. Best-effort.
-        # NOTE: _last_speaker_embeddings holds the LAST transcribed file's clusters (multi-file
-        # limitation is the same known trade-off as v1).
+    def _stash_embeddings(self, emb) -> None:
+        """Voice Auto-Match (Spec 2): stash per-cluster embeddings for the session's
+        Review step. Best-effort; transcription must never be affected."""
         if config.load_config().get("voice_match_enabled", True) and self.session_id:
             try:
                 from app.core import voiceprints
 
-                emb = getattr(pipeline, "_last_speaker_embeddings", None)
                 if emb:
                     voiceprints.stash_session_embeddings(self.session_id, emb)
-            except Exception:  # noqa: BLE001 - best-effort; transcription must never be affected
+            except Exception:  # noqa: BLE001 - best-effort
                 pass
 
+    def _worker_tracks(self, provider, speakers_doc, ignored_ids, pipeline, run_ts):
+        tracks = self._tracks()
+        count_kwargs = transcriber.diarization_run_kwargs(
+            self._run_params.get("expected_count"), int(self.spk_var.get())
+        )
+
+        def progress(i: int, stage: str) -> None:
+            if self._cancel.is_set():
+                raise InterruptedError("Cancelled")
+            path = tracks[i - 1].path
+            state = {"converting": "converting", "complete": "complete", "failed": "failed"}.get(
+                stage, "transcribing"
+            )
+            self._set_row(path, state, "" if state != "transcribing" else stage)
+            self._set_status(f"[{i}/{len(tracks)}] {os.path.basename(path)} \u2014 {stage}")
+
         try:
-            pipeline.close()
-        except Exception:
-            pass
-        self.after(0, lambda: self._set_busy(False))
+            res = multitrack.transcribe_tracks(
+                pipeline,
+                tracks,
+                wav_for=lambda t: audio.convert_to_wav(t.path),
+                shared_mic_count_kwargs=count_kwargs,
+                progress=progress,
+            )
+        except InterruptedError:
+            for t in tracks:
+                iid = self.row_items.get(t.path)
+                if iid is None or not str(self.tree.set(iid, "state")).endswith("complete"):
+                    self._set_row(t.path, "failed", "cancelled")
+            self._set_status("Cancelled \u2014 nothing written.")
+            return
+
+        for path, err in res.failures.items():
+            config.log_exception(
+                f"transcribe_tab[tracks:{os.path.basename(path)}]", RuntimeError(err)
+            )
+            self._set_row(path, "failed", err[:100])
+        if not res.mapping:
+            self._set_status("All tracks failed \u2014 nothing written.")
+            return
+
+        json_path = os.path.join(self.output_dir, f"transcript_{run_ts}_tracks.json")
+        transcriber.save_segments_json(res.segments, json_path)
+        self._add_output(json_path)
+        map_path = os.path.join(self.output_dir, f"speaker_mapping_{run_ts}_tracks.json")
+        with open(map_path, "w", encoding="utf-8") as f:
+            json.dump(res.mapping, f, indent=2, ensure_ascii=False)
+        self._add_output(map_path)
+        txt = speaker_id.format_segments_to_text(res.segments, res.mapping, ignored_ids)
+        txt_path = os.path.join(self.output_dir, f"transcript_{run_ts}_tracks.txt")
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write(txt)
+        self._add_output(txt_path)
+
+        if self.session_id:
+            try:
+                self._persist_detected_speakers(self.session_id, res.segments, names=res.mapping)
+            except Exception:  # noqa: BLE001 - review data is best-effort
+                pass
+
+        final = self._write_improvements(res.segments, speakers_doc, provider)
+        self._update_session_record(
+            extra={"source_audio_files": json.dumps([t.path for t in tracks])}
+        )
+        self._stash_embeddings(res.embeddings)
+        warning = multitrack.duration_mismatch(
+            {p: d for p, d in res.durations.items() if p not in res.failures}
+        )
+        if warning:
+            self._set_status(f"{warning}  {final}")
 
     def _open_selected_output(self):
         sel = list(self.out_box.curselection())
@@ -735,7 +821,9 @@ class TranscribeTab(ttk.Frame):
             return
         reveal_in_folder(self.out_box.get(sel[0]))
 
-    def _persist_detected_speakers(self, session_id: int, segments: list) -> None:
+    def _persist_detected_speakers(
+        self, session_id: int, segments: list, names: dict[str, str] | None = None
+    ) -> None:
         """Record the distinct diarized speaker labels from a transcribe run onto
         the session, so the SessionView 'Review speakers' step has real clusters."""
         labels = []
@@ -749,7 +837,11 @@ class TranscribeTab(ttk.Frame):
             if lab not in existing:
                 db.add_speaker_profile(
                     session_id,
-                    {"source_speaker_id": lab, "display_name": "", "include_in_tracking": 1},
+                    {
+                        "source_speaker_id": lab,
+                        "display_name": (names or {}).get(lab, ""),
+                        "include_in_tracking": 1,
+                    },
                 )
 
     def _send_to_refine(self):
