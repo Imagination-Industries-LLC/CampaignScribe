@@ -63,6 +63,36 @@ def test_setup_venv_runs_fetch():
     assert "scripts\\fetch_diarization_weights.py" in _read("setup_venv.bat")
 
 
+def test_build_fetches_node_then_installs_recorder_deps_before_pyinstaller():
+    bat = _read("build.bat")
+    pyinstaller = bat.index("-m PyInstaller")
+    fetch = bat.index("scripts\\fetch_node_runtime.py")
+    npm = bat.index('npm.cmd" ci --omit=dev')
+    assert fetch < npm < pyinstaller
+    assert "pushd recorder" in bat[fetch:npm]
+    # each step is followed by an errorlevel check before the next one starts
+    assert "if errorlevel 1" in bat[fetch:npm]
+    assert "if errorlevel 1" in bat[npm:pyinstaller]
+
+
+def test_build_bundles_node_and_recorder():
+    bat = _read("build.bat")
+    spec = _read("CampaignScribe.spec")
+    assert '--add-data "vendor\\node\\node.exe;node"' in bat
+    assert '--add-data "vendor\\node\\LICENSE;node"' in bat
+    assert '--add-data "recorder;recorder"' in bat
+    assert "('vendor\\\\node\\\\node.exe', 'node')" in spec
+    assert "('vendor\\\\node\\\\LICENSE', 'node')" in spec
+    assert "('recorder', 'recorder')" in spec
+    assert "node/LICENSE" in _read("THIRD-PARTY-NOTICES.md")
+    for pkg in ("opus (libopus)", "BSD-3-Clause", "Copyright (c) Snazzah", "Sapphire Community"):
+        assert pkg in _read("THIRD-PARTY-NOTICES.md"), pkg
+
+
+def test_setup_venv_fetches_node_runtime():
+    assert "scripts\\fetch_node_runtime.py" in _read("setup_venv.bat")
+
+
 def test_privacy_and_readme_have_no_token():
     for name in ("PRIVACY.md", "README.md"):
         text = _read(name)

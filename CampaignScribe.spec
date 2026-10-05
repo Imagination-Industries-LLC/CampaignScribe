@@ -3,7 +3,7 @@ from PyInstaller.utils.hooks import collect_data_files
 from PyInstaller.utils.hooks import collect_all
 from PyInstaller.utils.hooks import copy_metadata
 
-datas = [('ffmpeg\\ffmpeg.exe', 'ffmpeg'), ('assets\\icon.ico', 'assets'), ('PRIVACY.md', '.'), ('THIRD-PARTY-NOTICES.md', '.'), ('models\\speaker-diarization-community-1', 'models\\speaker-diarization-community-1')]
+datas = [('ffmpeg\\ffmpeg.exe', 'ffmpeg'), ('assets\\icon.ico', 'assets'), ('vendor\\node\\node.exe', 'node'), ('vendor\\node\\LICENSE', 'node'), ('recorder', 'recorder'), ('PRIVACY.md', '.'), ('THIRD-PARTY-NOTICES.md', '.'), ('models\\speaker-diarization-community-1', 'models\\speaker-diarization-community-1')]
 binaries = []
 hiddenimports = ['anthropic', 'google.genai', 'openai', 'keyring.backends.Windows', 'docx', 'ffmpeg', 'app', 'app.ui.app_window', 'darkdetect']
 datas += collect_data_files('anthropic')

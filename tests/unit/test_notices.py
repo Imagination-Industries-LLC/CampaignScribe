@@ -17,6 +17,8 @@ def test_loads_bundled_file():
         "WhisperX",
         "faster-whisper",
         "CTranslate2",
+        "Node.js",
+        "@discordjs/voice",
     ):
         assert needle in text, needle
 

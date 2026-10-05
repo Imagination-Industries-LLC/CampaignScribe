@@ -53,10 +53,20 @@ def backlink_sessions_to_campaigns() -> int:
     return linked
 
 
+def _spawn_daemon(fn) -> None:
+    import threading
+
+    threading.Thread(target=fn, daemon=True).start()
+
+
+QUIT_WAIT_POLLS = 600  # x200 ms = 120 s
+
+
 class AppWindow(tk.Tk):
     def __init__(self):
         super().__init__()
         self._rebuild_requested = False
+        self.discord_recorder_dialog = None
         self.title(f"CampaignScribe v{__version__}")
 
         # 🎨 MDMT theme — must run BEFORE any widget is constructed.
@@ -346,13 +356,122 @@ class AppWindow(tk.Tk):
     def _run_startup_prompts(self):
         """One prompt at a time: library import first, then the first-run welcome.
         A failure in one step is logged and never blocks the next."""
-        for step in (self._maybe_offer_library_import, self._maybe_first_run_setup):
+        for step in (
+            self._maybe_offer_library_import,
+            self._maybe_first_run_setup,
+            self._maybe_recover_recordings,
+        ):
             if not self._alive():
                 return
             try:
                 step()
             except Exception as e:  # noqa: BLE001
                 config.log_exception(f"startup prompt {getattr(step, '__name__', step)}", e)
+
+    def _maybe_recover_recordings(self, spawn=None):
+        """Offer to convert Discord recordings left unfinished by a crash or kill.
+
+        The prompt is synchronous; the conversion after Yes runs in a daemon worker so the
+        window never freezes. All Tk work and the DB attach happen on the Tk thread."""
+        from app.core import discord_recorder
+
+        folders = discord_recorder.unfinished_recordings(discord_recorder.recordings_root())
+        if not folders:
+            return
+        if not messagebox.askyesno(
+            "CampaignScribe",
+            f"Finish converting {len(folders)} interrupted recording(s)?",
+            parent=self,
+        ):
+            return
+        spawn = spawn or _spawn_daemon
+        self._recovery_progress(f"Converting interrupted recordings… (0 of {len(folders)})")
+
+        def ui(fn, *args):
+            try:
+                self.after(0, fn, *args)
+            except (tk.TclError, RuntimeError):
+                pass
+
+        def work():
+            results: list[tuple[str, list[str], dict]] = []
+            for i, folder in enumerate(folders, 1):
+                ui(
+                    self._recovery_progress,
+                    f"Converting interrupted recordings… ({i} of {len(folders)})",
+                )
+                try:
+                    wavs, failures = discord_recorder.finalize(folder)
+                    results.append((folder, list(wavs), dict(failures)))
+                except Exception as e:  # noqa: BLE001
+                    config.log_exception("recover recording", e)
+                    results.append((folder, [], {"": str(e) or type(e).__name__}))
+            ui(self._finish_recovery, results)
+
+        spawn(work)
+
+    def _finish_recovery(self, results):
+        """Tk thread: attach converted tracks and summarize anything that needs attention."""
+        from app.core import discord_recorder
+        from app.ui.discord_record_dialog import attach_wavs_to_db
+
+        self._recovery_progress_close()
+        lines: list[str] = []
+        orphans: list[str] = []
+        for folder, wavs, failures in results:
+            for name, msg in failures.items():
+                config.log_exception(f"recover recording {name or folder}", RuntimeError(str(msg)))
+            if wavs:
+                sid = discord_recorder.session_id_from_dir(folder)
+                try:
+                    attached = sid is not None and attach_wavs_to_db(sid, wavs)
+                except Exception as e:  # noqa: BLE001
+                    config.log_exception("recover recording attach", e)
+                    attached = False
+                if not attached:
+                    orphans.append(folder)
+            if failures:
+                lines.append(
+                    f"{len(failures)} track(s) could not be converted — "
+                    f"their raw audio is kept in {folder}"
+                )
+            if not wavs:
+                lines.append(
+                    f"No audio could be converted from {folder}. "
+                    "It will be offered again next time CampaignScribe starts."
+                )
+        if orphans:
+            lines.append(
+                "These recordings were converted, but their session no longer exists:\n"
+                + "\n".join(orphans)
+            )
+        if lines:
+            messagebox.showinfo("CampaignScribe", "\n\n".join(lines), parent=self)
+
+    def _recovery_progress(self, text: str) -> None:
+        win = getattr(self, "_recovery_win", None)
+        try:
+            if win is None or not win.winfo_exists():
+                win = tk.Toplevel(self)
+                win.title("CampaignScribe")
+                win.transient(self)
+                win.resizable(False, False)
+                var = tk.StringVar(value=text)
+                ttk.Label(win, textvariable=var, padding=16).pack()
+                win._var = var
+                self._recovery_win = win
+            win._var.set(text)
+        except tk.TclError:
+            self._recovery_win = None
+
+    def _recovery_progress_close(self) -> None:
+        win = getattr(self, "_recovery_win", None)
+        self._recovery_win = None
+        if win is not None:
+            try:
+                win.destroy()
+            except tk.TclError:
+                pass
 
     def _alive(self) -> bool:
         try:
@@ -387,9 +506,9 @@ class AppWindow(tk.Tk):
             self.open_home()
             self.home_tab.new_campaign()
 
-    def open_settings(self, initial_provider: str | None = None):
+    def open_settings(self, initial_provider: str | None = None, focus: str | None = None):
         old_mode = config.load_config().get("theme_mode", "dark")
-        dlg = SettingsDialog(self, initial_provider=initial_provider)
+        dlg = SettingsDialog(self, initial_provider=initial_provider, focus=focus)
         self.wait_window(dlg)
         self._refresh_banner()
         for tab in (
@@ -639,6 +758,34 @@ class AppWindow(tk.Tk):
             pass
 
     def _on_close(self):
+        dlg = getattr(self, "discord_recorder_dialog", None)
+        if dlg is not None and getattr(dlg, "state", None) in ("starting", "recording", "stopping"):
+            if not messagebox.askyesno(
+                "CampaignScribe",
+                "A Discord recording is running. Stop it and quit?",
+                parent=self,
+            ):
+                return
+            try:
+                dlg.stop(reason="quit")
+            except Exception as e:  # noqa: BLE001
+                config.log_exception("quit: stop discord recording", e)
+            self._await_recorder_then_close(dlg, QUIT_WAIT_POLLS)
+            return
+        self._close_now()
+
+    def _await_recorder_then_close(self, dlg, polls_left: int) -> None:
+        """Finalize runs in a worker; wait (<= 120 s) for the dialog to finish, then close."""
+        try:
+            gone = not dlg.winfo_exists()
+        except tk.TclError:
+            gone = True
+        if gone or dlg.state in ("done", "error") or polls_left <= 0:
+            self._close_now()
+            return
+        self.after(200, self._await_recorder_then_close, dlg, polls_left - 1)
+
+    def _close_now(self):
         self._save_window_geometry()
         if getattr(self, "_migration_after_id", None) is not None:
             try:

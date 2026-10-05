@@ -67,5 +67,18 @@ echo [setup_venv] Fetching bundled diarization weights...
 if errorlevel 1 echo [setup_venv] WARNING: weights not fetched; Transcribe will report missing model files until you run scripts\fetch_diarization_weights.py
 
 echo.
+echo [setup_venv] Fetching bundled Node.js runtime...
+"%PY%" scripts\fetch_node_runtime.py
+if errorlevel 1 (
+    echo [setup_venv] WARNING: Node.js runtime not fetched; Discord recording will be unavailable until you run scripts\fetch_node_runtime.py
+) else (
+    echo [setup_venv] Installing recorder dependencies...
+    pushd recorder
+    call "%~dp0vendor\node\npm.cmd" ci --omit=dev --no-audit --no-fund
+    if errorlevel 1 echo [setup_venv] WARNING: npm ci for the recorder failed; Discord recording will be unavailable.
+    popd
+)
+
+echo.
 echo [setup_venv] Done. Run run_dev.bat to launch the app.
 endlocal
