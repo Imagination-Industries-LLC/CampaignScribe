@@ -12,13 +12,13 @@ from app.core import multitrack as mt
 @pytest.mark.parametrize(
     "path, expected",
     [
-        (r"C:\rec\1-mike_1234.flac", "mike"),  # Craig
-        (r"C:\rec\12-Sarah Q_0.ogg", "Sarah Q"),  # Craig, space in name
-        (r"C:\rec\Mike_1083839469700001892.wav", "Mike"),  # CampaignScribe recorder
-        (r"C:\rec\Sarah.m4a", "Sarah"),  # plain
-        (r"C:\rec\dungeon_master.wav", "dungeon master"),  # underscores -> spaces
-        (r"C:\rec\take_2.wav", "take 2"),  # short trailing digits kept
-        (r"C:\rec\  Bob  .wav", "Bob"),
+        ("rec/1-mike_1234.flac", "mike"),  # Craig
+        ("rec/12-Sarah Q_0.ogg", "Sarah Q"),  # Craig, space in name
+        ("rec/Mike_1083839469700001892.wav", "Mike"),  # CampaignScribe recorder
+        ("rec/Sarah.m4a", "Sarah"),  # plain
+        ("rec/dungeon_master.wav", "dungeon master"),  # underscores -> spaces
+        ("rec/take_2.wav", "take 2"),  # short trailing digits kept
+        ("rec/  Bob  .wav", "Bob"),
     ],
 )
 def test_name_from_filename(path, expected):
