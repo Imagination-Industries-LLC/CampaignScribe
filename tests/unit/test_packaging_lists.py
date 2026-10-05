@@ -79,9 +79,14 @@ def test_build_bundles_node_and_recorder():
     bat = _read("build.bat")
     spec = _read("CampaignScribe.spec")
     assert '--add-data "vendor\\node\\node.exe;node"' in bat
+    assert '--add-data "vendor\\node\\LICENSE;node"' in bat
     assert '--add-data "recorder;recorder"' in bat
     assert "('vendor\\\\node\\\\node.exe', 'node')" in spec
+    assert "('vendor\\\\node\\\\LICENSE', 'node')" in spec
     assert "('recorder', 'recorder')" in spec
+    assert "node/LICENSE" in _read("THIRD-PARTY-NOTICES.md")
+    for pkg in ("opus (libopus)", "BSD-3-Clause", "Copyright (c) Snazzah", "Sapphire Community"):
+        assert pkg in _read("THIRD-PARTY-NOTICES.md"), pkg
 
 
 def test_setup_venv_fetches_node_runtime():

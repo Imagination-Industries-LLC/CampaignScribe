@@ -38,6 +38,7 @@ popd
     --add-data "ffmpeg\ffmpeg.exe;ffmpeg" ^
     --add-data "assets;assets" ^
     --add-data "vendor\node\node.exe;node" ^
+    --add-data "vendor\node\LICENSE;node" ^
     --add-data "recorder;recorder" ^
     --add-data "PRIVACY.md;." ^
     --add-data "THIRD-PARTY-NOTICES.md;." ^

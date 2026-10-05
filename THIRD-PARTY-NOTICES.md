@@ -28,7 +28,7 @@ CampaignScribe includes or downloads the following third-party models and softwa
 
 ### Node.js
 - License: MIT — https://nodejs.org (the distribution also includes third-party components under their own licenses, listed in Node's LICENSE file: https://github.com/nodejs/node/blob/main/LICENSE)
-- Bundled unmodified as the runtime for the Discord recorder helper.
+- Bundled unmodified as the runtime for the Discord recorder helper. Its full license text, including those third-party components, ships in the installed app as `node/LICENSE`.
 
 ### discord.js
 - License: Apache-2.0 — https://discord.js.org
@@ -38,15 +38,26 @@ CampaignScribe includes or downloads the following third-party models and softwa
 
 ### @snazzah/davey
 - License: MIT — https://github.com/Snazzah/davey
+- Copyright (c) Snazzah (the package ships no separate license file).
+
+### @sapphire/async-queue, @sapphire/shapeshift, @sapphire/snowflake
+- License: MIT — https://github.com/sapphiredev/utilities
+- Copyright (c) The Sapphire Community and its contributors (async-queue and snowflake ship no separate license file; shapeshift ships its own).
 
 ### opusscript
 - License: MIT — https://github.com/abalabahaha/opusscript
+
+### opus (libopus)
+- License: BSD-3-Clause — https://opus-codec.org
+- Copyright 2001-2011 Xiph.Org Foundation and contributors (Skype Limited, Octasic, Jean-Marc Valin, Timothy B. Terriberry, CSIRO, Gregory Maxwell, Mark Borgerding, Erik de Castro Lopo). Compiled into opusscript; the license text ships at `recorder/node_modules/opusscript/build/COPYING.libopus`.
 
 ### prism-media
 - License: Apache-2.0 — https://github.com/hydrabolt/prism-media
 
 ### libsodium-wrappers
 - License: ISC — https://github.com/jedisct1/libsodium.js
+
+Every recorder npm package, including transitive dependencies, ships with its own license file under `recorder/node_modules/<package>/` in the installed app.
 
 ## Downloaded on first use (not bundled)
 
