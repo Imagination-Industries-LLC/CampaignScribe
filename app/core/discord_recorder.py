@@ -28,6 +28,7 @@ from app.core import audio
 INVITE_PERMISSIONS = 1051648
 _NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 _STDERR_CAP = 200
+_STOP_LINE = '{"cmd":"stop"}' + chr(10)
 
 _UNAVAILABLE_MSG = "Reinstall CampaignScribe, or in a development checkout run: python scripts/fetch_node_runtime.py"
 
@@ -296,6 +297,22 @@ class RecorderProcess:
     @property
     def exit_code(self) -> int | None:
         return self._proc.poll() if self._proc is not None else None
+
+    def request_stop(self) -> None:
+        """Non-blocking stop request: tell the recorder to stop and close its stdin.
+
+        Does not wait or kill; the recorder finishes by itself and leaves its .pcm files
+        for recovery. Safe to call repeatedly and alongside stop()."""
+        p = self._proc
+        if p is None or p.stdin is None:
+            return
+        try:
+            if p.poll() is None:
+                p.stdin.write(_STOP_LINE)
+                p.stdin.flush()
+        except (OSError, ValueError):
+            pass
+        self._close_stdin()
 
     def stop(self, timeout_s: float = 15.0) -> int | None:
         """Ask the recorder to stop, wait, kill on timeout. Returns the exit code."""

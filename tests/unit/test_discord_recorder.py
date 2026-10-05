@@ -60,6 +60,21 @@ def test_events_in_order_and_stop(tmp_path, monkeypatch):
     assert p.stop() == 0  # idempotent
 
 
+def test_request_stop_is_nonblocking_and_stop_still_clean(tmp_path, monkeypatch):
+    ev = []
+    p = _proc(tmp_path, ev, "record_ok", monkeypatch)
+    p.start()
+    assert _wait(lambda: _spoke(ev))
+    t0 = time.time()
+    p.request_stop()
+    p.request_stop()  # idempotent
+    assert time.time() - t0 < 2.0
+    assert _wait(lambda: not p.running)
+    assert p.exit_code == 0
+    assert p.stop() == 0
+    p.request_stop()  # harmless after stop
+
+
 def test_stdin_eof_stops(tmp_path, monkeypatch):
     ev = []
     p = _proc(tmp_path, ev, "record_ok", monkeypatch)

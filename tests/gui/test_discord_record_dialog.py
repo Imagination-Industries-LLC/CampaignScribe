@@ -41,10 +41,14 @@ class FakeRecorder:
         self.stops = 0
         self.running = False
         self.exit_code = None
+        self.request_stops = 0
 
     def start(self):
         self.started = True
         self.running = True
+
+    def request_stop(self):
+        self.request_stops += 1
 
     def stop(self, timeout_s=15.0):
         self.stops += 1
@@ -63,6 +67,7 @@ class Harness:
         self.root = root
         self.clock = [1000.0]
         self.recorders: list[FakeRecorder] = []
+        self.request_stops = 0
         self.finalize_calls: list[str] = []
         self.finalize_result = ([WAV], {})
         self.asks: list[tuple] = []
@@ -74,12 +79,11 @@ class Harness:
         cfg = config.load_config()
         cfg["discord_notice"] = NOTICE
         config.save_config(cfg)
-        self.app = types.SimpleNamespace(
-            discord_recorder_dialog=None,
-            open_settings=lambda **kw: self.opened_settings.append(kw),
-            open_session_stage=lambda sid, stage, run_params=None: self.opened_stage.append(
-                (sid, stage, run_params)
-            ),
+        self.app = root
+        root.discord_recorder_dialog = None
+        root.open_settings = lambda **kw: self.opened_settings.append(kw)
+        root.open_session_stage = lambda sid, stage, run_params=None: self.opened_stage.append(
+            (sid, stage, run_params)
         )
         monkeypatch.setattr(discord_recorder, "get_token", lambda: "tok")
         monkeypatch.setattr(
@@ -116,13 +120,14 @@ class Harness:
         self.recorders.append(r)
         return r
 
-    def dialog(self, master=None):
+    def dialog(self, session_view=None):
         from app.ui.discord_record_dialog import DiscordRecordDialog
 
         return DiscordRecordDialog(
-            master or self.root,
+            self.root,
             self.app,
             self.sid,
+            session_view=session_view,
             now=lambda: self.clock[0],
             recorder_factory=self.factory,
             spawn=lambda fn: fn(),
@@ -280,7 +285,18 @@ def test_autostop_line_and_auto_stop(h):
     assert dlg.status_var.get() == "Stopped automatically at the maximum recording length."
     assert len(h.finalize_calls) == 1
     assert json.loads(db.get_session(h.sid)["source_audio_files"]) == [WAV]
-    assert h.opened_stage == [(h.sid, "transcribe", {"mode": "tracks"})]
+    assert h.opened_stage == [
+        (
+            h.sid,
+            "transcribe",
+            {
+                "mode": "tracks",
+                "notice": "Recording stopped automatically at the maximum recording length "
+                "(0:01). Tracks attached.",
+            },
+        )
+    ]
+    assert h.asks == []
     assert not dlg.winfo_exists()
 
 
@@ -382,7 +398,7 @@ def test_attaches_via_session_view_when_master_has_it(h, root):
     from app.ui.session_view import SessionView
 
     view = SessionView(root, h.app, h.sid)
-    dlg = h.dialog(master=view)
+    dlg = h.dialog(session_view=view)
     dlg.start_btn.invoke()
     h.recorders[0].emit(
         {
@@ -399,6 +415,102 @@ def test_attaches_via_session_view_when_master_has_it(h, root):
     assert list(view.audio_box.get(0, "end")) == [WAV]
     assert json.loads(db.get_session(h.sid)["source_audio_files"]) == [WAV]
     view.destroy()
+
+
+def test_closing_session_view_leaves_dialog_and_recorder(h, root):
+    view = _view(h, root)
+    dlg = h.dialog(session_view=view)
+    dlg.start_btn.invoke()
+    h.recorders[0].emit(
+        {
+            "event": "joined",
+            "guild_id": "1",
+            "guild_name": "G",
+            "channel_id": "2",
+            "channel_name": "T",
+        }
+    )
+    h.pump()
+    view.destroy()
+    assert dlg.winfo_exists()
+    assert h.recorders[0].request_stops == 0
+    dlg.stop()
+    h.pump()
+    # dead session view: attached straight to the db
+    assert json.loads(db.get_session(h.sid)["source_audio_files"]) == [WAV]
+    assert len(h.opened_stage) == 1
+
+
+def test_destroy_while_recording_requests_stop_without_finalize(h):
+    dlg = h.recording()
+    dlg.destroy()
+    assert h.recorders[-1].request_stops == 1
+    assert h.finalize_calls == []
+    assert h.app.discord_recorder_dialog is None
+
+
+def test_destroy_in_consent_does_not_touch_recorder(h):
+    dlg = h.dialog()
+    dlg.destroy()
+    assert h.recorders == []
+
+
+def test_window_close_while_recording_uses_stop_path(h):
+    dlg = h.recording()
+    h.ask_answer = False
+    dlg._on_close()
+    assert dlg.state == "recording" and h.asks[-1][0] == "Recording"
+    h.ask_answer = True
+    dlg._on_close()
+    h.pump()
+    assert h.recorders[-1].stops == 1
+    assert len(h.finalize_calls) == 1
+
+
+def test_window_close_while_stopping_is_ignored(h):
+    dlg = h.recording()
+    dlg.state = "stopping"
+    dlg._on_close()
+    assert dlg.winfo_exists() and h.asks == []
+    dlg.state = "recording"
+
+
+def test_watchdog_recorder_dies_while_starting(h):
+    dlg = h.dialog()
+    dlg.start_btn.invoke()
+    h.recorders[0].running = False
+    dlg._tick()
+    assert dlg.state == "error"
+    assert dlg.status_var.get().startswith("The recorder stopped before joining the channel.")
+
+
+def test_watchdog_uses_last_error_message(h):
+    dlg = h.dialog()
+    dlg.start_btn.invoke()
+    h.recorders[0].running = False
+    h.recorders[0].emit({"event": "error", "code": "x", "message": "Channel not found."})
+    h.pump()
+    assert "Channel not found." in dlg.status_var.get()
+
+
+def test_watchdog_quiet_while_picker_fallback(h):
+    dlg = h.dialog()
+    dlg.start_btn.invoke()
+    h.recorders[0].running = False
+    h.recorders[0].emit({"event": "error", "code": "owner_not_in_voice", "message": "x"})
+    h.pump()
+    dlg._tick()
+    assert dlg.state == "picker"
+
+
+def test_transcribe_status_shows_notice(root, tmp_path):
+    from app.ui.transcribe_tab import TranscribeTab
+
+    db.init_db()
+    sid = db.create_session("Night")
+    tab = TranscribeTab(root, types.SimpleNamespace(notebook=None))
+    tab.load_for_session(db.get_session(sid), run_params={"mode": "tracks", "notice": "Hello note"})
+    assert tab.status_var.get() == "Hello note"
 
 
 def _view(h, root):

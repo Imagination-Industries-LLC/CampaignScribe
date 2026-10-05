@@ -50,17 +50,18 @@ class DiscordRecordDialog(tk.Toplevel):
         app,
         session_id: int,
         *,
+        session_view=None,
         now: Callable[[], float] = time.monotonic,
         recorder_factory=RecorderProcess,
         spawn: Callable[[Callable[[], None]], None] = _spawn_thread,
     ):
         super().__init__(master)
         self.app = app
+        self._session_view = session_view
         self.session_id = session_id
         self._now = now
         self._factory = recorder_factory
         self._spawn = spawn
-        self._master = master
 
         self.state = "consent"
         self.recorder = None
@@ -72,6 +73,7 @@ class DiscordRecordDialog(tk.Toplevel):
         self._suspended_for_limit: int | None = None
         self._last_limit: int | None = None
         self._error_msg = ""
+        self._last_error_msg = ""
         self._inventory: dict = {}
         self._rows: dict[str, dict] = {}
         self._last_speak: dict[str, float] = {}
@@ -175,6 +177,13 @@ class DiscordRecordDialog(tk.Toplevel):
             except tk.TclError:
                 pass
             self._tick_id = None
+        rec = self.recorder
+        if self.state in ("starting", "recording") and rec is not None and rec.running:
+            # window destroyed under a live recorder: let it stop itself, leave .pcm for recovery
+            try:
+                rec.request_stop()
+            except Exception as e:
+                config.log_exception("discord_record_dialog.request_stop", e)
         if getattr(self.app, "discord_recorder_dialog", None) is self:
             self.app.discord_recorder_dialog = None
         super().destroy()
@@ -184,7 +193,9 @@ class DiscordRecordDialog(tk.Toplevel):
             return  # finalize is converting; the window closes itself when it is done
         if self.state in ("starting", "recording"):
             if messagebox.askyesno(
-                "Recording", "A Discord recording is running. Stop it and close this window?"
+                "Recording",
+                "A Discord recording is running. Stop it and close this window?",
+                parent=self,
             ):
                 self.stop(reason="user" if self.state == "recording" else "cancel")
             return
@@ -205,6 +216,7 @@ class DiscordRecordDialog(tk.Toplevel):
         self.out_dir = discord_recorder.new_recording_dir(self.session_id)
         notice = config.load_config().get("discord_notice", "")
         self.state = "starting"
+        self._last_error_msg = ""
         self.status_var.set("Connecting to Discord…")
         self._show(self._live)
         self.stop_btn.state(["disabled"])
@@ -218,6 +230,8 @@ class DiscordRecordDialog(tk.Toplevel):
             self.recorder.start()
         except RecorderError as e:
             self._fail(str(e))
+            return
+        self._tick_id = self.after(1000, self._tick)
 
     def _discard_previous_dir(self) -> None:
         d = self.out_dir
@@ -336,6 +350,7 @@ class DiscordRecordDialog(tk.Toplevel):
                 self._enter_picker()
             else:
                 self._error_msg = str(ev.get("message") or ev.get("code") or "Recorder error.")
+                self._last_error_msg = self._error_msg
                 self.stop(reason="error")
 
     def _set_person(self, uid: str, name: str | None) -> None:
@@ -388,6 +403,14 @@ class DiscordRecordDialog(tk.Toplevel):
             except tk.TclError:
                 pass
             self._tick_id = None
+        if self.state == "starting":
+            if self.recorder is not None and not self.recorder.running:
+                self._fail(
+                    self._last_error_msg or "The recorder stopped before joining the channel."
+                )
+            else:
+                self._tick_id = self.after(1000, self._tick)
+            return
         if self.state != "recording" or self._started_at is None:
             return
         if self.recorder is not None and not self.recorder.running:
@@ -411,6 +434,7 @@ class DiscordRecordDialog(tk.Toplevel):
                 "Maximum length already reached",
                 f"The new maximum ({fmt_hm(limit)}) is shorter than this recording "
                 f"({fmt_hms(elapsed)}). Stop recording now?",
+                parent=self,
             ):
                 self.stop(reason="user")
             else:
@@ -485,8 +509,14 @@ class DiscordRecordDialog(tk.Toplevel):
         if not wavs:
             self._end_with_message("No audio was captured.")
             return
+        params: dict = {"mode": "tracks"}
+        if reason == "max_length":
+            params["notice"] = (
+                "Recording stopped automatically at the maximum recording length "
+                f"({fmt_hm(self._limit())}). Tracks attached."
+            )
         self.destroy()
-        self.app.open_session_stage(self.session_id, "transcribe", run_params={"mode": "tracks"})
+        self.app.open_session_stage(self.session_id, "transcribe", run_params=params)
 
     def _end_with_message(self, message: str) -> None:
         self.state = "error"
@@ -495,7 +525,7 @@ class DiscordRecordDialog(tk.Toplevel):
         self.status_var.set(f"{message}\n{self.out_dir}")
 
     def _attach(self, wavs: list[str]) -> None:
-        m = self._master
+        m = self._session_view
         try:
             alive = m is not None and bool(m.winfo_exists())
         except tk.TclError:

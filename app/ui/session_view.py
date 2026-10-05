@@ -445,7 +445,7 @@ class SessionView(tk.Toplevel):
             return
         from app.ui.discord_record_dialog import DiscordRecordDialog
 
-        DiscordRecordDialog(self, self.app, self.session_id)
+        DiscordRecordDialog(self.app, self.app, self.session_id, session_view=self)
 
     def _rename(self) -> None:
         new = self.name_var.get().strip()
