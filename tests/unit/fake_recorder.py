@@ -27,7 +27,10 @@ def main() -> int:
         emit("ready")
         emit(
             "inventory",
-            guilds=[{"id": "10", "name": "G", "channels": [{"id": "20", "name": "voice"}]}],
+            guilds=[{"id": "10", "name": "G", "voice_channels": [{"id": "20", "name": "voice"}]}],
+            owner={"id": "5", "name": "mike"},
+            owner_voice=None,
+            application_id="99",
         )
         return 0
     if mode == "list_error":

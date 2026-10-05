@@ -147,7 +147,7 @@ def _fake_node(monkeypatch, mode):
 def test_list_inventory_ok(monkeypatch):
     _fake_node(monkeypatch, "list_ok")
     inv = dr.list_inventory()
-    assert inv["guilds"][0]["channels"][0]["id"] == "20"
+    assert inv["guilds"][0]["voice_channels"][0]["id"] == "20"
 
 
 def test_list_inventory_error(monkeypatch):
