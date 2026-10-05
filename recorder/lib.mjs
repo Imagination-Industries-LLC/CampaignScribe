@@ -43,3 +43,16 @@ export function parseArgs(argv) {
   }
   throw new Error('mode required: --list or --record');
 }
+
+// Resolve once a writable stream has finished, errored or closed, so a stop never hangs on a
+// stream that already failed (e.g. disk full).
+export function endStream(ws) {
+  return new Promise((resolve) => {
+    if (ws.destroyed || ws.writableFinished) return resolve();
+    const done = () => resolve();
+    ws.once('finish', done);
+    ws.once('error', done);
+    ws.once('close', done);
+    try { ws.end(); } catch { resolve(); }
+  });
+}

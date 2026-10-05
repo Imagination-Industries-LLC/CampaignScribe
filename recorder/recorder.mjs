@@ -8,7 +8,7 @@ import readline from 'node:readline';
 import { Client, GatewayIntentBits, ChannelType } from 'discord.js';
 import { joinVoiceChannel, entersState, VoiceConnectionStatus, EndBehaviorType } from '@discordjs/voice';
 import prism from 'prism-media';
-import { RATE, downmixStereoS16, silenceToInsert, eventLine, parseArgs } from './lib.mjs';
+import { RATE, downmixStereoS16, silenceToInsert, eventLine, parseArgs, endStream } from './lib.mjs';
 
 const TOKEN = process.env.DISCORD_TOKEN || '';
 const STOP_MESSAGE = '⏹️ Recording stopped.';
@@ -41,6 +41,7 @@ function exitNow(code) {
   if (logStream) logStream.end(finish); else finish();
 }
 function fail(code, message, exitCode = 1) {
+  if (stopping || exiting) return; // a requested stop wins over late failures
   out('error', { code, message: redact(message) });
   exitNow(exitCode);
 }
@@ -72,6 +73,7 @@ function main(args) {
   const names = {};
   const lastSpeaking = new Map();
   let decodeErrors = 0;
+  let writeFailed = false;
   let recordStart = 0;
   let connection = null;
   let channel = null;
@@ -95,6 +97,7 @@ function main(args) {
   // (Re)attach the opus receive stream + decoder to an existing track. The write stream and
   // `written` counter are kept so a rejoin only replaces opus and dec.
   function attach(receiver, userId, t) {
+    for (const old of [t.opus, t.dec]) { try { if (old) { if (old === t.opus) old.unpipe(t.dec); old.destroy(); } } catch { /* already gone */ } }
     const opus = receiver.subscribe(userId, { end: { behavior: EndBehaviorType.Manual } });
     const dec = new prism.opus.Decoder({ rate: RATE, channels: 2, frameSize: 960 });
     t.opus = opus;
@@ -117,11 +120,19 @@ function main(args) {
   function startTrack(receiver, guild, userId) {
     const ws = fs.createWriteStream(path.join(OUT, `${userId}.pcm`));
     const t = { ws, written: 0, packets: 0, opus: null, dec: null };
+    ws.on('error', (e) => {
+      log(`write stream error ${userId}: ${e.message}`);
+      if (writeFailed || stopping) return;
+      writeFailed = true;
+      out('error', { code: 'write_failed', message: `Could not write audio for user ${userId}: ${e.code || 'write error'}` });
+      stop('write_failed');
+    });
     tracks.set(userId, t);
     names[userId] = userId;
     writeTracksJson();
     out('user', { id: userId, name: userId });
     guild.members.fetch(userId).then((m) => {
+      if (stopping) return;
       names[userId] = m.displayName || m.user.username;
       writeTracksJson();
       out('user', { id: userId, name: names[userId] });
@@ -140,11 +151,11 @@ function main(args) {
     for (const [id, t] of tracks) {
       try { t.opus.unpipe(t.dec); t.opus.destroy(); } catch { /* already gone */ }
       if (total > t.written) writeZeros(t, total - t.written);
-      await new Promise((r) => t.ws.end(r));
+      await endStream(t.ws);
       log(`closed ${id} samples=${t.written} (${(t.written / RATE).toFixed(2)}s)`);
     }
     writeTracksJson();
-    if (channel) {
+    if (channel && recordStart) {
       try { await channel.send(STOP_MESSAGE); } catch (e) { log(`stop msg failed: ${e.message}`); }
     }
     try { if (connection) connection.destroy(); } catch { /* ignore */ }
@@ -215,6 +226,7 @@ function main(args) {
     try {
       inv = await fetchInventory();
     } catch (e) {
+      if (stopping) return;
       return fail('login_failed', `Could not read bot information: ${e.message}`);
     }
 
@@ -231,15 +243,19 @@ function main(args) {
       return exitNow(0);
     }
 
-    // --record
+    // --record. A stop (stdin EOF, {"cmd":"stop"}, signal) can land at any await below;
+    // stop() then owns the shutdown and emits `stopped`, so we just return quietly.
+    if (stopping) return;
     const channelId = args.channel ?? inv.ownerVoice?.channel_id ?? null;
     if (!channelId) {
       return fail('owner_not_in_voice', 'No channel given and the bot owner is not in a voice channel.', 2);
     }
     try {
       channel = await client.channels.fetch(channelId);
+      if (stopping) return;
       if (!channel || !channel.guild || !channel.isVoiceBased()) throw new Error('not a voice channel');
     } catch (e) {
+      if (stopping) return;
       channel = null;
       return fail('channel_not_found', `Could not open voice channel ${channelId}: ${e.message}`);
     }
@@ -251,17 +267,16 @@ function main(args) {
     try {
       await entersState(connection, VoiceConnectionStatus.Ready, 30000);
     } catch {
+      if (stopping) return;
       try { connection.destroy(); } catch { /* ignore */ }
       return fail('join_timeout', 'Timed out joining the voice channel.');
     }
+    if (stopping) return;
     log('connection Ready');
-    out('joined', { guild_id: guild.id, guild_name: guild.name, channel_id: channel.id, channel_name: channel.name });
     recordStart = Date.now();
-    if (args.notice) {
-      try { await channel.send(args.notice); out('notice_posted'); }
-      catch (e) { log(`notice post failed: ${e.message}`); }
-    }
+    out('joined', { guild_id: guild.id, guild_name: guild.name, channel_id: channel.id, channel_name: channel.name });
 
+    // Start capturing before the notice is sent so a slow/rate-limited send cannot drop speech.
     const receiver = connection.receiver;
     receiver.speaking.on('start', (userId) => {
       if (stopping) return;
@@ -288,6 +303,13 @@ function main(args) {
         decode_errors: decodeErrors,
       });
     }, 10000);
+
+    if (args.notice) {
+      // Fire and log: a failed or slow notice must not affect capture.
+      channel.send(args.notice)
+        .then(() => { if (!stopping) out('notice_posted'); })
+        .catch((e) => { log(`notice post failed: ${e.message}`); });
+    }
   }
 
   process.on('SIGINT', () => stop('SIGINT'));

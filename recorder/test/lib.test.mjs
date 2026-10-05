@@ -43,3 +43,27 @@ test('parseArgs', () => {
   assert.throws(() => parseArgs(['--record', '--notice', 'N']), /--out/);
   assert.throws(() => parseArgs([]), /mode/);
 });
+
+test('endStream resolves for a healthy, an errored and an already-closed stream', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { endStream } = await import('../lib.mjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cs-es-'));
+  try {
+    const ok = fs.createWriteStream(path.join(dir, 'ok.pcm'));
+    ok.write(Buffer.alloc(10));
+    await endStream(ok);
+    assert.equal(fs.statSync(path.join(dir, 'ok.pcm')).size, 10);
+
+    // Force an error state: the target path is a directory, so opening fails.
+    const bad = fs.createWriteStream(dir);
+    bad.on('error', () => {});
+    await new Promise((r) => bad.once('error', r));
+    await endStream(bad);            // must not hang
+
+    await endStream(ok);             // already finished: must not hang
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
