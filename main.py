@@ -70,7 +70,23 @@ _install_optional_dep_stubs()
 _patch_speechbrain_lazymodule()
 
 
+APP_USER_MODEL_ID = "ImaginationIndustries.CampaignScribe"
+
+
+def _set_app_user_model_id() -> None:
+    """Give the process its own Windows taskbar identity (best effort)."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
+    except Exception:  # nosec B110 - cosmetic; never block startup
+        pass
+
+
 def main() -> int:
+    _set_app_user_model_id()
     try:
         from app.config import get_app_data_dir
 

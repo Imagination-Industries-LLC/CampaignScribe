@@ -3,26 +3,23 @@
 from __future__ import annotations
 
 import os
-import sys
 import tempfile
 from pathlib import Path
+
+from app.core import paths
 
 
 def get_ffmpeg_path() -> str:
     """Return the absolute path to the bundled ffmpeg.exe."""
-    if getattr(sys, "frozen", False):
-        base = Path(sys._MEIPASS)  # type: ignore[attr-defined]
-        candidate = base / "ffmpeg" / "ffmpeg.exe"
-        if candidate.exists():
-            return str(candidate)
+    base = paths.app_home()
+    candidate = base / "ffmpeg" / "ffmpeg.exe"
+    if candidate.exists():
+        return str(candidate)
+    if paths.mode() != "dev":
         # PyInstaller --add-data sometimes flattens paths
         candidate2 = base / "ffmpeg.exe"
         if candidate2.exists():
             return str(candidate2)
-    here = Path(__file__).resolve().parent.parent.parent
-    candidate = here / "ffmpeg" / "ffmpeg.exe"
-    if candidate.exists():
-        return str(candidate)
     return "ffmpeg"  # fall back to PATH
 
 

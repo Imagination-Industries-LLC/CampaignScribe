@@ -35,11 +35,12 @@ with the platform font system before any widget is constructed.
 
 from __future__ import annotations
 
-import sys
 import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
 from typing import Literal
+
+from app.core import paths
 
 # ============================================================================
 # Variant + palette
@@ -299,11 +300,7 @@ def apply_theme(root: tk.Tk) -> None:
 def _asset_path(*parts: str) -> Path:
     """Resolve a path under ``assets/``. Works in dev mode (cwd = repo
     root) and in PyInstaller-frozen mode (``sys._MEIPASS``)."""
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        base = Path(sys._MEIPASS)  # type: ignore[attr-defined]
-    else:
-        base = Path(__file__).resolve().parent.parent.parent
-    return base.joinpath("assets", *parts)
+    return paths.app_home().joinpath("assets", *parts)
 
 
 def _register_bundled_fonts(root: tk.Tk) -> None:
