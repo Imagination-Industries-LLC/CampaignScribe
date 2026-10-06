@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
+
+from app.core import paths
 
 _FALLBACK = (
     "CampaignScribe bundles the pyannote speaker-diarization-community-1 model "
@@ -14,11 +15,7 @@ _FALLBACK = (
 
 
 def _notices_path() -> Path:
-    if getattr(sys, "frozen", False):
-        base = Path(sys._MEIPASS)  # type: ignore[attr-defined]
-    else:
-        base = Path(__file__).resolve().parents[2]
-    return base / "THIRD-PARTY-NOTICES.md"
+    return paths.app_home() / "THIRD-PARTY-NOTICES.md"
 
 
 def load_notices_text() -> str:

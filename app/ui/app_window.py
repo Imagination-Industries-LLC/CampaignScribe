@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from app import COPYRIGHT_NOTICE, __version__, config
-from app.core import first_run, library, llm, notices, privacy
+from app.core import first_run, library, llm, notices, paths, privacy
 from app.core.transcriber import check_gpu
 from app.ui import welcome_dialog
 from app.ui.common import add_tooltip, make_readonly, open_path_native, open_url, reveal_in_folder
@@ -260,14 +260,9 @@ class AppWindow(tk.Tk):
 
     def _set_icon(self):
         import os
-        import sys
 
         try:
-            if getattr(sys, "frozen", False):
-                base = sys._MEIPASS  # type: ignore[attr-defined]
-            else:
-                base = os.path.dirname(os.path.abspath(os.path.join(__file__, "..", "..")))
-            ico = os.path.join(base, "assets", "icon.ico")
+            ico = os.path.join(str(paths.app_home()), "assets", "icon.ico")
             if os.path.exists(ico):
                 self.iconbitmap(ico)
         except Exception:
@@ -406,6 +401,14 @@ class AppWindow(tk.Tk):
 
     def _any_tab_busy(self) -> bool:
         return any(getattr(widget, "_busy", False) for widget, _label, _icon in self._tab_specs)
+
+    def is_busy(self) -> bool:
+        """True while any tab has a running job."""
+        return self._any_tab_busy()
+
+    def request_close(self):
+        """Close the app through the normal shutdown path."""
+        self._on_close()
 
     def request_rebuild(self):
         """Persist geometry, flag a rebuild, and close the window so the
@@ -565,13 +568,8 @@ class AppWindow(tk.Tk):
 
     def _asset_dir(self):
         import os
-        import sys
 
-        if getattr(sys, "frozen", False):
-            base = sys._MEIPASS  # type: ignore[attr-defined]
-        else:
-            base = os.path.dirname(os.path.abspath(os.path.join(__file__, "..", "..")))
-        return os.path.join(base, "assets")
+        return os.path.join(str(paths.app_home()), "assets")
 
     def _load_tab_icon(self, name: str, state: str):
         """Load a 16px tab icon as a PhotoImage, or None if unavailable.

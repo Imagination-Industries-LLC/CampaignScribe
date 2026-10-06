@@ -128,17 +128,42 @@ Recommended workflow for a brand-new campaign:
 5. Later sessions: voice auto-match pre-fills ②; **Refine** keeps the roster
    improving.
 
-## Building the .exe
+## Installing (end users)
+
+1. Download `CampaignScribe-Setup-<version>.exe` and run it. It installs for
+   your user by default (no administrator prompt); choose "all users" if you
+   prefer.
+2. Start **CampaignScribe** from the Start menu. The first time, a setup window
+   offers GPU (NVIDIA, recommended) or CPU only and downloads the speech engine
+   (several GB, needs internet) into `%LOCALAPPDATA%\CampaignScribe\env`.
+   Later launches go straight to the app. You can switch GPU/CPU in Settings.
+3. Your campaigns, transcripts and settings live in `%APPDATA%\CampaignScribe`.
+   Uninstalling offers to remove the downloaded speech engine, and never
+   removes that data folder.
+
+## Building the installer (developers)
+
+```cmd
+build_installer.bat
+```
+
+Needs the project venv, `ffmpeg\ffmpeg.exe`, a Hugging Face token once (for the
+diarization weights, see above) and [Inno Setup 6](https://jrsoftware.org/isinfo.php)
+(`winget install JRSoftware.InnoSetup`; or set `INNO_SETUP` to `ISCC.exe`).
+It fetches the official Python 3.13 runtime into `vendor\python`, assembles
+`build\installer-root\` and writes `dist-installer\CampaignScribe-Setup-<version>.exe`.
+The installer is slim: PyTorch and the other speech-engine libraries are
+installed on first run from the exact version-pinned files in `locks\`
+(hash-pinning is planned).
+
+### Legacy PyInstaller build
 
 ```cmd
 build.bat
 ```
 
-Output lands in `dist\CampaignScribe\` (folder bundle — keep all files
-together; the .exe will not work alone). The CUDA build is ~4–5 GB because it
-bundles CUDA + cuDNN + cuBLAS DLLs alongside `torch`, `whisperx`, `pyannote`,
-and `ffmpeg.exe`. A slim installer and auto-update are on the roadmap
-(Phase 5).
+`build.bat` is the legacy ~4-5 GB PyInstaller bundle (`dist\CampaignScribe\`),
+kept for one release as a fallback. Prefer `build_installer.bat`.
 
 ## Development
 

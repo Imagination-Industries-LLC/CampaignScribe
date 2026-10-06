@@ -1,0 +1,257 @@
+from pathlib import Path
+
+import pytest
+
+from bootstrap import core, launcher
+
+
+class FakeRoot:
+    def __init__(self):
+        self.destroyed = False
+        self.on_mainloop = None
+
+    def mainloop(self):
+        if self.on_mainloop:
+            self.on_mainloop()
+
+    def destroy(self):
+        self.destroyed = True
+
+
+@pytest.fixture
+def patched(monkeypatch, tmp_path):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    popen = []
+    monkeypatch.setattr(launcher.subprocess, "Popen", lambda *a, **k: popen.append((a, k)))
+    monkeypatch.setattr(core, "detect_nvidia", lambda: {"found": False, "name": "", "driver": ""})
+    fake_pythonw = tmp_path / "pythonw.exe"
+    fake_pythonw.write_bytes(b"")
+    monkeypatch.setattr(launcher, "_bundled_pythonw", lambda home: fake_pythonw)
+    monkeypatch.setattr(launcher, "_set_app_user_model_id", lambda: None)
+    root = FakeRoot()
+    monkeypatch.setattr(launcher, "_new_root", lambda: root)
+    windows = []
+
+    class FakeWindow:
+        def __init__(self, r, **kw):
+            self.kw = kw
+            windows.append(self)
+
+    monkeypatch.setattr(launcher, "SetupWindow", FakeWindow)
+    return popen, windows, root
+
+
+def _decide(monkeypatch, result):
+    seen = []
+
+    def fake(state, app_home, exists, switch):
+        seen.append((app_home, exists, switch))
+        return result
+
+    monkeypatch.setattr(launcher, "decide", fake)
+    return seen
+
+
+def test_launch_branch_popens_app_and_returns_zero(patched, monkeypatch):
+    popen, windows, _ = patched
+    seen = _decide(monkeypatch, ("launch", "gpu"))
+    home = Path(launcher.__file__).resolve().parent.parent
+    assert launcher.main([]) == 0
+    assert windows == []
+    (argv,), kw = popen[0]
+    assert argv[0].endswith("pythonw.exe") and Path(argv[1]).name == "main.py"
+    assert kw["env"]["CAMPAIGNSCRIBE_HOME"] == str(home)
+    assert seen[0][0] == home
+    if launcher.sys.platform == "win32":
+        assert kw["creationflags"] == launcher.subprocess.CREATE_NO_WINDOW
+
+
+def test_switch_is_passed_to_decide_and_choice_shown(patched, monkeypatch):
+    _, windows, _ = patched
+    seen = _decide(monkeypatch, ("setup", "cpu"))
+    launcher.main(["--switch", "cpu"])
+    assert seen[0][2] == "cpu"
+    assert windows[0].kw["profile_default"] == "cpu" and windows[0].kw["resetup"] is False
+
+
+def test_bad_switch_value_exits(patched):
+    with pytest.raises(SystemExit):
+        launcher.main(["--switch", "tpu"])
+
+
+def test_setup_branch_quit_returns_one(patched, monkeypatch):
+    popen, windows, _ = patched
+    _decide(monkeypatch, ("setup", None))
+    assert launcher.main([]) == 1
+    assert popen == [] and windows[0].kw["resetup"] is False
+
+
+def test_resetup_branch_skips_choice_and_launches_on_done(patched, monkeypatch):
+    popen, windows, root = patched
+    _decide(monkeypatch, ("resetup", "gpu"))
+    root.on_mainloop = lambda: windows[0].kw["on_done"]("gpu")
+    assert launcher.main([]) == 0
+    assert windows[0].kw["resetup"] is True
+    assert windows[0].kw["profile_default"] == "gpu"
+    assert root.destroyed and len(popen) == 1
+
+
+def test_launch_failure_shows_error_and_returns_nonzero(patched, monkeypatch, tmp_path):
+    _decide(monkeypatch, ("launch", "gpu"))
+    boxes = []
+    monkeypatch.setattr(launcher, "_error_box", lambda title, text: boxes.append(text))
+
+    def boom(*a, **k):
+        raise FileNotFoundError("pythonw.exe missing")
+
+    monkeypatch.setattr(launcher.subprocess, "Popen", boom)
+    assert launcher.main([]) == 3
+    assert "pythonw.exe missing" in boxes[0] and str(core.env_dir()) in boxes[0]
+    assert "pythonw.exe missing" in core.setup_log_path().read_text(encoding="utf-8")
+
+
+def test_launch_failure_after_setup_is_nonzero(patched, monkeypatch):
+    popen, windows, root = patched
+    _decide(monkeypatch, ("setup", None))
+    monkeypatch.setattr(launcher, "_error_box", lambda *a: None)
+    monkeypatch.setattr(
+        launcher.subprocess, "Popen", lambda *a, **k: (_ for _ in ()).throw(OSError("x"))
+    )
+    root.on_mainloop = lambda: windows[0].kw["on_done"]("cpu")
+    assert launcher.main([]) == 3
+
+
+def test_missing_tkinter_logs_and_shows_native_message(patched, monkeypatch):
+    _decide(monkeypatch, ("setup", None))
+    monkeypatch.setattr(launcher, "SetupWindow", None)
+    msgs = []
+    monkeypatch.setattr(launcher, "_native_message", lambda t, x: msgs.append(x))
+    assert launcher.main([]) == 2
+    assert "tkinter" in msgs[0]
+    assert "tkinter" in core.setup_log_path().read_text(encoding="utf-8")
+
+
+def test_human_size_and_download_bytes():
+    assert core.human_size(core.download_bytes("cpu")) == "300 MB"
+    assert core.human_size(core.download_bytes("gpu")) == "2.6 GB"
+    assert core.human_size(999_000_000) == "999 MB"
+    assert core.human_size(1_000_000_000) == "1.0 GB"
+
+
+def test_wait_for_exit_real_child():
+    import subprocess
+    import sys
+    import threading
+    import time
+
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(1)"])  # noqa: S603
+    # Reap concurrently: on POSIX an exited-but-unreaped child is a zombie and
+    # os.kill(pid, 0) would keep succeeding. Production only waits on its parent.
+    threading.Thread(target=child.wait, daemon=True).start()
+    try:
+        t0 = time.monotonic()
+        assert core.wait_for_exit(child.pid, 15) is True
+        assert time.monotonic() - t0 < 14
+    finally:
+        child.wait()
+
+
+def test_wait_for_exit_times_out_on_live_process():
+    import subprocess
+    import sys
+
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(5)"])  # noqa: S603
+    try:
+        assert core.wait_for_exit(child.pid, 0.5) is False
+    finally:
+        child.kill()
+        child.wait()
+
+
+def test_wait_for_exit_gone_pid():
+    import subprocess
+    import sys
+
+    child = subprocess.Popen([sys.executable, "-c", "pass"])  # noqa: S603
+    child.wait()
+    assert core.wait_for_exit(child.pid, 5) is True
+
+
+def test_wait_pid_timeout_refuses_without_touching_env(patched, monkeypatch):
+    popen, windows, _root = patched
+    monkeypatch.setattr(core, "wait_for_exit", lambda pid, t: False)
+    boxes = []
+    monkeypatch.setattr(launcher, "_error_box", lambda *a: boxes.append(a))
+    monkeypatch.setattr(core, "read_state", lambda: pytest.fail("env touched"))
+    assert launcher.main(["--switch", "cpu", "--wait-pid", "123"]) == 4
+    assert boxes[0][1] == "CampaignScribe is still running — close it and try again."
+    assert not popen and not windows
+
+
+def test_wait_pid_parsed_and_waited(patched, monkeypatch):
+    seen = []
+    monkeypatch.setattr(core, "wait_for_exit", lambda pid, t: seen.append((pid, t)) or True)
+    _decide(monkeypatch, ("launch", "gpu"))
+    launcher.main(["--wait-pid", "77"])
+    assert seen == [(77, launcher.WAIT_TIMEOUT_S)]
+
+
+def test_missing_bundled_python_is_an_error_not_a_silent_exit(patched, monkeypatch, tmp_path):
+    popen, _, _ = patched
+    _decide(monkeypatch, ("launch", "gpu"))
+    monkeypatch.setattr(
+        launcher, "_bundled_pythonw", lambda home: tmp_path / "gone" / "pythonw.exe"
+    )
+    boxes = []
+    monkeypatch.setattr(launcher, "_error_box", lambda title, text: boxes.append(text))
+    assert launcher.main([]) != 0
+    assert popen == []
+    assert "pythonw.exe" in boxes[0]
+    assert "pythonw.exe" in core.setup_log_path().read_text(encoding="utf-8")
+
+
+def test_bundled_pythonw_path(tmp_path):
+    assert launcher._bundled_pythonw(tmp_path) == tmp_path / "python" / "pythonw.exe"
+
+
+def test_app_user_model_id_set_on_windows(monkeypatch):
+    import types
+
+    calls = []
+    fake = types.SimpleNamespace(
+        windll=types.SimpleNamespace(
+            shell32=types.SimpleNamespace(
+                SetCurrentProcessExplicitAppUserModelID=lambda v: calls.append(v)
+            )
+        )
+    )
+    monkeypatch.setattr(launcher.sys, "platform", "win32")
+    monkeypatch.setitem(__import__("sys").modules, "ctypes", fake)
+    launcher._set_app_user_model_id()
+    assert calls == ["ImaginationIndustries.CampaignScribe"]
+
+
+def test_app_user_model_id_failure_is_swallowed(monkeypatch):
+    import types
+
+    def boom(v):
+        raise OSError("no shell32")
+
+    fake = types.SimpleNamespace(
+        windll=types.SimpleNamespace(
+            shell32=types.SimpleNamespace(SetCurrentProcessExplicitAppUserModelID=boom)
+        )
+    )
+    monkeypatch.setattr(launcher.sys, "platform", "win32")
+    monkeypatch.setitem(__import__("sys").modules, "ctypes", fake)
+    launcher._set_app_user_model_id()
+
+
+def test_main_sets_app_id_before_creating_tk(patched, monkeypatch):
+    order = []
+    monkeypatch.setattr(launcher, "_set_app_user_model_id", lambda: order.append("aumid"))
+    root = patched[2]
+    monkeypatch.setattr(launcher, "_new_root", lambda: order.append("tk") or root)
+    _decide(monkeypatch, ("setup", None))
+    launcher.main([])
+    assert order == ["aumid", "tk"]

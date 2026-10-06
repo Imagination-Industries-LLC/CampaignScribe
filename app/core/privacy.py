@@ -7,8 +7,9 @@ file can't be found (defensive — should not happen in a correct build).
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
+
+from app.core import paths
 
 ANTHROPIC_PRIVACY_URL = "https://www.anthropic.com/legal/privacy"
 GEMINI_PRIVACY_URL = "https://ai.google.dev/gemini-api/terms"
@@ -45,11 +46,7 @@ _FALLBACK = (
 
 def _privacy_md_path() -> Path:
     """Path to the bundled/dev PRIVACY.md."""
-    if getattr(sys, "frozen", False):
-        base = Path(sys._MEIPASS)  # type: ignore[attr-defined]
-    else:
-        base = Path(__file__).resolve().parents[2]  # repo root
-    return base / "PRIVACY.md"
+    return paths.app_home() / "PRIVACY.md"
 
 
 def load_privacy_text() -> str:
